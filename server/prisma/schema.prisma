@@ -6,10 +6,57 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  // output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id                               Int          @id @default(autoincrement())
+  username                         String       @unique
+  email                            String?      @unique
+  password                         String       // ← REQUIRED
+  preferredLanguage                String?
+  showOriginalWithTranslation      Boolean     @default(false)
+  allowExplicitContent             Boolean     @default(true)
+  phoneNumber                      String?      @unique
+  createdAt                        DateTime     @default(now())
+  chatRooms                        Participant[]
+  messages                         Message[]    @relation("UserMessages")
+}
+
+model ChatRoom {
+  id            Int @id   @default(autoincrement())
+  createdAt     DateTime  @default(now())
+  participants  Participant[]
+  messages      Message[] 
+}
+
+model Participant {
+  id          Int        @id @default(autoincrement())
+  user        User       @relation(fields: [userId], references: [id])
+  userId      Int
+  chatRoom    ChatRoom   @relation(fields: [chatRoomId], references: [id])
+  chatRoomId  Int
+  joinedAt    DateTime   @default(now())
+
+  @@unique([userId, chatRoomId])
+}
+
+model Message {
+  id                     Int        @id @default(autoincrement())
+  content                String
+  translatedContent      String?
+  translatedFrom         String?
+  translatedTo           String?
+  imageUrl               String?
+  sender                 User       @relation("UserMessages", fields: [senderId], references: [id])
+  senderId               Int
+  chatRoom               ChatRoom   @relation(fields: [chatRoomId], references: [id])
+  chatRoomId             Int
+  createdAt              DateTime   @default(now())
+}
+
