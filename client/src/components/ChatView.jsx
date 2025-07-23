@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react'
 import MessageInput from './MessageInput'
 
-function ChatView({ chatroom }) {
+function ChatView({ chatroom, currentUserId }) {
     const [messages, setMessages] = useState([])
 
     useEffect(() => {
-        if (!chatroom) return
+        if (!chatroom || !currentUserId) return
 
-        fetch(`http://localhost:5001/messages/${chatroom.id}`)
+        fetch(`http://localhost:5001/messages/${chatroom.id}?userId=${currentUserId}`)
             .then(res => res.json())
             .then(data => setMessages(data))
             .catch(err => console.log(err))
-    }, [chatroom])
+    }, [chatroom, currentUserId])
 
     const handleNewMessage = (newMessage) => {
         setMessages((prevMessages) => [...prevMessages, newMessage])
@@ -27,6 +27,11 @@ function ChatView({ chatroom }) {
                 {messages.map((msg) => (
                     <div key={msg.id} className="p-2 bg-gray-100 rounded">
                         <strong>{msg.sender?.username || 'Unknown'}:</strong> {msg.content}
+                            {msg.rawContent && (
+                                <div className="text-sm text-red-600 mt-1 italic">
+                                Raw: {msg.rawContent}
+                            </div>
+                            )}      
                     </div>
                 ))}
             </div>

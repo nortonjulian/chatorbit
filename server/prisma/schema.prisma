@@ -49,9 +49,11 @@ model Participant {
 model Message {
   id                     Int        @id @default(autoincrement())
   content                String
+  rawContent             String
   translatedContent      String?
   translatedFrom         String?
   translatedTo           String?
+  isExplicit             Boolean    @default(false)
   imageUrl               String?
   sender                 User       @relation("UserMessages", fields: [senderId], references: [id])
   senderId               Int

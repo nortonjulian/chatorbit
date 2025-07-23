@@ -1,7 +1,7 @@
 import express from 'express'
 import { PrismaClient } from '@prisma/client'
-import { translateMessageIfNeeded } from '../utils/translate'
-import { isExplicit, cleanText } from '../utils/filterExplicitContent.js';
+import { translateMessageIfNeeded } from '../utils/translate.js'
+import { isExplicit, cleanText } from '../utils/filterContent.js';
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -32,10 +32,20 @@ router.post('/', async (req, res) => {
 
         const translatedContent = await translateMessageIfNeeded(cleanContent, sender, participants)
 
+        let finalTranslatedContent = translatedContent;
+        const recipients = participants.filter(p => p.user.id !== sender.id)
+
+        const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicit);
+
+        if (anyReceiverDisallowsExplicit && isExplicit(translatedContent)) {
+            finalTranslatedContent = '[Message removed due to explicit content]'
+        }
+
         const message = await prisma.message.create({
             data: {
-                content,
-                translatedContent,
+                content: cleanContent,
+                rawContent: content,
+                translatedContent: finalTranslatedContent,
                 translatedFrom: senderLang,
                 translatedTo: translatedContent ? '...fill dynamically if needed...': null,
                 isExplicit: explicit,
@@ -59,21 +69,38 @@ router.post('/', async (req, res) => {
 //GET messages
 router.get('/:chatRoomId', async (req, res) => {
     const { chatRoomId } = req.params
+    const { userId } = req.query;
+    const requesterId = parseInt(userId)
 
     try {
+        const requester = await prisma.user.findUnique({
+            where: { id: requesterId },
+            select: {id: true, role: true},
+        })
+
         const messages = await prisma.message.findMany({
             where: { chatRoomId: parseInt(chatRoomId) },
-            include: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+                id: true,
+                content: true,
+                translatedContent: true,
+                createdAt: true,
                 sender: {
-                    select: { id: true, username: true },
+                    select: { id: true, username: true }
                 },
-            },
-            orderBy: {
-                createdAt: 'asc',
+                rawContent: true,
             },
         })
 
-        res.json(messages)
+        const safeMessages = messages.map(msg => {
+            const isSender = msg.sender.id === requesterId;
+            if (isSender || isAdmin) return msg;
+            const { rawContent, ...rest } = msg;
+            return rest;
+        })
+
+        res.json(safeMessages)
     } catch (error) {
         console.log('Error fetching messages', error)
         res.status(500).json({ error: 'Failed to fetch messages' })

@@ -1,11 +1,11 @@
-import Filter from 'bad-words'
+import * as BadWords from 'bad-words';
 
-const filter = new Filter()
+const filter = new BadWords.Filter();
 
 export function isExplicit(text) {
-    return filter.isProfane(text)
+  return filter.isProfane(text);
 }
 
 export function cleanText(text) {
-    return filter.clean(text)
+  return filter.clean(text);
 }

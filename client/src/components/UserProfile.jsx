@@ -4,15 +4,21 @@ import axios from 'axios'
 
 function UserProfile({ currentUser, onLanguageChange }) {
     const [preferredLanguage, setPreferredLanguage] = useState(currentUser.preferredLanguage || 'en')
+    const [showOriginalWithTranslation, setShowOriginalWithTranslation] = useState(currentUser.showOriginalWithTranslation ?? true)
+    const [allowExplicitContent, setAllowExplicitContent] = useState(currentUser.allowExplicitContent ?? true)
 
-    const saveLanguage = async () => {
+    const saveSettings = async () => {
         try {
-            await axios.patch(`/api/users/${currentUser.id}`, { preferredLanguage })
+            await axios.patch(`/api/users/${currentUser.id}`, { 
+                preferredLanguage,
+                showOriginalWithTranslation,
+                allowExplicitContent,
+             })
             onLanguageChange(preferredLanguage)
             alert('Language preference saved!')
         } catch (error) {
-            console.log('Failed to save language preference', error)
-            alert('Error saving language preference')
+            console.log('Failed to save settings', error)
+            alert('Error saving settings')
         }
     }
 
@@ -20,9 +26,35 @@ function UserProfile({ currentUser, onLanguageChange }) {
         <div className="p-4 max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4">User Profile</h2>
             <label className="block mb-2">Preferred Language</label>
-            <LanguageSelector currentLanguage={preferredLanguage} onChange={setPreferredLanguage}/>.
+            <LanguageSelector 
+                currentLanguage={preferredLanguage} 
+                onChange={setPreferredLanguage}
+            />
+
+            <div className="mt-4">
+                <label className="block mb-2">
+                    <input
+                       type="text"
+                       className="mr-2"
+                       checked={showOriginalWithTranslation}
+                       onChange={(e) => setShowOriginalWithTranslation(e.target.checked)}
+                    />
+                    Show Original & Translated Messages
+                </label>
+
+                <label className="block">
+                    <input
+                       type="checkbox"
+                       className="mr-2"
+                       checked={!allowExplicitContent}
+                       onChange={(e) => setAllowExplicitContent(!e.target.checked)}
+                    />
+                    Filter explicit content
+                </label>
+            </div>
+
             <button
-              onClick={saveLanguage}
+              onClick={saveSettings}
               className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
             >
                 Save
