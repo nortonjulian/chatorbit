@@ -1,13 +1,17 @@
 import express from 'express'
+import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client'
+import { verifyToken } from '../middleware/auth.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
 
 //GET users
-router.get('/', async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const users = await prisma.user.findMany()
+        const users = await prisma.user.findMany({
+            select: { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
+        })
         res.json(users)
     } catch (error) {
         console.log(error)
@@ -42,7 +46,7 @@ router.post('/', async (req, res) => {
     }
 })
 
-router.get('/search', async (req, res) => {
+router.get('/search', verifyToken, async (req, res) => {
     const { query } = req.query
     if (!query) return res.status(400).json({ error: 'Missing query param' })
 
@@ -56,9 +60,9 @@ router.get('/search', async (req, res) => {
             },
             select: {
                 id: true,
-                name: true,
                 username: true,
-                phone: true
+                phoneNumber: true,
+                preferredLanguage: true
             }
         });
         res.json(users)
@@ -68,14 +72,18 @@ router.get('/search', async (req, res) => {
     }
 })
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
-    const { preferredLanguage } = req.body;
+    const { preferredLanguage, allowExplicitContent, showOriginalWithTranslation } = req.body;
 
     try {
         const updatedUser = await prisma.user.update({
             where: { id: Number(id) },
-            data: { preferredLanguage }
+            data: { 
+                preferredLanguage,
+                allowExplicitContent: allowExplicitContent ?? true,
+                showOriginalWithTranslation: showOriginalWithTranslation ?? true
+             }
         });
         res.json(updatedUser)
     } catch (error) {

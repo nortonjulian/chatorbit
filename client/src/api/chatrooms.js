@@ -1,8 +1,8 @@
-import axios from 'axios'
+import axiosClient from "./axiosClient";
 
 export const fetchChatrooms = async (userId) => {
     try {
-        const res = await axios.get('/api/chatrooms', {
+        const res = await axiosClient.get('/api/chatrooms', {
             params: { userId }
         });
         return res.data;
@@ -14,7 +14,7 @@ export const fetchChatrooms = async (userId) => {
 
 export const createGroupChatroom = async (userIds, chatName) => {
     try {
-        const res = await axios.post('/api/chatrooms/group', { userIds, chatName })
+        const res = await axiosClient.post('/api/chatrooms/group', { userIds, chatName })
         return res.data;
     } catch (error) {
         console.log('Error creating group chatroom:', error)
@@ -24,7 +24,7 @@ export const createGroupChatroom = async (userIds, chatName) => {
 
 export const findOrCreateOneToOneChat = async (userId1, userId2) => {
     try {
-        const res = await axios.post('/api/chatrooms/one-to-one', { userId1, userId2 })
+        const res = await axiosClient.post('/api/chatrooms/one-to-one', { userId1, userId2 })
         return res.data;
     } catch (error) {
         console.log('Error creating/finding one-to-one chat:', error)

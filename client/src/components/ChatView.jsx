@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import MessageInput from './MessageInput'
+import socket from '../socket'
 
 function ChatView({ chatroom, currentUserId }) {
     const [messages, setMessages] = useState([])
@@ -11,12 +12,26 @@ function ChatView({ chatroom, currentUserId }) {
             .then(res => res.json())
             .then(data => setMessages(data))
             .catch(err => console.log(err))
+
+        socket.emit('join_room', chatroom.id)
+
+        const handleReceiveMessage = (data) => {
+            if (data.chatroomId === chatroom.id) {
+                setMessages(prev => [...prev.data])
+            }
+        }
+
+        socket.on('receive_message', handleReceiveMessage)
+
+        return () => {
+            socket.emit('leave_room', chatroom.id)
+            socket.emit('receive_message', handleReceiveMessage)
+        }
     }, [chatroom, currentUserId])
 
     const handleNewMessage = (newMessage) => {
         setMessages((prevMessages) => [...prevMessages, newMessage])
     }
-    
 
     return (
         <div className="p-4 w-2/3">

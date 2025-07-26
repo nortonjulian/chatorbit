@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import axios from 'axios'
+import axiosClient from '../api/axiosClient';
 
 const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
     const [query, setQuery] = useState('');
@@ -11,7 +11,7 @@ const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
         setLoading(true)
         setError('')
         try {
-            const res = await axios.get(`/api/users/search?query=${query}`);
+            const res = await axiosClient.get(`/api/users/search?query=${query}`);
 
             const filtered = res.data.filter((user) => user.id !== currentUser.id);
             setResults(filtered)
@@ -25,7 +25,7 @@ const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
 
     const handleSendMessage = async (userId) => {
         try {
-            const res = await axios.post('/api/chatrooms/find-or-create', {
+            const res = await axiosClient.post('/api/chatrooms/find-or-create', {
                 userId1: currentUser.id,
                 userId2: userId,
             })

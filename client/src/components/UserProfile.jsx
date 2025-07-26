@@ -5,14 +5,14 @@ import axios from 'axios'
 function UserProfile({ currentUser, onLanguageChange }) {
     const [preferredLanguage, setPreferredLanguage] = useState(currentUser.preferredLanguage || 'en')
     const [showOriginalWithTranslation, setShowOriginalWithTranslation] = useState(currentUser.showOriginalWithTranslation ?? true)
-    const [allowExplicitContent, setAllowExplicitContent] = useState(currentUser.allowExplicitContent ?? true)
+    const [filterExplicitContent, setFilterExplicitContent] = useState(currentUser.allowExplicitContent ?? true)
 
     const saveSettings = async () => {
         try {
             await axios.patch(`/api/users/${currentUser.id}`, { 
                 preferredLanguage,
                 showOriginalWithTranslation,
-                allowExplicitContent,
+                allowExplicitContent: !filterExplicitContent,
              })
             onLanguageChange(preferredLanguage)
             alert('Language preference saved!')
@@ -46,10 +46,10 @@ function UserProfile({ currentUser, onLanguageChange }) {
                     <input
                        type="checkbox"
                        className="mr-2"
-                       checked={!allowExplicitContent}
-                       onChange={(e) => setAllowExplicitContent(!e.target.checked)}
+                       checked={filterExplicitContent}
+                       onChange={(e) => setFilterExplicitContent(!e.target.checked)}
                     />
-                    Filter explicit content
+                    Filter 
                 </label>
             </div>
 
