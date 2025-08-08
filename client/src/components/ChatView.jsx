@@ -1,39 +1,37 @@
+// src/components/ChatView.jsx
 import { useEffect, useRef, useState } from 'react';
+import { Box, Group, Avatar, Paper, Text, Button, Stack, ScrollArea, Title, Badge } from '@mantine/core';
 import MessageInput from './MessageInput';
 import socket from '../socket';
-import { decryptFetchedMessages } from '../utils/encryptionClient'; 
+import { decryptFetchedMessages } from '../utils/encryptionClient';
 
 function getTimeLeftString(expiresAt) {
   const now = Date.now();
   const expires = new Date(expiresAt).getTime();
   const diff = expires - now;
-
   if (diff <= 0) return 'Expired';
-
   const seconds = Math.floor(diff / 1000);
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-
   return `${mins > 0 ? `${mins}m ` : ''}${secs}s`;
 }
 
 function useNow(interval = 1000) {
   const [now, setNow] = useState(Date.now());
-
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), interval);
     return () => clearInterval(timer);
   }, [interval]);
-
   return now;
 }
 
-function ChatView({ chatroom, currentUserId, currentUser }) {
+export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [typingUser, setTypingUser] = useState('');
   const [showNewMessage, setShowNewMessage] = useState(false);
+
   const messagesEndRef = useRef(null);
-  const containerRef = useRef(null);
+  const scrollViewportRef = useRef(null); // Mantine ScrollArea viewport
   const now = useNow();
 
   const handleEditMessage = async (msg) => {
@@ -46,9 +44,7 @@ function ChatView({ chatroom, currentUserId, currentUser }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ senderId: currentUserId, newContent: newText }),
       });
-
       if (!res.ok) throw new Error('Failed to edit');
-
       const updated = await res.json();
       setMessages((prev) =>
         prev.map((m) => (m.id === updated.id ? { ...m, rawContent: newText, content: newText } : m))
@@ -57,6 +53,11 @@ function ChatView({ chatroom, currentUserId, currentUser }) {
       alert('Message edit failed');
       console.log(error);
     }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowNewMessage(false);
   };
 
   useEffect(() => {
@@ -68,6 +69,8 @@ function ChatView({ chatroom, currentUserId, currentUser }) {
         const data = await res.json();
         const decrypted = await decryptFetchedMessages(data, currentUserId);
         setMessages(decrypted);
+        // Jump to bottom on initial load
+        setTimeout(scrollToBottom, 0);
       } catch (err) {
         console.error('Failed to fetch/decrypt messages', err);
       }
@@ -81,11 +84,8 @@ function ChatView({ chatroom, currentUserId, currentUser }) {
       if (data.chatRoomId === chatroom.id) {
         setMessages((prev) => [...prev, data]);
 
-        if (
-          containerRef.current &&
-          containerRef.current.scrollTop + containerRef.current.clientHeight >=
-            containerRef.current.scrollHeight - 10
-        ) {
+        const v = scrollViewportRef.current;
+        if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
           scrollToBottom();
         } else {
           setShowNewMessage(true);
@@ -125,114 +125,128 @@ function ChatView({ chatroom, currentUserId, currentUser }) {
     });
   }, [messages, currentUserId, currentUser]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setShowNewMessage(false);
-  };
+  if (!chatroom) {
+    return (
+      <Box p="md">
+        <Title order={4} mb="xs">Select a chatroom</Title>
+        <Text c="dimmed">Pick a chat on the left to get started.</Text>
+      </Box>
+    );
+  }
 
   return (
-    <div className="p-4 w-2/3 flex flex-col h-full">
-      <h2 className="text-xl font-semibold mb-2">
-        {chatroom?.name || 'Select a chatroom'}
-      </h2>
+    <Box p="md" h="100%" display="flex" style={{ flexDirection: 'column' }}>
+      <Group mb="sm" justify="space-between">
+        <Title order={4}>{chatroom?.name || 'Chat'}</Title>
+        {chatroom?.participants?.length > 2 && (
+          <Badge variant="light" radius="sm">Group</Badge>
+        )}
+      </Group>
 
-      <div className="space-y-2 flex-1 overflow-y-auto border rounded p-2" ref={containerRef}>
-        {messages.map((msg) => {
-          const isCurrentUser = msg.sender?.id === currentUserId;
-          const timeLeft = msg.expiresAt ? new Date(msg.expiresAt).getTime() - now : null;
+      <ScrollArea
+        style={{ flex: 1 }}
+        viewportRef={scrollViewportRef}
+        type="auto"
+      >
+        <Stack gap="xs" p="xs">
+          {messages.map((msg) => {
+            const isCurrentUser = msg.sender?.id === currentUserId;
+            const expMs = msg.expiresAt ? new Date(msg.expiresAt).getTime() - now : null;
+            const fading = msg.expiresAt && expMs <= 5000;
 
-          return (
-            <div
-              key={msg.id}
-              className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-              onPointerDown={(e) => {
-                const timeout = setTimeout(() => {
-                  if (isCurrentUser && msg.readBy?.length === 0) handleEditMessage(msg);
-                }, 600);
-                e.target.onpointerup = () => clearTimeout(timeout);
-                e.target.onpointerleave = () => clearTimeout(timeout);
-              }}
-            >
-              {!isCurrentUser && (
-                <div className="flex items-start space-x-2">
-                  {msg.sender?.avatarUrl ? (
-                    <img
-                      src={msg.sender.avatarUrl}
-                      alt="avatar"
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src="/default-avatar.png"
-                      alt="default avatar"
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  )}
-                </div>
-              )}
+            const bubbleProps = isCurrentUser
+              ? { bg: 'orbit.6', c: 'white', ta: 'right' }
+              : { bg: 'gray.2', c: 'black', ta: 'left' };
 
-              <div
-                className={`max-w-xs p-2 rounded-lg ${
-                  isCurrentUser ? 'bg-blue-500 text-white text-right' : 'bg-gray-200 text-black text-left'
-                } ${msg.expiresAt && timeLeft <= 5000 ? 'opacity-50' : 'opacity-100'}`}
+            return (
+              <Group
+                key={msg.id}
+                justify={isCurrentUser ? 'flex-end' : 'flex-start'}
+                align="flex-end"
+                wrap="nowrap"
+                onPointerDown={(e) => {
+                  const target = e.target;
+                  const timeout = setTimeout(() => {
+                    if (isCurrentUser && (msg.readBy?.length || 0) === 0) handleEditMessage(msg);
+                  }, 600);
+                  target.onpointerup = () => clearTimeout(timeout);
+                  target.onpointerleave = () => clearTimeout(timeout);
+                }}
               >
                 {!isCurrentUser && (
-                  <div className="text-sm font-medium text-gray-800 mb-1">
-                    {msg.sender?.username}
-                  </div>
-                )}
-                {msg.content}
-
-                {msg.translatedContent && msg.rawContent && (
-                  <div className="text-xs text-yellow-100 mt-1 italic">
-                    Original: {msg.rawContent}
-                  </div>
+                  <Avatar
+                    src={msg.sender?.avatarUrl || '/default-avatar.png'}
+                    alt={msg.sender?.username || 'avatar'}
+                    radius="xl"
+                    size={32}
+                  />
                 )}
 
-                {msg.expiresAt && (
-                  <div className="text-xs mt-1 italic text-red-500 text-right">
-                    Disappears in: {getTimeLeftString(msg.expiresAt, now)}
-                  </div>
-                )}
-
-                {isCurrentUser &&
-                  msg.readBy?.length > 0 &&
-                  currentUser?.showReadReceipts && (
-                    <div className="text-xs text-gray-300 mt-1 text-right italic">
-                      Read by: {msg.readBy.map((u) => u.username).join(', ')}
-                    </div>
+                <Paper
+                  px="md"
+                  py="xs"
+                  radius="lg"
+                  withBorder={false}
+                  style={{ maxWidth: 360, opacity: fading ? 0.5 : 1 }}
+                  {...bubbleProps}
+                >
+                  {!isCurrentUser && (
+                    <Text size="xs" fw={600} c="dark.6" mb={4}>
+                      {msg.sender?.username}
+                    </Text>
                   )}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
+
+                  <Text size="sm">{msg.content}</Text>
+
+                  {msg.translatedContent && msg.rawContent && (
+                    <Text size="xs" mt={4} fs="italic" c={isCurrentUser ? 'yellow.1' : 'yellow.7'}>
+                      Original: {msg.rawContent}
+                    </Text>
+                  )}
+
+                  {msg.expiresAt && (
+                    <Text size="xs" mt={4} fs="italic" c="red.6" ta="right">
+                      Disappears in: {getTimeLeftString(msg.expiresAt)}
+                    </Text>
+                  )}
+
+                  {isCurrentUser && msg.readBy?.length > 0 && currentUser?.showReadReceipts && (
+                    <Text size="xs" mt={4} c="gray.6" ta="right" fs="italic">
+                      Read by: {msg.readBy.map((u) => u.username).join(', ')}
+                    </Text>
+                  )}
+                </Paper>
+              </Group>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </Stack>
+      </ScrollArea>
 
       {typingUser && (
-        <div className="text-sm text-gray-500 italic mt-1">{typingUser} is typing...</div>
+        <Text size="sm" c="dimmed" fs="italic" mt="xs">
+          {typingUser} is typing...
+        </Text>
       )}
 
       {showNewMessage && (
-        <button
-          className="bg-blue-500 text-white px-3 py-1 rounded mt-2"
-          onClick={scrollToBottom}
-        >
-          New Messages
-        </button>
+        <Group justify="center" mt="xs">
+          <Button onClick={scrollToBottom}>New Messages</Button>
+        </Group>
       )}
 
       {chatroom && (
-        <MessageInput
-          chatroomId={chatroom.id}
-          onMessageSent={(msg) => {
-            setMessages((prev) => [...prev, msg]);
-            scrollToBottom();
-          }}
-        />
+        <Box mt="sm">
+          <MessageInput
+            chatroomId={chatroom.id}
+            currentUser={currentUser}
+            onMessageSent={(msg) => {
+              setMessages((prev) => [...prev, msg]);
+              scrollToBottom();
+            }}
+          />
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
-
-export default ChatView;

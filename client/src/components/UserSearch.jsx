@@ -1,96 +1,128 @@
-import { useState } from 'react'
+import { useState } from 'react';
 import axiosClient from '../api/axiosClient';
+import {
+  Paper,
+  Title,
+  TextInput,
+  Button,
+  Stack,
+  Group,
+  Text,
+  Loader,
+  Alert,
+  Divider,
+} from '@mantine/core';
+import { IconSearch, IconSend } from '@tabler/icons-react';
 
 const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
-    const [query, setQuery] = useState('');
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    const handleSearch = async () => {
-        if (!query.trim()) {
-            setResults([])
-            return;
-        }
-        
-        setLoading(true);
-        setError('');
-        try {
-            const res = await axiosClient.get(`/users/search?query=${encodeURIComponent(query)}`);
-
-            const filtered = res.data.filter((user) => user.id !== currentUser.id);
-            setResults(filtered)
-        } catch (error) {
-            console.log('Search error:', error)
-            setError('Unable to fetch users. Please try again')
-        } finally {
-            setLoading(false)
-        }
+  const handleSearch = async () => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
     }
 
-    const handleSendMessage = async (userId) => {
-        try {
-            const res = await axiosClient.post('/chatrooms/direct', {
-                userId1: currentUser.id,
-                userId2: userId,
-            })
-            const chatroomId = res.data;
-            onNavigateToChatRoom(chatroomId)
-        } catch (error) {
-            console.log('Failed to start chat', error)
-            setError('Failed to start chat with this user.')
-        }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await axiosClient.get(
+        `/users/search?query=${encodeURIComponent(query)}`
+      );
+
+      const filtered = res.data.filter((user) => user.id !== currentUser.id);
+      setResults(filtered);
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Unable to fetch users. Please try again');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return (
-        <div className="p-4 border rounded shadow-sm bg-white max-w-md mx-auto">
-            <h2 className="text-xl font-semibold mb-2">Search Users</h2>
-            <div className="flex gap-2 mb-3">
-                <input
-                    type="text"
-                    placeholder="Username or phone number"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    className="flex-1 border px-3 py-2 rounded"
-                />
-                <button
-                  onClick={handleSearch}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  disabled={loading}
-                >
-                    {loading ? 'Searching...' : 'Search'}
-                </button>
-            </div>
+  const handleSendMessage = async (userId) => {
+    try {
+      const res = await axiosClient.post('/chatrooms/direct', {
+        userId1: currentUser.id,
+        userId2: userId,
+      });
+      const chatroomId = res.data;
+      onNavigateToChatRoom(chatroomId);
+    } catch (error) {
+      console.error('Failed to start chat', error);
+      setError('Failed to start chat with this user.');
+    }
+  };
 
-            {error && <p className="text-sm text-red-500">{error}</p>}
+  return (
+    <Paper withBorder radius="lg" shadow="sm" p="md" maw={480} mx="auto">
+      <Title order={4} mb="sm">
+        Search Users
+      </Title>
 
-            {results.length === 0 && !loading && query && (
-                <p className="text-sm text-gray-500">No user found</p>
-            )}
+      <Group gap="sm" mb="sm">
+        <TextInput
+          placeholder="Username or phone number"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-1"
+          leftSection={<IconSearch size={16} />}
+          style={{ flex: 1 }}
+        />
+        <Button
+          onClick={handleSearch}
+          loading={loading}
+          variant="filled"
+          color="blue"
+        >
+          Search
+        </Button>
+      </Group>
 
-            <ul className="space-y-2">
-                {results.map((user) => (
-                    <li
-                      key={user.id}
-                      className="flex justify-between items-center border-b py-2"
-                    >
-                        <span>
-                        {user.username}{' '}
-                        {user.phoneNumber && (
-                            <span className="text-gray-500">({user.phoneNumber})</span>
-                        )} 
-                        </span>
-                        <button
-                          onClick={() => handleSendMessage(user.id)}
-                          className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-                        >
-                            Send 
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    )
-}
+      {error && (
+        <Alert color="red" variant="light" mb="sm">
+          {error}
+        </Alert>
+      )}
+
+      {!loading && results.length === 0 && query && !error && (
+        <Text size="sm" c="dimmed">
+          No user found
+        </Text>
+      )}
+
+      {loading && <Loader size="sm" mt="sm" />}
+
+      <Stack gap="xs" mt="sm">
+        {results.map((user, index) => (
+          <div key={user.id}>
+            {index > 0 && <Divider my="xs" />}
+            <Group justify="space-between">
+              <div>
+                <Text fw={500}>{user.username}</Text>
+                {user.phoneNumber && (
+                  <Text size="sm" c="dimmed">
+                    {user.phoneNumber}
+                  </Text>
+                )}
+              </div>
+              <Button
+                size="xs"
+                color="green"
+                leftSection={<IconSend size={14} />}
+                onClick={() => handleSendMessage(user.id)}
+              >
+                Send
+              </Button>
+            </Group>
+          </div>
+        ))}
+      </Stack>
+    </Paper>
+  );
+};
 
 export default UserSearch;

@@ -1,50 +1,97 @@
-// components/Sidebar.jsx
-
-import { Plus, Users, Settings } from 'lucide-react';
 import { useState } from 'react';
+import { 
+  Box, 
+  Group, 
+  ActionIcon, 
+  Title, 
+  ScrollArea, 
+  Divider, 
+  Stack, 
+  Drawer, 
+  Text } from '@mantine/core';
+import { Plus, Users, Settings } from 'lucide-react';
 import StartChatModal from './StartChatModal';
 import UsersList from './UsersList';
 import ChatroomList from './ChatroomList';
+import UserProfile from './UserProfile';
 
 function Sidebar({ currentUser, setSelectedRoom }) {
   const [showStartModal, setShowStartModal] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <div className="w-72 bg-gray-100 h-screen flex flex-col justify-between p-4 border-r">
+    <Box p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
       {/* Top icons */}
-      <div className="flex justify-between mb-4">
-        <button onClick={() => setShowStartModal(true)}>
-          <Plus className="w-6 h-6 text-gray-700" />
-        </button>
-        <button>
-          <Users className="w-6 h-6 text-gray-700" />
-        </button>
-        <button>
-          <Settings className="w-6 h-6 text-gray-700" />
-        </button>
-      </div>
+      <Group justify="space-between" mb="sm">
+        <ActionIcon
+          variant="subtle"
+          onClick={() => setShowStartModal(true)}
+          aria-label="Start chat"
+        >
+          <Plus size={22} />
+        </ActionIcon>
+
+        <ActionIcon variant="subtle" aria-label="Users">
+          <Users size={22} />
+        </ActionIcon>
+
+        <ActionIcon
+          variant="subtle"
+          aria-label="Settings"
+          onClick={() => currentUser && setProfileOpen(true)}
+          disabled={!currentUser}
+        >
+          <Settings size={22} />
+        </ActionIcon>
+      </Group>
+
+      <Divider mb="sm" />
 
       {/* Main sidebar content */}
-      <div className="flex-1 overflow-y-auto space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Users</h2>
-          <UsersList currentUser={currentUser} />
-        </div>
+      <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
+        <Stack gap="md">
+          <Box>
+            <Title order={5} mb="xs">
+              Users
+            </Title>
+            <UsersList currentUser={currentUser} />
+          </Box>
 
-        <div>
-          <h2 className="text-lg font-semibold mt-6 mb-2">Chatrooms</h2>
-          <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
-        </div>
-      </div>
+          <Box>
+            <Title order={5} mb="xs">
+              Chatrooms
+            </Title>
+            <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
+          </Box>
+        </Stack>
+      </ScrollArea.Autosize>
 
-      {/* Modal */}
+      {/* Start Chat modal */}
       {showStartModal && (
         <StartChatModal
           currentUserId={currentUser.id}
           onClose={() => setShowStartModal(false)}
         />
       )}
-    </div>
+
+      {/* Settings drawer */}
+      <Drawer
+        opened={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        title="Settings"
+        position="right"
+        size="md"
+        radius="lg"
+        overlayProps={{ opacity: 0.15, blur: 2 }}
+      >
+        <UserProfile onLanguageChange={() => {}} />
+            {currentUser ? (
+              <UserProfile onLanguageChange={() => {}} />
+            ) : (
+              <Text c="dimmed">Log in to edit your settings.</Text>
+            )}
+      </Drawer>
+    </Box>
   );
 }
 

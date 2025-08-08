@@ -1,9 +1,9 @@
-// components/ContactList.jsx
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
+import { Box, Title, TextInput, Stack, NavLink, Text } from '@mantine/core';
 
-function ContactList({ currentUserId }) {
+export default function ContactList({ currentUserId }) {
   const [contacts, setContacts] = useState([]);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
@@ -20,39 +20,45 @@ function ContactList({ currentUserId }) {
     fetchContacts();
   }, [currentUserId]);
 
-  const filtered = contacts.filter(c =>
-    (c.alias || c.user.username).toLowerCase().includes(search.toLowerCase())
+  const filtered = contacts.filter((c) =>
+    (c.alias || c.user?.username || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const startChat = (userId) => {
-    // Navigate to chat screen with selected contact (adjust route as needed)
+    // Navigate to chat screen with selected contact (ensure you have a route for this)
     navigate(`/chat/${userId}`);
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto">
-      <h2 className="text-lg font-semibold mb-2">Saved Contacts</h2>
-      <input
-        type="text"
+    <Box p="md" maw={520} mx="auto">
+      <Title order={4} mb="sm">Saved Contacts</Title>
+
+      <TextInput
         placeholder="Search contacts..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full mb-3 px-2 py-1 border rounded"
+        onChange={(e) => setSearch(e.currentTarget.value)}
+        mb="sm"
       />
-      <ul className="space-y-2">
-        {filtered.map((c) => (
-          <li
-            key={c.userId}
-            className="flex items-center justify-between bg-gray-100 px-3 py-2 rounded cursor-pointer hover:bg-gray-200"
-            onClick={() => startChat(c.userId)}
-          >
-            <span>{c.alias || c.user.username}</span>
-            <span className="text-sm text-gray-500">Chat →</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+
+      {filtered.length === 0 ? (
+        <Text c="dimmed" size="sm">No contacts found.</Text>
+      ) : (
+        <Stack gap="xs">
+          {filtered.map((c) => {
+            const name = c.alias || c.user?.username || `User #${c.userId}`;
+            return (
+              <NavLink
+                key={c.userId}
+                label={name}
+                onClick={() => startChat(c.userId)}
+                rightSection={<Text size="xs" c="dimmed">Chat →</Text>}
+                variant="light"
+                radius="md"
+              />
+            );
+          })}
+        </Stack>
+      )}
+    </Box>
   );
 }
-
-export default ContactList;
