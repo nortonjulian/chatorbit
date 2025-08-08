@@ -1,90 +1,107 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import axiosClient from '../api/axiosClient'
+// src/components/LoginForm.jsx
+import { useState } from 'react';
+import { useUser } from '../context/UserContext';
+import { useNavigate, Link } from 'react-router-dom';
+import axiosClient from '../api/axiosClient';
+import {
+  Center,
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  Button,
+  Anchor,
+  Alert,
+  Stack,
+  Image,
+  Group,
+} from '@mantine/core';
 
-function LoginForm({ onLoginSuccess }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+export default function LoginForm({ onLoginSuccess }) {
+  const { setCurrentUser } = useUser()
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
     try {
-      const res = await axiosClient.post('auth/login', { username, password })
-      const { token, user } = res.data
+      const res = await axiosClient.post('auth/login', { username, password });
+      const { token, user } = res.data;
 
-      localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify(user))
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setCurrentUser(user);  
+      onLoginSuccess?.(user);
 
-      if (onLoginSuccess) onLoginSuccess(user)
-
-      setUsername('')
-      setPassword('')
-
-      navigate('/')
-    } catch (error) {
-      console.log(error)
-      setError('Invalid username or password')
+      setUsername('');
+      setPassword('');
+      navigate('/');
+    } catch (err) {
+      console.error(err);
+      setError('Invalid username or password');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-  <div className="flex items-center justify-center min-h-screen bg-blue-700 px-4">
-    <div className="w-full max-w-md bg-white p-6 rounded-lg shadow-md">
-      {/* Logo and heading */}
-      <div className="flex flex-col items-center mb-6">
-        <img
-          src="/ChatOrbit (possible).png"
-          alt="ChatOrbit Logo"
-          className="h-16 w-auto object-contain mb-2"
-        />
-        <h1 className="text-xl font-bold text-blue-700">ChatOrbit</h1>
-        <p className="text-sm text-gray-500">Secure messaging from anywhere</p>
-      </div>
+    <Center style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <Container size="xs" px="md" style={{ width: '100%', maxWidth: 400 }}>
+        <Paper withBorder shadow="sm" radius="xl" p="lg" w="100%">
+          <Stack gap="sm" mb="sm" align="center">
+            <Image src="/ChatOrbit (possible).png" alt="ChatOrbit Logo" h={64} fit="contain" />
+            <Title order={3} c="orbit.6">ChatOrbit</Title>
+            <Text size="sm" c="dimmed">Secure messaging from anywhere</Text>
+          </Stack>
 
-      {/* Login form */}
-      <form onSubmit={handleLogin} className="space-y-4">
-        <input
-          className="block w-full border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          className="block w-full border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button
-          type="submit"
-          className="block w-full bg-blue-600 text-white py-2 rounded-md text-sm hover:bg-blue-700 transition"
-          disabled={loading}
-        >
-          {loading ? 'Logging in...' : 'Log In'}
-        </button>
-      </form>
+          <form onSubmit={handleLogin}>
+            <Stack gap="sm">
+              <TextInput
+                label="Username"
+                placeholder="yourusername"
+                value={username}
+                onChange={(e) => setUsername(e.currentTarget.value)}
+                required
+              />
+              <TextInput
+                type="password"
+                label="Password"
+                placeholder="Your password"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                required
+              />
+              {error && <Alert color="red" variant="light">{error}</Alert>}
+              <Button type="submit" loading={loading} fullWidth>
+                {loading ? 'Logging in...' : 'Log In'}
+              </Button>
+            </Stack>
+          </form>
 
-      {/* Forgot password */}
-      <div className="mt-4 text-center">
-        <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
-          Forgot Password?
-        </Link>
-      </div>
-    </div>
-  </div>
-   )
+         <Group justify="center" mt="md" style={{ gap: '1rem' }}>
+          <Anchor
+            component={Link}
+            to="/forgot-password"
+            size="sm"
+            style={{ marginRight: '1rem' }}
+          >
+            Forgot Password
+          </Anchor>
+          <Anchor component={Link} to="/register" size="sm">
+            Create an account
+          </Anchor>
+        </Group>
+
+        </Paper>
+      </Container>
+    </Center>
+  );
 }
 
-export default LoginForm

@@ -1,6 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import socket from '../socket';
 import axiosClient from '../api/axiosClient';
+import {
+  Box,
+  Paper,
+  Title,
+  Text,
+  Button,
+  Group,
+  TextInput,
+  ScrollArea,
+  Stack,
+  Badge,
+} from '@mantine/core';
 
 export default function RandomChat({ currentUser }) {
   const [roomId, setRoomId] = useState(null);
@@ -8,18 +20,20 @@ export default function RandomChat({ currentUser }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('Searching...');
-  const [offerAI, setOfferAI] = useState(false)
-  const messagesEndRef = useRef(null);
+  const [offerAI, setOfferAI] = useState(false);
+
+  const endRef = useRef(null);
+  const viewportRef = useRef(null);
 
   useEffect(() => {
     socket.emit('find_random_chat', currentUser.username);
 
     socket.on('waiting', (msg) => setStatus(msg));
 
-    socket.on('no_partner', ({ message}) => {
-        setStatus(message);
-        setOfferAI(true)
-    })
+    socket.on('no_partner', ({ message }) => {
+      setStatus(message);
+      setOfferAI(true);
+    });
 
     socket.on('pair_found', ({ roomId, partner }) => {
       setRoomId(roomId);
@@ -38,7 +52,7 @@ export default function RandomChat({ currentUser }) {
       setStatus(msg);
       setRoomId(null);
       setPartner(null);
-      setOfferAI(false)
+      setOfferAI(false);
     });
 
     socket.on('receive_message', (msg) => {
@@ -49,7 +63,7 @@ export default function RandomChat({ currentUser }) {
 
     return () => {
       socket.off('waiting');
-      socket.off('no_partner')
+      socket.off('no_partner');
       socket.off('pair_found');
       socket.off('chat_skipped');
       socket.off('partner_disconnected');
@@ -75,7 +89,7 @@ export default function RandomChat({ currentUser }) {
     setMessages([]);
     setPartner(null);
     setRoomId(null);
-    setOfferAI(false)
+    setOfferAI(false);
   };
 
   const handleSave = async () => {
@@ -85,7 +99,7 @@ export default function RandomChat({ currentUser }) {
           content: m.content,
           senderId: m.senderId,
         })),
-        participants: [currentUser.id], // partner ID will be fetched dynamically
+        participants: [currentUser.id], // partner ID handled server-side
       });
       alert('Chat saved!');
     } catch (error) {
@@ -100,63 +114,85 @@ export default function RandomChat({ currentUser }) {
     setOfferAI(false);
     setRoomId(`random-${socket.id}-AI`);
     setMessages([]);
-  }
+  };
 
+  // auto-scroll on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full p-4 border rounded shadow">
-      <h2 className="text-lg font-bold">Random Chat</h2>
-      <p className="text-sm text-gray-500">{status}</p>
+    <Paper withBorder shadow="sm" radius="xl" p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+      <Group justify="space-between" mb="xs">
+        <Title order={4}>Random Chat</Title>
+        {roomId ? (
+          <Badge variant="light" radius="sm">{partner || 'OrbitBot'}</Badge>
+        ) : null}
+      </Group>
+      <Text size="sm" c="dimmed">{status}</Text>
 
       {offerAI && (
-        <button
-          onClick={handleStartAI}
-          className="bg-purple-500 text-white px-4 py-2 rounded mt-2"
-        >
+        <Button onClick={handleStartAI} variant="filled" color="violet" mt="xs" maw={220}>
           Chat with OrbitBot
-        </button>
+        </Button>
       )}
 
-      <div className="flex-1 overflow-y-auto my-4 space-y-2">
-        {messages.map((m, i) => {
-          const isMe = m.senderId === currentUser.id;
-          return (
-            <div
-              key={i}
-              className={`p-2 rounded-lg max-w-xs ${
-                isMe ? 'bg-blue-500 text-white ml-auto' : 'bg-gray-200 text-black'
-              }`}
-            >
-              <strong>{isMe ? 'You' : m.sender?.username || partner || 'OrbitBot'}:</strong>{' '}
-              {m.content}
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
+      {/* Messages */}
+      <ScrollArea style={{ flex: 1 }} mt="md" viewportRef={viewportRef}>
+        <Stack gap="xs" p="xs">
+          {messages.map((m, i) => {
+            const isMe = m.senderId === currentUser.id;
+            const bubbleProps = isMe
+              ? { bg: 'orbit.6', c: 'white' }
+              : { bg: 'gray.2', c: 'black' };
 
+            return (
+              <Box key={i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                <Box
+                  px="md"
+                  py="xs"
+                  radius="lg"
+                  style={{ maxWidth: 360 }}
+                  {...bubbleProps}
+                >
+                  <Text size="xs" fw={600} c={isMe ? 'white' : 'dark.6'} mb={4}>
+                    {isMe ? 'You' : m.sender?.username || partner || 'OrbitBot'}
+                  </Text>
+                  <Text size="sm">{m.content}</Text>
+                </Box>
+              </Box>
+            );
+          })}
+          <div ref={endRef} />
+        </Stack>
+      </ScrollArea>
+
+      {/* Composer */}
       {roomId && (
-        <div className="flex space-x-2">
-          <input
-            className="flex-grow border rounded px-3 py-2"
+        <Group mt="sm" wrap="nowrap" align="end">
+          <TextInput
+            style={{ flex: 1 }}
             placeholder="Type a message..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => setInput(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
           />
-          <button onClick={handleSend} className="bg-blue-500 text-white px-4 rounded">
+          <Button onClick={handleSend} disabled={!input.trim()}>
             Send
-          </button>
-          <button onClick={handleSkip} className="bg-yellow-500 text-white px-4 rounded">
+          </Button>
+          <Button color="yellow" onClick={handleSkip} variant="filled">
             Skip
-          </button>
-          <button onClick={handleSave} className="bg-green-500 text-white px-4 rounded">
+          </Button>
+          <Button color="green" onClick={handleSave} variant="filled">
             Save
-          </button>
-        </div>
+          </Button>
+        </Group>
       )}
-    </div>
+    </Paper>
   );
 }

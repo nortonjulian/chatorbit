@@ -1,16 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
+import {
+  Stack,
+  Group,
+  Text,
+  Loader,
+  Alert,
+  Title,
+  Divider,
+} from '@mantine/core';
 
 export default function UsersList({ currentUser }) {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const res = await axiosClient.get('/users');
-        setUsers(res.data);
+        setUsers(res.data || []);
       } catch (err) {
         if (err.response?.status === 401) {
           // Token expired or unauthorized → force logout
@@ -23,32 +32,35 @@ export default function UsersList({ currentUser }) {
         setLoading(false);
       }
     };
-
     fetchUsers();
   }, []);
 
-  if (loading) return <p>Loading users...</p>;
-  if (error) return <p className="text-red-500">Error: {error}</p>;
+  if (loading) return <Loader size="sm" />;
+  if (error)   return <Alert color="red">{error}</Alert>;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-2">Users</h2>
+      <Title order={5} mb="xs">Users</Title>
+
       {users.length === 0 ? (
-        <p>No users found</p>
+        <Text c="dimmed" size="sm">No users found</Text>
       ) : (
-        <ul className="space-y-1">
-          {users.map((user) => (
-            <li key={user.id} className="flex justify-between border-b py-1">
-              <span>{user.username}</span>
-              {currentUser?.role === 'ADMIN' && (
-                <span className="text-gray-500 text-sm">
-                  {user.email || 'No email'}
-                  {user.phoneNumber && ` • ${user.phoneNumber}`}
-                </span>
-              )}
-            </li>
+        <Stack gap={4}>
+          {users.map((user, idx) => (
+            <div key={user.id}>
+              {idx > 0 && <Divider my={4} />}
+              <Group justify="space-between" wrap="nowrap">
+                <Text fw={500}>{user.username}</Text>
+                {currentUser?.role === 'ADMIN' && (
+                  <Text size="xs" c="dimmed">
+                    {user.email || 'No email'}
+                    {user.phoneNumber ? ` • ${user.phoneNumber}` : ''}
+                  </Text>
+                )}
+              </Group>
+            </div>
           ))}
-        </ul>
+        </Stack>
       )}
     </div>
   );

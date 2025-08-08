@@ -1,6 +1,7 @@
-// components/SaveContactButton.jsx
 import { useState, useEffect } from 'react';
 import axiosClient from '../api/axiosClient';
+import { Button, TextInput, Group, Text } from '@mantine/core';
+import { IconCheck } from '@tabler/icons-react';
 
 function SaveContactButton({ currentUserId, otherUserId }) {
   const [isSaved, setIsSaved] = useState(false);
@@ -11,7 +12,7 @@ function SaveContactButton({ currentUserId, otherUserId }) {
     const checkContact = async () => {
       try {
         const res = await axiosClient.get(`/contacts/${currentUserId}`);
-        const found = res.data.find(c => c.userId === otherUserId);
+        const found = res.data.find((c) => c.userId === otherUserId);
         if (found) {
           setIsSaved(true);
           setAlias(found.alias || '');
@@ -37,33 +38,46 @@ function SaveContactButton({ currentUserId, otherUserId }) {
     }
   };
 
-  if (isSaved) return <span className="text-green-600 text-sm">✓ Saved</span>;
+  if (isSaved) {
+    return (
+      <Group gap="xs">
+        <IconCheck size={16} color="green" />
+        <Text size="sm" c="green">Saved</Text>
+      </Group>
+    );
+  }
 
   return (
-    <div className="ml-2">
+    <div>
       {showAliasInput ? (
-        <div className="flex items-center space-x-2">
-          <input
-            type="text"
+        <Group gap="xs" wrap="nowrap">
+          <TextInput
             value={alias}
-            onChange={(e) => setAlias(e.target.value)}
+            onChange={(e) => setAlias(e.currentTarget.value)}
             placeholder="Alias (optional)"
-            className="px-1 py-0.5 border rounded text-sm"
+            size="xs"
+            radius="md"
           />
-          <button
+          <Button
+            size="xs"
+            radius="md"
+            variant="filled"
+            color="blue"
             onClick={saveContact}
-            className="text-sm bg-blue-500 text-white px-2 py-1 rounded"
           >
             Save
-          </button>
-        </div>
+          </Button>
+        </Group>
       ) : (
-        <button
+        <Button
+          variant="subtle"
+          size="xs"
+          radius="md"
+          color="blue"
           onClick={() => setShowAliasInput(true)}
-          className="text-sm text-blue-600 underline"
         >
           Save Contact
-        </button>
+        </Button>
       )}
     </div>
   );

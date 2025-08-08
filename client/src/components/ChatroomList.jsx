@@ -1,54 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 import { fetchChatrooms } from '../api/chatrooms';
 import socket from '../socket';
+import { Title, ScrollArea, Stack, NavLink, Badge, Text, Box } from '@mantine/core';
 
-function ChatroomList({ onSelect, currentUser, selectedRoom }) {
-    const [chatrooms, setChatrooms] = useState([])
+export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
+  const [chatrooms, setChatrooms] = useState([]);
 
-    useEffect(() => {
-        const loadChatrooms = async () => {
-            if (!currentUser?.id) return;
-            const rooms = await fetchChatrooms(currentUser.id)
-            setChatrooms(rooms)
-        }
+  useEffect(() => {
+    const loadChatrooms = async () => {
+      if (!currentUser?.id) return;
+      const rooms = await fetchChatrooms(currentUser.id);
+      setChatrooms(rooms);
+    };
+    loadChatrooms();
+  }, [currentUser]);
 
-        loadChatrooms();
-    }, [currentUser]);
-
-    const handleSelect = (room) => {
-        if (selectedRoom?.id) {
-            socket.emit('leave_room', selectedRoom.id)
-        }
-        socket.emit('join_room', room.id)
-        onSelect(room)
+  const handleSelect = (room) => {
+    if (selectedRoom?.id) {
+      socket.emit('leave_room', selectedRoom.id);
     }
+    socket.emit('join_room', room.id);
+    onSelect(room);
+  };
 
-    return (
-        <div className="p-4 border-r w-1/3 bg-gray-50">
-          <h2 className="text-xl font-semibold mb-4">Chatrooms</h2>
-          <ul className="space-y-2">
+  return (
+    <Box>
+      <Title order={4} mb="sm">
+        Chatrooms
+      </Title>
+
+      {chatrooms.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No chatrooms yet.
+        </Text>
+      ) : (
+        <ScrollArea.Autosize mah="calc(100vh - 160px)" type="auto">
+          <Stack gap="xs">
             {chatrooms.map((room) => {
-              const isSelected = selectedRoom?.id === room.id
-              const roomName = room.name || `Room #${room.id}`
-    
-              return (
-                <li
-                  key={room.id}
-                  onClick={() => handleSelect(room)}
-                  className={`cursor-pointer p-2 rounded ${
-                    isSelected ? 'bg-blue-100 font-semibold' : 'hover:bg-gray-100'
-                  }`}
-                >
-                  {roomName}
-                  {room.participants?.length > 2 && (
-                    <span className="text-xs text-gray-500 ml-2">(Group)</span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-    )
-}
+              const isSelected = selectedRoom?.id === room.id;
+              const roomName = room.name || `Room #${room.id}`;
+              const isGroup = (room.participants?.length || 0) > 2;
 
-export default ChatroomList
+              return (
+                <NavLink
+                  key={room.id}
+                  label={roomName}
+                  active={isSelected}
+                  onClick={() => handleSelect(room)}
+                  rightSection={
+                    isGroup ? (
+                      <Badge size="xs" variant="light" radius="sm">
+                        Group
+                      </Badge>
+                    ) : null
+                  }
+                  variant="light"
+                  radius="md"
+                />
+              );
+            })}
+          </Stack>
+        </ScrollArea.Autosize>
+      )}
+    </Box>
+  );
+}
