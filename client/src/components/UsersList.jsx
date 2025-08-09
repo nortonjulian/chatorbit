@@ -26,8 +26,11 @@ export default function UsersList({ currentUser }) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.reload();
+        } else if (err.response?.status === 403) {
+          setError('Admin access required')
+        } else {
+          setError(err.response?.data?.error || 'Failed to fetch users')
         }
-        setError(err.response?.data?.error || 'Failed to fetch users');
       } finally {
         setLoading(false);
       }

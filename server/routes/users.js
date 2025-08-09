@@ -1,7 +1,8 @@
 import express from 'express'
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client'
-import { verifyToken } from '../middleware/auth.js'
+import { verifyToken, requireAdmin } from '../middleware/auth.js'
+import { audit } from '../middleware/audit.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
 import multer from 'multer';
@@ -11,16 +12,13 @@ const router = express.Router()
 const prisma = new PrismaClient()
 
 //GET users
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, requireAdmin, audit('users.list', { resource: 'user',
+    redactor: (req, res) => ({ query: req.query ?? {}, note: 'admin list' })
+  }), async (req, res) => {
   try {
-    const isAdmin = req.user?.role === 'ADMIN';
-
     const users = await prisma.user.findMany({
-      select: isAdmin
-        ? { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
-        : { id: true, username: true, preferredLanguage: true }
-    });
-
+    select: { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
+  });
     res.json(users);
   } catch (error) {
     console.log(error);
