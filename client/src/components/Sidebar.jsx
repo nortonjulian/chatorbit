@@ -8,18 +8,21 @@ import {
   Divider, 
   Stack, 
   Drawer, 
-  Text } from '@mantine/core';
-  import { Link } from 'react-router-dom';
+  Text,
+  Button,
+ } from '@mantine/core';
+  import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings } from 'lucide-react';
 import StartChatModal from './StartChatModal';
-import UsersList from './UsersList';
+// import UsersList from './UsersList';
 import ChatroomList from './ChatroomList';
 import UserProfile from './UserProfile';
 
 function Sidebar({ currentUser, setSelectedRoom }) {
   const [showStartModal, setShowStartModal] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [activePane, setActivePane] = useState('users');
+  const [activePane, setActivePane] = useState('chatrooms');
+  const navigate = useNavigate()
 
   return (
     <Box p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -36,7 +39,7 @@ function Sidebar({ currentUser, setSelectedRoom }) {
         <ActionIcon
           variant="subtle"
           aria-label="Users"
-          onClick={() => setActivePane((p) => (p === 'users' ? 'chatrooms' : 'users'))}
+          onClick={() => setActivePane((p) => navigate('/people'))}
         >
           <Users size={22} />
         </ActionIcon>
@@ -55,7 +58,7 @@ function Sidebar({ currentUser, setSelectedRoom }) {
       <Divider mb="sm" />
 
       {/* Main sidebar content */}
-      <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
+      {/* <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
         <Stack gap="md">
           {activePane === 'users' ? (
             <Box>
@@ -68,6 +71,14 @@ function Sidebar({ currentUser, setSelectedRoom }) {
               <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
             </Box>
           )}
+        </Stack>
+      </ScrollArea.Autosize> */}
+      <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
+        <Stack gap="md">
+          <Box>
+            <Title order={5} mb="xs">Chatrooms</Title>
+            <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
+          </Box>
         </Stack>
       </ScrollArea.Autosize>
 

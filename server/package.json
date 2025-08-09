@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@bandwidth/messaging": "^4.1.7",
     "@google-cloud/translate": "^9.2.0",
     "@prisma/client": "^6.13.0",
     "bad-words-next": "^3.1.1",
@@ -26,6 +27,7 @@
     "openai": "^5.12.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "telnyx": "^2.0.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "validator": "^13.15.15"

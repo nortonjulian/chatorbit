@@ -44,6 +44,8 @@ model User {
   // ✅ New backrelations
   contactsOwned Contact[] @relation("ContactsOwned")
   contactsSaved Contact[] @relation("ContactsSaved")
+
+  auditLogs    AuditLog[]  @relation("AuditActor")
 }
 
 model ChatRoom {
@@ -149,4 +151,22 @@ model Report {
 
   message  Message @relation(fields: [messageId], references: [id])
   reporter User    @relation("UserReports", fields: [reporterId], references: [id])
+}
+
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  actorId     Int
+  actor       User      @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  action      String    // e.g., "users.list", "users.ban", "messages.delete"
+  resource    String?   // e.g., "user", "message", "chatroom"
+  resourceId  String?   // string so we can store UUIDs or composite keys
+  status      Int       // HTTP status code of the request when logged
+  ip          String?
+  userAgent   String?
+  metadata    Json?     // optional redacted/structured context (never raw PII)
+  createdAt   DateTime  @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
 }

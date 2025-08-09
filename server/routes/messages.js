@@ -5,14 +5,16 @@ import { translateMessageIfNeeded } from '../utils/translate.js'
 import { isExplicit, cleanText } from '../utils/filter.js';
 import {encryptMessageForParticipants } from '../utils/encryption.js';
 import { verifyToken } from '../middleware/auth.js'; 
+import { audit } from '../middleware/audit.js';
 
 const router = express.Router()
 const prisma = new PrismaClient()
 
 const upload = multer({ dest: 'uploads/' })
 
-router.post('/', upload.single('file'), async (req, res) => {
-    const { content, senderId, chatRoomId } = req.body;
+router.post('/', verifyToken, upload.single('file'), async (req, res) => {
+    const { content, chatRoomId } = req.body;
+    const senderId = req.user.id
     const file = req.file;
 
     if (!content && file) {
@@ -26,6 +28,11 @@ router.post('/', upload.single('file'), async (req, res) => {
     try {
         const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
 
+        const membership = await prisma.participant.findFirst({
+            where: { chatRoomId: Number(chatRoomId), userId: senderId }
+        });
+        if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
+        
         let expiresAt = null;
         if(sender.autoDeleteSeconds) {
             expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
@@ -80,7 +87,7 @@ router.post('/', upload.single('file'), async (req, res) => {
             },
             include: {
                 sender: {
-                    select: { id: true, username: true },
+                    select: { id: true, username: true, publicKey: true },
                 },
             },
         })
@@ -93,18 +100,21 @@ router.post('/', upload.single('file'), async (req, res) => {
 })
 
 //GET messages
-router.get('/:chatRoomId', async (req, res) => {
-    const { chatRoomId } = req.params
-    const requesterId = parseInt(req.query.userId, 10) || null
+router.get('/:chatRoomId', verifyToken, async (req, res) => {
+    const chatRoomId = Number(req.params.chatRoomId)
+    const requesterId = req.user.id
+    const isAdmin = req.user.role === 'ADMIN'
 
     try {
-        const requester = requesterId
-            ? await prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true } })
-            : null
-        const isAdmin = requester?.role === 'ADMIN'
+        if (!isAdmin) {
+            const membership = await prisma.participant.findFirst({
+                where: { chatRoomId, userId: requesterId }
+            });
+            if (!membership) return res.status(403).json({ error: 'Forbidden' });
+        }
 
         const messages = await prisma.message.findMany({
-            where: { chatRoomId: parseInt(chatRoomId) },
+            where: { chatRoomId },
             orderBy: { createdAt: 'asc' },
             select: {
                 id: true,
@@ -117,6 +127,7 @@ router.get('/:chatRoomId', async (req, res) => {
                     select: { id: true, username: true }
                 },
                 rawContent: true,
+                deletedBySender: true,
             },
         })
 
@@ -163,9 +174,10 @@ router.patch('/:id/read', verifyToken, async (req, res) => {
     }
   });
 
-router.patch('/:id/edit', async (req, res) => {
+router.patch('/:id/edit', verifyToken, async (req, res) => {
     const messageId = parseInt(req.params.id);
-    const { senderId, newContent } = req.body;
+    const requesterId = req.user.id
+    const { newContent } = req.body;
 
     try {
         const message = await prisma.message.findUnique({
@@ -176,7 +188,7 @@ router.patch('/:id/edit', async (req, res) => {
             },
           });
       
-          if (!message || message.sender.id !== senderId || message.readBy.length > 0) {
+          if (!message || message.sender.id !== requesterId|| message.readBy?.length > 0) {
             return res.status(403).json({ error: 'Unauthorized or already read' });
           }
 
@@ -213,9 +225,13 @@ router.patch('/:id/edit', async (req, res) => {
     }
 })  
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyToken, audit('messages.delete', {
+    resource: 'message',
+    resourceId: (req) => req.params.id
+  }), async (req, res) => {
     const messageId = parseInt(req.params.id);
     const requesterId = parseInt(req.userId, 10);
+    const isAdmin = req.user.role === 'ADMIN';
 
     try {
         const message = await prisma.message.findUnique({
@@ -223,7 +239,7 @@ router.delete('/:id', async (req, res) => {
             select: { senderId: true },
         })
 
-        if (!message || message.senderId !== requesterId) {
+        if (!message || (!isAdmin && message.senderId !== requesterId)) {
             return res.status(400).json({ error: 'Unauthorized to delete this message' })
         }
 
