@@ -15,6 +15,7 @@ import messagesRouter from './routes/messages.js';
 import authRouter from './routes/auth.js';
 import randomChatsRouter from './routes/randomChats.js';
 import contactRoutes from './routes/contacts.js'
+import invitesRouter from './routes/invites.js';
 
 dotenv.config();
 
@@ -57,6 +58,7 @@ app.use('/auth', authRouter);
 app.use('/random-chats', randomChatsRouter);
 app.use('/contacts', contactRoutes)
 app.use('uploads/avatars', express.static('uploads/avatars'))
+app.use('/invites', invitesRouter);
 
 // --- RANDOM CHAT STATE ---
 let waitingUsers = [];               // Users waiting to be paired

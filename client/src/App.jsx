@@ -1,4 +1,3 @@
-// src/App.jsx
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell, Burger, Button, Card, Group, Title, Text, ScrollArea, Center } from '@mantine/core';
@@ -29,15 +28,13 @@ export default function App() {
 
   return (
     <>
-      {/* Hydrate context from localStorage on first mount */}
       <BootstrapUser />
 
       {/* Public routes */}
       {!currentUser ? (
         <Routes>
-          {/* LoginForm already sets context itself; passing this prop is optional */}
-          <Route path="/" element={<LoginForm onLoginSuccess={setCurrentUser} />} />
-          <Route path="/register" element={<Registration onRegisterSuccess={setCurrentUser} />} />
+          <Route path="/" element={<LoginForm />} />
+          <Route path="/register" element={<Registration />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" />} />

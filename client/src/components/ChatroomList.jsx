@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchChatrooms } from '../api/chatrooms';
 import socket from '../socket';
-import { Title, ScrollArea, Stack, NavLink, Badge, Text, Box } from '@mantine/core';
+import { ScrollArea, Stack, NavLink, Badge, Text, Box } from '@mantine/core';
 
 export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
   const [chatrooms, setChatrooms] = useState([]);
@@ -25,10 +25,6 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
 
   return (
     <Box>
-      <Title order={4} mb="sm">
-        Chatrooms
-      </Title>
-
       {chatrooms.length === 0 ? (
         <Text c="dimmed" size="sm">
           No chatrooms yet.

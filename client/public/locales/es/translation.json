@@ -1,0 +1,17 @@
+{
+  "User Profile": "Perfil de usuario",
+  "Preferred language": "Idioma preferido",
+  "Choose a language": "Elige un idioma",
+  "No matches": "Sin coincidencias",
+  "Save": "Guardar",
+  "Upload new avatar": "Subir nuevo avatar",
+  "Show Original & Translated Messages": "Mostrar mensajes originales y traducidos",
+  "Filter explicit content": "Filtrar contenido explícito",
+  "AI reply": "Respuesta de IA",
+  "Enable Read Receipts": "Habilitar confirmaciones de lectura",
+  "Enable Disappearing Messages": "Habilitar mensajes que desaparecen",
+  "Seconds until auto-delete": "Segundos hasta la autodestrucción",
+  "Settings saved!": "¡Ajustes guardados!",
+  "Error: Could not save settings": "Error: No se pudieron guardar los ajustes",
+  "You need to be logged in to view settings.": "Debes iniciar sesión para ver la configuración."
+}

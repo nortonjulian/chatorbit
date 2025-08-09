@@ -1,37 +1,83 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, TextInput, Stack, NavLink, Text } from '@mantine/core';
+import {
+  Box,
+  Title,
+  TextInput,
+  Stack,
+  NavLink,
+  Text,
+  Button,
+  Group,
+} from '@mantine/core';
 
-export default function ContactList({ currentUserId }) {
+export default function ContactList({ currentUserId, onChanged }) {
   const [contacts, setContacts] = useState([]);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
+  const refresh = async () => {
+    try {
+      const res = await axiosClient.get(`/contacts/${currentUserId}`);
+      setContacts(res.data);
+    } catch (err) {
+      console.error('Failed to fetch contacts:', err);
+    }
+  };
+
   useEffect(() => {
-    const fetchContacts = async () => {
-      try {
-        const res = await axiosClient.get(`/contacts/${currentUserId}`);
-        setContacts(res.data);
-      } catch (err) {
-        console.error('Failed to fetch contacts:', err);
-      }
-    };
-    fetchContacts();
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
   const filtered = contacts.filter((c) =>
-    (c.alias || c.user?.username || '').toLowerCase().includes(search.toLowerCase())
+    (c.alias || c.user?.username || '')
+      .toLowerCase()
+      .includes(search.toLowerCase())
   );
 
-  const startChat = (userId) => {
-    // Navigate to chat screen with selected contact (ensure you have a route for this)
-    navigate(`/chat/${userId}`);
+  const startChat = async (userId) => {
+    // Create or fetch a direct chatroom, then navigate to its id
+    try {
+      const { data } = await axiosClient.post(`/chatrooms/direct/${userId}`);
+      if (data?.id) navigate(`/chat/${data.id}`);
+    } catch (e) {
+      console.error('Failed to start chat:', e);
+    }
+  };
+
+  const deleteContact = async (userId) => {
+    try {
+      await axiosClient.delete('/contacts', {
+        data: { ownerId: currentUserId, userId },
+      });
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      console.error('Failed to delete contact:', err);
+    }
+  };
+
+  const updateAlias = async (userId, alias) => {
+    try {
+      await axiosClient.patch('/contacts', {
+        ownerId: currentUserId,
+        userId,
+        alias: alias || '',
+      });
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      console.error('Failed to update alias:', err);
+    }
   };
 
   return (
     <Box p="md" maw={520} mx="auto">
-      <Title order={4} mb="sm">Saved Contacts</Title>
+      <Title order={4} mb="sm">
+        Saved Contacts
+      </Title>
 
       <TextInput
         placeholder="Search contacts..."
@@ -41,20 +87,44 @@ export default function ContactList({ currentUserId }) {
       />
 
       {filtered.length === 0 ? (
-        <Text c="dimmed" size="sm">No contacts found.</Text>
+        <Text c="dimmed" size="sm">
+          No contacts found.
+        </Text>
       ) : (
         <Stack gap="xs">
           {filtered.map((c) => {
-            const name = c.alias || c.user?.username || `User #${c.userId}`;
+            const name =
+                c.alias ||
+                c.user?.username ||
+                c.externalName ||
+                c.externalPhone ||
+                `User #${c.userId ?? ''}`;
             return (
-              <NavLink
-                key={c.userId}
-                label={name}
-                onClick={() => startChat(c.userId)}
-                rightSection={<Text size="xs" c="dimmed">Chat →</Text>}
-                variant="light"
-                radius="md"
-              />
+              <Group key={c.userId} justify="space-between" align="center">
+                <NavLink
+                  label={name}
+                  onClick={() => startChat(c.userId)}
+                  rightSection={<Text size="xs" c="dimmed">Chat →</Text>}
+                  variant="light"
+                  radius="md"
+                  style={{ flex: 1 }}
+                />
+                <TextInput
+                  placeholder="Alias"
+                  defaultValue={c.alias || ''}
+                  size="xs"
+                  maw={160}
+                  onBlur={(e) => updateAlias(c.userId, e.currentTarget.value)}
+                />
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="red"
+                  onClick={() => deleteContact(c.userId)}
+                >
+                  Delete
+                </Button>
+              </Group>
             );
           })}
         </Stack>

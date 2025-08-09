@@ -9,6 +9,7 @@ import {
   Stack, 
   Drawer, 
   Text } from '@mantine/core';
+  import { Link } from 'react-router-dom';
 import { Plus, Users, Settings } from 'lucide-react';
 import StartChatModal from './StartChatModal';
 import UsersList from './UsersList';
@@ -18,6 +19,7 @@ import UserProfile from './UserProfile';
 function Sidebar({ currentUser, setSelectedRoom }) {
   const [showStartModal, setShowStartModal] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [activePane, setActivePane] = useState('users');
 
   return (
     <Box p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -31,9 +33,14 @@ function Sidebar({ currentUser, setSelectedRoom }) {
           <Plus size={22} />
         </ActionIcon>
 
-        <ActionIcon variant="subtle" aria-label="Users">
+        <ActionIcon
+          variant="subtle"
+          aria-label="Users"
+          onClick={() => setActivePane((p) => (p === 'users' ? 'chatrooms' : 'users'))}
+        >
           <Users size={22} />
         </ActionIcon>
+
 
         <ActionIcon
           variant="subtle"
@@ -50,19 +57,17 @@ function Sidebar({ currentUser, setSelectedRoom }) {
       {/* Main sidebar content */}
       <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
         <Stack gap="md">
-          <Box>
-            <Title order={5} mb="xs">
-              Users
-            </Title>
-            <UsersList currentUser={currentUser} />
-          </Box>
-
-          <Box>
-            <Title order={5} mb="xs">
-              Chatrooms
-            </Title>
-            <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
-          </Box>
+          {activePane === 'users' ? (
+            <Box>
+              <Title order={5} mb="xs">Users</Title>
+              <UsersList currentUser={currentUser} />
+            </Box>
+          ) : (
+            <Box>
+              <Title order={5} mb="xs">Chatrooms</Title>
+              <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
+            </Box>
+          )}
         </Stack>
       </ScrollArea.Autosize>
 
@@ -84,12 +89,21 @@ function Sidebar({ currentUser, setSelectedRoom }) {
         radius="lg"
         overlayProps={{ opacity: 0.15, blur: 2 }}
       >
-        <UserProfile onLanguageChange={() => {}} />
-            {currentUser ? (
-              <UserProfile onLanguageChange={() => {}} />
-            ) : (
-              <Text c="dimmed">Log in to edit your settings.</Text>
-            )}
+        {currentUser ? (
+          <UserProfile onLanguageChange={() => {}} />
+        ) : (
+          <Stack gap="sm">
+            <Text c="dimmed">Log in to edit your settings.</Text>
+            <Group>
+              <Button component={Link} to="/" variant="filled">
+                Log in
+              </Button>
+              <Button component={Link} to="/register" variant="light">
+                Create account
+              </Button>
+            </Group>
+          </Stack>
+        )}
       </Drawer>
     </Box>
   );

@@ -8,6 +8,7 @@ import '@mantine/notifications/styles.css';
 import { BrowserRouter } from 'react-router-dom';
 import { UserProvider } from './context/UserContext.jsx';
 import App from './App.jsx';
+import './i18n';
 
 const theme = {
   fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
