@@ -18,7 +18,7 @@ socket.on('disconnect', (reason) => {
 })
 
 socket.on('connect', (err) => {
-    console.log('Socket connection error:', err.message)
+    console.log('Socket connection error:', err?.message || err)
 })
 
 export default socket;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import LanguageSelector from './LanguageSelector';
 import axiosClient from '../api/axiosClient';
 import { useUser } from "../context/UserContext";
+import i18n from '../i18n';
 import {
   Paper,
   Title,
@@ -58,6 +59,8 @@ function UserProfile({ onLanguageChange }) {
         enableReadReceipts,
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
       });
+
+      i18n.changeLanguage(preferredLanguage); 
 
       onLanguageChange?.(preferredLanguage);
       setCurrentUser((prev) => ({
@@ -134,7 +137,6 @@ function UserProfile({ onLanguageChange }) {
 
         {/* Language */}
         <Stack gap={4}>
-          <Text fw={600}>Preferred Language</Text>
           <LanguageSelector
             currentLanguage={preferredLanguage}
             onChange={setPreferredLanguage}

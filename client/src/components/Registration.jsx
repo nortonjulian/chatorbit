@@ -1,4 +1,7 @@
+// src/components/Registration.jsx
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
 import axiosClient from '../api/axiosClient';
 import {
   Center,
@@ -6,49 +9,57 @@ import {
   Paper,
   Title,
   TextInput,
+  PasswordInput,
   Button,
   Alert,
   Text,
   Stack,
+  Anchor,
 } from '@mantine/core';
 
-export default function Registration({ onRegisterSuccess }) {
+export default function Registration() {
+  const { setCurrentUser } = useUser();
+  const navigate = useNavigate();
+
   const [username, setUsername]   = useState('');
   const [email, setEmail]         = useState('');
   const [password, setPassword]   = useState('');
   const [message, setMessage]     = useState('');
-  const [messageType, setType]    = useState(''); 
+  const [messageType, setType]    = useState(''); // 'success' | 'error' | ''
   const [loading, setLoading]     = useState(false);
 
-  const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
+  const validateEmail = (val) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setMessage('');
     setType('');
 
     if (!validateEmail(email)) {
-      setLoading(false);
       setMessage('Please enter a valid email address.');
       setType('error');
       return;
     }
 
+    setLoading(true);
     try {
       const res = await axiosClient.post('/auth/register', { username, email, password });
-      const user = res.data?.user;
+      const { token, user } = res.data;
 
-      setMessage(`Welcome, ${user?.username || username}! You can now log in.`);
+      // Persist + update global context
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setCurrentUser(user);
+
+      // Optional flash message
+      setMessage(`Welcome, ${user.username}!`);
       setType('success');
-      setUsername('');
-      setEmail('');
-      setPassword('');
 
-      onRegisterSuccess?.(user);
+      navigate('/');
     } catch (error) {
       console.error('Registration error:', error);
-      const apiErr = error.response?.data?.error || 'Registration failed. Try again.';
+      const apiErr = error?.response?.data?.error || 'Registration failed. Try again.';
       setMessage(apiErr);
       setType('error');
     } finally {
@@ -58,7 +69,7 @@ export default function Registration({ onRegisterSuccess }) {
 
   return (
     <Center style={{ minHeight: '100vh' }}>
-        <Container size="xs" px="md" py="lg">
+      <Container size="xs" px="md" style={{ width: '100%', maxWidth: 440 }}>
         <Paper withBorder shadow="sm" radius="xl" p="lg">
           <Title order={3} mb="md">Create an Account</Title>
 
@@ -79,12 +90,13 @@ export default function Registration({ onRegisterSuccess }) {
                 onChange={(e) => setEmail(e.currentTarget.value)}
                 required
               />
-              <TextInput
+              <PasswordInput
                 label="Password"
                 placeholder="Create a password"
                 value={password}
                 onChange={(e) => setPassword(e.currentTarget.value)}
                 required
+                visibilityToggle={false}
               />
 
               {message && (
@@ -102,6 +114,11 @@ export default function Registration({ onRegisterSuccess }) {
               </Text>
             </Stack>
           </form>
+
+          <Text ta="center" mt="md">
+            Already have an account?{' '}
+            <Anchor component={Link} to="/">Log in</Anchor>
+          </Text>
         </Paper>
       </Container>
     </Center>

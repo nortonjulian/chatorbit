@@ -12,22 +12,22 @@ const prisma = new PrismaClient()
 
 //GET users
 router.get('/', verifyToken, async (req, res) => {
-    try {
-        // const currentUser = req.user
-        const isAdmin = currentUser?.role === 'ADMIN'
+  try {
+    const isAdmin = req.user?.role === 'ADMIN';
 
-        const users = await prisma.user.findMany({
-            select: isAdmin 
-                ? { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
-                : { id: true, username: true, preferredLanguage: true }
-        })
+    const users = await prisma.user.findMany({
+      select: isAdmin
+        ? { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
+        : { id: true, username: true, preferredLanguage: true }
+    });
 
-        res.json(users)
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ error: 'Failed to fetch users' })
-    }
-})
+    res.json(users);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 
 router.post('/', async (req, res) => {
     const { username, email, password } = req.body
@@ -64,31 +64,52 @@ router.post('/', async (req, res) => {
 })
 
 router.get('/search', verifyToken, async (req, res) => {
-    const { query } = req.query
-    if (!query) return res.status(400).json({ error: 'Missing query param' })
+  try {
+    const qRaw = String(req.query.query || '').trim();
+    if (!qRaw) return res.json([]);
 
-    try {
-        const isAdmin = req.user?.role === 'ADMIN'
+    const isAdmin = req.user?.role === 'ADMIN';
 
-        const users = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { username: { contains: query, mode: 'insensitive' } },
-                    { phoneNumber: { contains: query } }
-                ]
-            },
-            select: isAdmin 
-              ? { id: true, username: true, phoneNumber: true, preferredLanguage: true } 
-              :  { phoneNumber: { contains: query } }
-        });
+    // Basic normalizations
+    const qDigits = qRaw.replace(/\D+/g, ''); // keep only digits
 
-        if (!user) return res.status(404).json({ error: 'User not found' });
-        res.json(users)
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Search failed' })
+    const OR = [
+      { username: { contains: qRaw, mode: 'insensitive' } },
+      { email:    { contains: qRaw, mode: 'insensitive' } },
+    ];
+
+    // If phoneNumber is a STRING in Prisma (recommended):
+    // Try both raw (for E.164-like inputs) and digits-only substring matches.
+    if (qDigits.length >= 4) {
+      OR.push({ phoneNumber: { contains: qDigits } });
     }
-})
+    if (/^\+?\d{4,}$/.test(qRaw)) {
+      OR.push({ phoneNumber: { contains: qRaw } });
+    }
+
+    // If phoneNumber is an INT in Prisma (not ideal), comment the two OR.push() above and use:
+    // if (/^\d+$/.test(qRaw)) {
+    //   OR.push({ phoneNumber: parseInt(qRaw, 10) }); // equals on int
+    // }
+
+    const users = await prisma.user.findMany({
+      where: {
+        OR,
+        // Don't return the current user as a candidate
+        NOT: { id: req.user.id },
+      },
+      select: isAdmin
+        ? { id: true, username: true, email: true, phoneNumber: true, preferredLanguage: true }
+        : { id: true, username: true, phoneNumber: true, preferredLanguage: true },
+      take: 10,
+    });
+
+    res.json(users); // always returns an array (empty if none)
+  } catch (error) {
+    console.error('Search failed:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
 
 router.patch('/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
@@ -115,26 +136,24 @@ router.patch('/:id', verifyToken, async (req, res) => {
     }
 })
 
-router.post('/avatar', upload.single('avatar', async (req, res) => {
-    const userId = req.user.id;
-    const file = req.file;
+router.post('/avatar', verifyToken, upload.single('avatar'), async (req, res) => {
+  const userId = req.user.id;
+  const file = req.file;
 
-    if (!file) return res.status(400).json({ error: 'No file uploaded' })
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-    try {
-        const updatd = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                avatarUrl: `/uploads/avatars/${file.filename}`,
-            },
-        })
+  try {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: `/uploads/avatars/${file.filename}` },
+    });
 
-        res.json({ avatarUrl: updated.avatarUrl });
-    } catch (error) {
-        console.log('Avatar upload failed', error)
-        res.status(500).json({ error: 'Upload failed' })
-    }    
-}))
+    res.json({ avatarUrl: updated.avatarUrl });
+  } catch (error) {
+    console.log('Avatar upload failed', error);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
 
 router.patch('/emoji', verifyToken, async (req, res) => {
     const { emoji } = req.body;
