@@ -40,10 +40,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
     try {
       const res = await fetch(`http://localhost:5001/messages/${msg.id}/edit`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderId: currentUserId, newContent: newText }),
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
+
       if (!res.ok) throw new Error('Failed to edit');
       const updated = await res.json();
       setMessages((prev) =>
@@ -80,14 +79,24 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
     socket.emit('join_room', chatroom.id);
 
-    const handleReceiveMessage = (data) => {
+    const handleReceiveMessage = async (data) => {
       if (data.chatRoomId === chatroom.id) {
-        setMessages((prev) => [...prev, data]);
+        try {
+          const decryptedArr = await decryptFetchedMessages([data], currentUserId);
+          const decrypted = decryptedArr[0];
 
-        const v = scrollViewportRef.current;
-        if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
-          scrollToBottom();
-        } else {
+          setMessages((prev) => [...prev, decrypted]);
+
+          const v = scrollViewportRef.current;
+          if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
+            scrollToBottom();
+          } else {
+            setShowNewMessage(true);
+          }
+        } catch (e) {
+          console.error('Failed to decrypt incoming message', e);
+          // fallback: still append (encrypted) so UI shows *something*
+          setMessages((prev) => [...prev, data]);
           setShowNewMessage(true);
         }
       }
