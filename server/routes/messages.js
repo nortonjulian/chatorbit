@@ -1,14 +1,12 @@
 import express from 'express'
 import { PrismaClient } from '@prisma/client'
+import prisma from '../utils/prismaClient.js'
 import multer from 'multer'
-import { translateMessageIfNeeded } from '../utils/translate.js'
-import { isExplicit, cleanText } from '../utils/filter.js';
-import {encryptMessageForParticipants } from '../utils/encryption.js';
 import { verifyToken } from '../middleware/auth.js'; 
 import { audit } from '../middleware/audit.js';
+import { createMessageService } from '../services/messageService.js';
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 const upload = multer({ dest: 'uploads/' })
 
@@ -26,76 +24,84 @@ router.post('/', verifyToken, upload.single('file'), async (req, res) => {
     }
 
     try {
-        const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
+        // const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
 
-        const membership = await prisma.participant.findFirst({
-            where: { chatRoomId: Number(chatRoomId), userId: senderId }
-        });
-        if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
+        // const membership = await prisma.participant.findFirst({
+        //     where: { chatRoomId: Number(chatRoomId), userId: senderId }
+        // });
+        // if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
         
-        let expiresAt = null;
-        if(sender.autoDeleteSeconds) {
-            expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
-        }
-        if (!sender) return res.status(404).json({ error: 'Sender not found' })
+        // let expiresAt = null;
+        // if(sender.autoDeleteSeconds) {
+        //     expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
+        // }
+        // if (!sender) return res.status(404).json({ error: 'Sender not found' })
 
-        const participants = await prisma.participant.findMany({
-            where: { chatRoomId: Number(chatRoomId) },
-            include: { user: true }
-        })
+        // const participants = await prisma.participant.findMany({
+        //     where: { chatRoomId: Number(chatRoomId) },
+        //     include: { user: true }
+        // })
 
-        const senderLang = sender.preferredLanguage || 'en';
+        // const senderLang = sender.preferredLanguage || 'en';
 
-        const explicit = content ? isExplicit(content) : false;
+        // const explicit = content ? isExplicit(content) : false;
 
-        const requiresClean = !sender.allowExplicitContent || participants.some(p => !p.user.allowExplicitContent)
-        const cleanContent = content && requiresClean ? cleanText(content) : content
+        // const requiresClean = !sender.allowExplicitContent || participants.some(p => !p.user.allowExplicitContent)
+        // const cleanContent = content && requiresClean ? cleanText(content) : content
 
-        const translationResult = content ? await translateMessageIfNeeded(cleanContent, sender, participants) 
-                                : { translatedText: null, targetLang: null}
+        // const translationResult = content ? await translateMessageIfNeeded(cleanContent, sender, participants) 
+        //                         : { translatedText: null, targetLang: null}
 
-        let finalTranslatedContent = translationResult.translatedText;
-        const recipients = participants.filter(p => p.user.id !== sender.id)
+        // let finalTranslatedContent = translationResult.translatedText;
+        // const recipients = participants.filter(p => p.user.id !== sender.id)
 
-        const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicitContent);
+        // const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicitContent);
 
-        if (anyReceiverDisallowsExplicit && finalTranslatedContent && isExplicit(translatedContent)) {
-            finalTranslatedContent = '[Message removed due to explicit content]'
-        }
+        // if (anyReceiverDisallowsExplicit && finalTranslatedContent && isExplicit(translatedContent)) {
+        //     finalTranslatedContent = '[Message removed due to explicit content]'
+        // }
 
-            // Encrypt the message for all participants (AES-GCM + NaCl for session keys)
-        const recipientUsers = participants.map(p => p.user); // includes sender
-        const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
-        cleanContent || '',
-        sender,
-        recipientUsers
-        );
+        //     // Encrypt the message for all participants (AES-GCM + NaCl for session keys)
+        // const recipientUsers = participants.map(p => p.user); // includes sender
+        // const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
+        // cleanContent || '',
+        // sender,
+        // recipientUsers
+        // );
 
-        const message = await prisma.message.create({
-            data: {
-                contentCiphertext: ciphertext,
-                encryptedKeys,
-                rawContent: content || null,
-                translatedContent: finalTranslatedContent,
-                translatedFrom: senderLang,
-                translatedTo: translationResult.targetLang, 
-                isExplicit: explicit,
-                imageUrl: file ? `/uploads/${file.filename}` : null,
-                expiresAt,
-                sender: { connect: { id: Number(senderId) } },
-                chatRoom: { connect: { id: Number(chatRoomId) } },
-            },
-            include: {
-                sender: {
-                    select: { id: true, username: true, publicKey: true },
-                },
-            },
+        const fileUrl = file ? `/uploads/${file.filename}` : null;
+        // const message = await prisma.message.create({
+        //     data: {
+        //         contentCiphertext: ciphertext,
+        //         encryptedKeys,
+        //         rawContent: content || null,
+        //         translatedContent: finalTranslatedContent,
+        //         translatedFrom: senderLang,
+        //         translatedTo: translationResult.targetLang, 
+        //         isExplicit: explicit,
+        //         imageUrl: file ? `/uploads/${file.filename}` : null,
+        //         expiresAt,
+        //         sender: { connect: { id: Number(senderId) } },
+        //         chatRoom: { connect: { id: Number(chatRoomId) } },
+        //     },
+        //     include: {
+        //         sender: {
+        //             select: { id: true, username: true, publicKey: true },
+        //         },
+        //     },
+        // })
+        const message = await createMessageService({
+            senderId,
+            chatRoomId,
+            content,
+            fileUrl
         })
 
         res.status(201).json(message)
     } catch (error) {
+        const status = error.statusCode || 500;
         console.log('Error creating message:', error)
-        res.status(500).json({ error: 'Failed to create message' })
+        res.status(status).json({ error: 'Failed to create message' })
     }
 })
 

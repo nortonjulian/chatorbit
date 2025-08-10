@@ -76,8 +76,7 @@ model Message {
 
   // Encrypted content (new)
   contentCiphertext        String // AES-encrypted message body
-  encryptedKeyForSender    String // Session key encrypted with sender’s public key
-  encryptedKeyForRecipient String // Session key encrypted with recipient’s public key
+  encryptedKeys      Json      // { [userId: string]: base64([nonce|box]) }
 
   rawContent        String
   translatedContent String?

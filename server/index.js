@@ -6,15 +6,15 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import { generateAIResponse } from './utils/generateAIResponse.js';
-import './cron/deleteExpiredMessages.js'; 
-
+import jwt from 'jsonwebtoken';
+import './cron/deleteExpiredMessages.js';
 
 import usersRouter from './routes/users.js';
 import chatroomsRouter from './routes/chatrooms.js';
 import messagesRouter from './routes/messages.js';
 import authRouter from './routes/auth.js';
 import randomChatsRouter from './routes/randomChats.js';
-import contactRoutes from './routes/contacts.js'
+import contactRoutes from './routes/contacts.js';
 import invitesRouter from './routes/invites.js';
 
 dotenv.config();
@@ -32,6 +32,23 @@ const io = new Server(server, {
     origin: 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
+});
+
+// --- Socket auth (JWT in handshake) ---
+io.use((socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      (socket.handshake.headers.authorization || '').split(' ')[1];
+
+    if (!token) return next(new Error('Unauthorized'));
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+    socket.user = decoded; // { id, username, role, ... }
+    next();
+  } catch (err) {
+    next(new Error('Unauthorized'));
+  }
 });
 
 // Rate limiter for login & password reset
@@ -56,9 +73,11 @@ app.use('/chatrooms', chatroomsRouter);
 app.use('/messages', messagesRouter);
 app.use('/auth', authRouter);
 app.use('/random-chats', randomChatsRouter);
-app.use('/contacts', contactRoutes)
-app.use('uploads/avatars', express.static('uploads/avatars'))
+app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
+
+// serve avatars (fixed missing leading slash)
+app.use('/uploads/avatars', express.static('uploads/avatars'));
 
 // --- RANDOM CHAT STATE ---
 let waitingUsers = [];               // Users waiting to be paired
@@ -106,7 +125,7 @@ io.on('connection', (socket) => {
       });
     }, 500);
 
-    // Listen & respond
+    // Listen & respond (kept simple for random AI chats)
     socket.on('send_message', async (msg) => {
       if (msg.chatRoomId === roomId) {
         const aiReply = await generateAIResponse(msg.content);
@@ -190,57 +209,48 @@ io.on('connection', (socket) => {
   });
 
   // --- STANDARD CHATROOM EVENTS ---
-  socket.on('join_room', (chatRoomId) => socket.join(chatRoomId));
-  socket.on('leave_room', (chatRoomId) => socket.leave(chatRoomId));
+  socket.on('join_room', (chatRoomId) => socket.join(String(chatRoomId)));
+  socket.on('leave_room', (chatRoomId) => socket.leave(String(chatRoomId)));
 
   // Typing indicator
   socket.on('typing', ({ chatRoomId, username }) => {
-    socket.to(chatRoomId).emit('user_typing', { username });
+    socket.to(String(chatRoomId)).emit('user_typing', { username });
   });
   socket.on('stop_typing', (chatRoomId) => {
-    socket.to(chatRoomId).emit('user_stopped_typing');
+    socket.to(String(chatRoomId)).emit('user_stopped_typing');
   });
 
-  // --- MESSAGE HANDLING (group + direct) ---
+  // --- MESSAGE HANDLING (group + direct) via shared service ---
   socket.on('send_message', async (messageData) => {
-    const { content, senderId, chatRoomId } = messageData;
-    if (!content || !senderId || !chatRoomId) return;
-
     try {
-      const saved = await prisma.message.create({
-        data: {
-          content,
-          sender: { connect: { id: senderId } },
-          chatRoom: { connect: { id: chatRoomId } },
-        },
-        include: { sender: true },
-      });
+      const { content, chatRoomId } = messageData || {};
+      const senderId = socket.user?.id;
+      if (!content || !senderId || !chatRoomId) return;
 
-      io.emit('receive_message', saved);
+      // Use the SAME pipeline as REST
+      const { createMessageService } = await import('./services/messageService.js');
+      const saved = await createMessageService({ senderId, chatRoomId, content });
 
-      // AI responder for any users in the chat with auto-response on
+      // Emit ONLY to the room
+      io.to(String(chatRoomId)).emit('receive_message', saved);
+
+      // AI autoresponder (optional)
       const participants = await prisma.participant.findMany({
-        where: { chatRoomId },
+        where: { chatRoomId: Number(chatRoomId) },
         include: { user: true },
       });
-
       const aiEnabledUsers = participants.filter(
         (p) => p.user.enableAIResponder && p.user.id !== senderId
       );
 
       for (const p of aiEnabledUsers) {
         const aiReply = await generateAIResponse(content, p.user.username);
-
-        const aiMessage = await prisma.message.create({
-          data: {
-            content: aiReply,
-            sender: { connect: { id: p.user.id } }, // simulate as that user
-            chatRoom: { connect: { id: chatRoomId } },
-          },
-          include: { sender: true },
+        const savedAi = await createMessageService({
+          senderId: p.user.id,
+          chatRoomId,
+          content: aiReply,
         });
-
-        io.emit('receive_message', aiMessage);
+        io.to(String(chatRoomId)).emit('receive_message', savedAi);
       }
     } catch (err) {
       console.error('Message save failed:', err);
