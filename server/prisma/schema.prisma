@@ -45,7 +45,9 @@ model User {
   contactsOwned Contact[] @relation("ContactsOwned")
   contactsSaved Contact[] @relation("ContactsSaved")
 
-  auditLogs    AuditLog[]  @relation("AuditActor")
+  auditLogs AuditLog[] @relation("AuditActor")
+
+  messageKeys MessageKey[]
 }
 
 model ChatRoom {
@@ -72,35 +74,45 @@ model Participant {
 }
 
 model Message {
-  id Int @id @default(autoincrement())
-
-  // Encrypted content (new)
-  contentCiphertext        String // AES-encrypted message body
-  encryptedKeys      Json      // { [userId: string]: base64([nonce|box]) }
-
+  id                Int       @id @default(autoincrement())
+  contentCiphertext String
   rawContent        String
-  translatedContent String?
+  translations      Json?
   translatedFrom    String?
-  translatedTo      String?
   isExplicit        Boolean   @default(false)
   imageUrl          String?
-  expiresAt         DateTime?
+  expiresAt         DateTime? 
   deletedBySender   Boolean   @default(false)
 
-  // Relations
-  sender   User @relation("UserMessages", fields: [senderId], references: [id])
-  senderId Int
-
+  sender     User     @relation("UserMessages", fields: [senderId], references: [id])
+  senderId   Int
   chatRoom   ChatRoom @relation("ChatRoomMessages", fields: [chatRoomId], references: [id])
   chatRoomId Int
 
-  // Optional random chat relation
+  // NEW: keys live in a separate table
+  keys MessageKey[]
+
   randomChatRoomId Int?
   randomChatRoom   RandomChatRoom? @relation(fields: [randomChatRoomId], references: [id])
 
   createdAt DateTime @default(now())
   readBy    User[]   @relation("ReadMessages")
   reports   Report[]
+  @@index([expiresAt])
+}
+
+// one row per (message, recipient)
+model MessageKey {
+  messageId    Int
+  userId       Int
+  // base64 of [nonce(24) | box]; exactly what you produce today
+  encryptedKey String
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId]) // composite PK (fast lookups)
+  @@index([userId])
 }
 
 model RandomChatRoom {
@@ -116,26 +128,26 @@ model RandomChatRoom {
 }
 
 model Contact {
-  id            Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // Owner (the person who saved the contact)
-  ownerId       Int
-  owner         User     @relation("ContactsOwned", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId Int
+  owner   User @relation("ContactsOwned", fields: [ownerId], references: [id], onDelete: Cascade)
 
   // Linked app user (optional)
-  userId        Int?     
-  user          User?    @relation("ContactsSaved", fields: [userId], references: [id])
+  userId Int?
+  user   User? @relation("ContactsSaved", fields: [userId], references: [id])
 
   // External contact fields (for people who don't have an account yet)
-  externalPhone String?  @db.VarChar(32)
+  externalPhone String? @db.VarChar(32)
   externalName  String?
 
-  alias         String?
-  favorite      Boolean  @default(false)
-  createdAt     DateTime @default(now())
+  alias     String?
+  favorite  Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   // Prevent duplicates for the owner:
-  @@unique([ownerId, userId])           // ok even when userId is nullable (Postgres allows multiple NULLs)
+  @@unique([ownerId, userId]) // ok even when userId is nullable (Postgres allows multiple NULLs)
   @@unique([ownerId, externalPhone])
   @@index([ownerId])
   @@index([userId])
@@ -148,23 +160,30 @@ model Report {
   decryptedContent String
   createdAt        DateTime @default(now())
 
+  // Strings instead of enum
+  status     String    @default("OPEN") // "OPEN" | "RESOLVED" | "ACTIONED"
+  resolvedAt DateTime?
+  notes      String?
+
   message  Message @relation(fields: [messageId], references: [id])
   reporter User    @relation("UserReports", fields: [reporterId], references: [id])
+
+  @@index([status, createdAt])
 }
 
 model AuditLog {
-  id          Int       @id @default(autoincrement())
-  actorId     Int
-  actor       User      @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+  id      Int  @id @default(autoincrement())
+  actorId Int
+  actor   User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
 
-  action      String    // e.g., "users.list", "users.ban", "messages.delete"
-  resource    String?   // e.g., "user", "message", "chatroom"
-  resourceId  String?   // string so we can store UUIDs or composite keys
-  status      Int       // HTTP status code of the request when logged
-  ip          String?
-  userAgent   String?
-  metadata    Json?     // optional redacted/structured context (never raw PII)
-  createdAt   DateTime  @default(now())
+  action     String // e.g., "users.list", "users.ban", "messages.delete"
+  resource   String? // e.g., "user", "message", "chatroom"
+  resourceId String? // string so we can store UUIDs or composite keys
+  status     Int // HTTP status code of the request when logged
+  ip         String?
+  userAgent  String?
+  metadata   Json? // optional redacted/structured context (never raw PII)
+  createdAt  DateTime @default(now())
 
   @@index([actorId, createdAt])
   @@index([action, createdAt])

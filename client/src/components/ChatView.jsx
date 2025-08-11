@@ -4,6 +4,7 @@ import { Box, Group, Avatar, Paper, Text, Button, Stack, ScrollArea, Title, Badg
 import MessageInput from './MessageInput';
 import socket from '../socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient';
+import axiosClient from '../api/axiosClient';
 
 function getTimeLeftString(expiresAt) {
   const now = Date.now();
@@ -31,7 +32,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const [showNewMessage, setShowNewMessage] = useState(false);
 
   const messagesEndRef = useRef(null);
-  const scrollViewportRef = useRef(null); // Mantine ScrollArea viewport
+  const scrollViewportRef = useRef(null);
   const now = useNow();
 
   const handleEditMessage = async (msg) => {
@@ -40,9 +41,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
     try {
       const res = await fetch(`http://localhost:5001/messages/${msg.id}/edit`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newContent: newText }),
       });
-
       if (!res.ok) throw new Error('Failed to edit');
       const updated = await res.json();
       setMessages((prev) =>
@@ -50,7 +52,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       );
     } catch (error) {
       alert('Message edit failed');
-      console.log(error);
+      console.error(error);
     }
   };
 
@@ -59,16 +61,15 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     setShowNewMessage(false);
   };
 
+  // --- Main socket listeners for messages, typing, etc. ---
   useEffect(() => {
     if (!chatroom || !currentUserId) return;
 
     const fetchAndDecryptMessages = async () => {
       try {
-        const res = await fetch(`http://localhost:5001/messages/${chatroom.id}?userId=${currentUserId}`);
-        const data = await res.json();
+        const { data } = await axiosClient.get(`/messages/${chatroom.id}`);
         const decrypted = await decryptFetchedMessages(data, currentUserId);
         setMessages(decrypted);
-        // Jump to bottom on initial load
         setTimeout(scrollToBottom, 0);
       } catch (err) {
         console.error('Failed to fetch/decrypt messages', err);
@@ -95,7 +96,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           }
         } catch (e) {
           console.error('Failed to decrypt incoming message', e);
-          // fallback: still append (encrypted) so UI shows *something*
           setMessages((prev) => [...prev, data]);
           setShowNewMessage(true);
         }
@@ -117,6 +117,21 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     };
   }, [chatroom, currentUserId]);
 
+  // --- Expired message listener (simple & isolated) ---
+  useEffect(() => {
+    if (!chatroom) return;
+
+    const onExpired = ({ id }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    };
+
+    socket.on('message_expired', onExpired);
+    return () => {
+      socket.off('message_expired', onExpired);
+    };
+  }, [chatroom?.id]);
+
+  // --- Read receipts effect ---
   useEffect(() => {
     if (!messages.length || !currentUserId || !currentUser?.showReadReceipts) return;
 
@@ -127,12 +142,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     );
 
     unreadMessages.forEach((msg) => {
-      fetch(`http://localhost:5001/messages/${msg.id}/read`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      }).catch((err) => console.error(`Failed to mark message ${msg.id} as read`, err));
+      axiosClient
+        .patch(`/messages/${msg.id}/read`)
+        .catch((err) => console.error(`Failed to mark message ${msg.id} as read`, err));
     });
-  }, [messages, currentUserId, currentUser]);
+  }, [messages, currentUserId, currentUser?.showReadReceipts]);
 
   if (!chatroom) {
     return (
@@ -152,11 +166,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         )}
       </Group>
 
-      <ScrollArea
-        style={{ flex: 1 }}
-        viewportRef={scrollViewportRef}
-        type="auto"
-      >
+      <ScrollArea style={{ flex: 1 }} viewportRef={scrollViewportRef} type="auto">
         <Stack gap="xs" p="xs">
           {messages.map((msg) => {
             const isCurrentUser = msg.sender?.id === currentUserId;
@@ -205,10 +215,13 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     </Text>
                   )}
 
-                  <Text size="sm">{msg.content}</Text>
+                  <Text size="sm">
+                    {/* decryptedContent is what decryptFetchedMessages attaches; fallback to translatedForMe */}
+                    {msg.decryptedContent || msg.translatedForMe}
+                  </Text>
 
-                  {msg.translatedContent && msg.rawContent && (
-                    <Text size="xs" mt={4} fs="italic" c={isCurrentUser ? 'yellow.1' : 'yellow.7'}>
+                  {msg.translatedForMe && msg.rawContent && (
+                    <Text size="xs" mt={4} fs="italic">
                       Original: {msg.rawContent}
                     </Text>
                   )}

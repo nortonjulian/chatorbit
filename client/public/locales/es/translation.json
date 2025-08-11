@@ -1,17 +1,42 @@
 {
-  "User Profile": "Perfil de usuario",
-  "Preferred language": "Idioma preferido",
-  "Choose a language": "Elige un idioma",
-  "No matches": "Sin coincidencias",
-  "Save": "Guardar",
-  "Upload new avatar": "Subir nuevo avatar",
-  "Show Original & Translated Messages": "Mostrar mensajes originales y traducidos",
-  "Filter explicit content": "Filtrar contenido explícito",
-  "AI reply": "Respuesta de IA",
-  "Enable Read Receipts": "Habilitar confirmaciones de lectura",
-  "Enable Disappearing Messages": "Habilitar mensajes que desaparecen",
-  "Seconds until auto-delete": "Segundos hasta la autodestrucción",
-  "Settings saved!": "¡Ajustes guardados!",
-  "Error: Could not save settings": "Error: No se pudieron guardar los ajustes",
-  "You need to be logged in to view settings.": "Debes iniciar sesión para ver la configuración."
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "refresh": "Actualizar"
+  },
+  "profile": {
+    "title": "Perfil de usuario",
+    "mustLogin": "Debes iniciar sesión para ver la configuración.",
+    "showOriginalWithTranslation": "Mostrar mensajes originales y traducidos",
+    "filterExplicit": "Filtrar contenido explícito",
+    "aiReply": "Respuesta de IA",
+    "readReceipts": "Habilitar confirmaciones de lectura",
+    "disappearingMessages": "Habilitar mensajes que desaparecen",
+    "autoDeleteSeconds": "Segundos hasta la autodestrucción",
+    "saveSuccess": "¡Ajustes guardados!",
+    "saveError": "Error: No se pudieron guardar los ajustes",
+    "avatarAlt": "Avatar del perfil",
+    "uploadAvatar": "Subir nuevo avatar",
+    "avatarSuccess": "¡Avatar subido!",
+    "avatarError": "Error al subir el avatar",
+    "noPrivateKey": "No hay una clave privada en este dispositivo para exportar.",
+    "setBackupPassword": "Establece una contraseña para cifrar tu copia de seguridad:",
+    "backupDownloaded": "Copia de seguridad cifrada descargada.",
+    "exportFailed": "Error al exportar la clave",
+    "enterBackupPassword": "Introduce la contraseña de esta copia de seguridad:",
+    "importSuccess": "Clave privada importada a este dispositivo.",
+    "importFailed": "Error al importar la clave (contraseña incorrecta o archivo corrupto).",
+    "keysRotated": "Nuevo par de claves generado y clave pública subida.",
+    "rotateFailed": "Error al rotar las claves.",
+    "security": "Seguridad",
+    "exportKey": "Exportar clave privada",
+    "importKey": "Importar copia de clave cifrada",
+    "rotateKeys": "Rotar par de claves",
+    "keyDisclaimer": "Tu clave privada nunca sale de este dispositivo. Exporta una copia protegida por contraseña para restaurarla en otro dispositivo."
+  },
+  "chat": {
+    "selectPrompt": "Selecciona un texto o sala de chat para comenzar a chatear",
+    "newMessages": "Nuevos mensajes",
+    "typing": "{{name}} está escribiendo..."
+  }
 }

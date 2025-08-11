@@ -1,0 +1,42 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "refresh": "更新"
+  },
+  "profile": {
+    "title": "ユーザープロフィール",
+    "mustLogin": "設定を表示するにはログインが必要です。",
+    "showOriginalWithTranslation": "原文と翻訳されたメッセージを表示",
+    "filterExplicit": "不適切なコンテンツをフィルタ",
+    "aiReply": "AI返信",
+    "readReceipts": "既読通知を有効にする",
+    "disappearingMessages": "消えるメッセージを有効にする",
+    "autoDeleteSeconds": "自動削除までの秒数",
+    "saveSuccess": "設定を保存しました！",
+    "saveError": "エラー: 設定を保存できませんでした",
+    "avatarAlt": "プロフィールアバター",
+    "uploadAvatar": "新しいアバターをアップロード",
+    "avatarSuccess": "アバターをアップロードしました！",
+    "avatarError": "アバターのアップロードに失敗しました",
+    "noPrivateKey": "このデバイスにはエクスポートできる秘密鍵がありません。",
+    "setBackupPassword": "バックアップを暗号化するパスワードを設定してください:",
+    "backupDownloaded": "暗号化されたバックアップをダウンロードしました。",
+    "exportFailed": "鍵のエクスポートに失敗しました",
+    "enterBackupPassword": "このバックアップのパスワードを入力してください:",
+    "importSuccess": "秘密鍵をこのデバイスにインポートしました。",
+    "importFailed": "鍵のインポートに失敗しました（パスワードが間違っているかファイルが破損しています）。",
+    "keysRotated": "新しい鍵ペアを生成し、公開鍵をアップロードしました。",
+    "rotateFailed": "鍵ペアのローテーションに失敗しました。",
+    "security": "セキュリティ",
+    "exportKey": "秘密鍵をエクスポート",
+    "importKey": "暗号化された鍵バックアップをインポート",
+    "rotateKeys": "鍵ペアをローテーション",
+    "keyDisclaimer": "秘密鍵はこのデバイスから離れることはありません。パスワードで保護されたバックアップをエクスポートして、別のデバイスで復元してください。"
+  },
+  "chat": {
+    "selectPrompt": "チャットを開始するにはテキストまたはチャットルームを選択してください",
+    "newMessages": "新しいメッセージ",
+    "typing": "{{name}} が入力中..."
+  }
+}

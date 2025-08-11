@@ -1,13 +1,24 @@
 import { useState, useRef } from 'react';
-import { Group, TextInput, FileInput, Button, ActionIcon, Loader } from '@mantine/core';
+import { Group, TextInput, FileInput, Button, ActionIcon, Loader, Select } from '@mantine/core';
 import { IconPaperclip, IconSend } from '@tabler/icons-react';
 import socket from '../socket';
+import axiosClient from '../api/axiosClient';
 import CustomEmojiPicker from './EmojiPicker';
+
+const TTL_OPTIONS = [
+  { value: '0', label: 'Off' },
+  { value: '10', label: '10s' },
+  { value: '60', label: '1m' },
+  { value: String(10 * 60), label: '10m' },
+  { value: String(60 * 60), label: '1h' },
+  { value: String(24 * 3600), label: '1d' },
+];
 
 export default function MessageInput({ chatroomId, currentUser, onMessageSent }) {
   const [content, setContent] = useState('');
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0)); // default from user
   const typingTimeoutRef = useRef(null);
 
   const handleTyping = () => {
@@ -16,7 +27,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('stop_typing', chatroomId);
+      socket.emit('stop_typing', String(chatroomId));
     }, 2000);
   };
 
@@ -26,22 +37,24 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
 
     setLoading(true);
     try {
+      const expireSeconds = Number(ttl) || 0;
+
+      // Always use HTTP for now (files must go over HTTP; this also unifies the pipeline).
+      // The server route will emit the saved message to the room.
       const formData = new FormData();
-      formData.append('chatRoomId', chatroomId);
+      formData.append('chatRoomId', String(chatroomId));
+      formData.append('expireSeconds', String(expireSeconds));
       if (content) formData.append('content', content);
       if (file) formData.append('file', file);
 
-      const res = await fetch('http://localhost:5001/messages', {
-        method: 'POST',
-        body: formData,
+      const { data: newMessage } = await axiosClient.post('/messages', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (!res.ok) throw new Error('Failed to send message');
-
-      const newMessage = await res.json();
+      // Let parent append immediately; server also broadcasts to others
       onMessageSent?.(newMessage);
-      socket.emit('send_message', newMessage);
 
+      // Reset inputs
       setContent('');
       setFile(null);
     } catch (err) {
@@ -69,12 +82,22 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
           rightSection={loading ? <Loader size="xs" /> : null}
           disabled={loading}
           onKeyDown={(e) => {
-            // submit on Enter (but allow Shift+Enter in case you switch to Textarea later)
+            // submit on Enter (but allow Shift+Enter if you switch to a Textarea later)
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
             }
           }}
+        />
+
+        {/* TTL picker */}
+        <Select
+          value={ttl}
+          onChange={setTtl}
+          data={TTL_OPTIONS}
+          w={110}
+          aria-label="Message timer"
+          disabled={loading}
         />
 
         {/* File picker */}

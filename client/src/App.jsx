@@ -12,13 +12,16 @@ import LoginForm from './components/LoginForm';
 import Registration from './components/Registration';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
+import PeoplePage from './pages/PeoplePage';
 
 // ✅ Admin pieces
+import AdminReportsPage from './pages/AdminReports';
 import AdminRoute from './routes/AdminRoute';
 import AdminLayout from './pages/AdminLayout';
 import UsersAdminPage from './pages/UsersAdminPage';
 import Forbidden from './pages/Forbidden';
-import PeoplePage from './pages/PeoplePage';
+import AuditLogsPage from './pages/AuditLogsPage';
+
 
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
@@ -114,7 +117,8 @@ export default function App() {
               }
             >
               <Route path="users" element={<UsersAdminPage />} />
-              {/* add more admin pages here */}
+              <Route path="reports" element={<AdminReportsPage />} />
+              <Route path="audit" element={<AuditLogsPage />} />
             </Route>
 
             {/* catch-all under authed layout */}
