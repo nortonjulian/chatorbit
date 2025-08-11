@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import LanguageSelector from './LanguageSelector';
 import axiosClient from '../api/axiosClient';
 import { useUser } from "../context/UserContext";
+import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import {
   Paper,
@@ -18,12 +19,15 @@ import {
   Divider,
 } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
+import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
+import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
 
 function UserProfile({ onLanguageChange }) {
+  const { t } = useTranslation();
   const { currentUser, setCurrentUser } = useUser();
 
   if (!currentUser) {
-    return <Text c="dimmed">You need to be logged in to view settings.</Text>;
+    return <Text c="dimmed">{t('profile.mustLogin')}</Text>;
   }
   
   const [preferredLanguage, setPreferredLanguage] = useState(
@@ -32,7 +36,6 @@ function UserProfile({ onLanguageChange }) {
   const [showOriginalWithTranslation, setShowOriginalWithTranslation] = useState(
     currentUser.showOriginalWithTranslation ?? true
   );
-  // keep your original semantics: allowExplicitContent default true
   const [allowExplicitContent, setAllowExplicitContent] = useState(
     currentUser.allowExplicitContent ?? true
   );
@@ -47,7 +50,17 @@ function UserProfile({ onLanguageChange }) {
   );
 
   const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType] = useState(''); // 'success' | 'error' | ''
+  const [statusType, setStatusType] = useState('');
+  const importFileRef = useRef(null);
+
+  const setStatus = (msg, type='success') => {
+    setStatusMessage(msg);
+    setStatusType(type);
+    setTimeout(() => {
+      setStatusMessage('');
+      setStatusType('');
+    }, 3500);
+  };
 
   const saveSettings = async () => {
     try {
@@ -61,8 +74,8 @@ function UserProfile({ onLanguageChange }) {
       });
 
       i18n.changeLanguage(preferredLanguage); 
-
       onLanguageChange?.(preferredLanguage);
+
       setCurrentUser((prev) => ({
         ...prev,
         preferredLanguage,
@@ -73,62 +86,114 @@ function UserProfile({ onLanguageChange }) {
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
       }));
 
-      setStatusMessage('Settings saved!');
-      setStatusType('success');
+      setStatus(t('profile.saveSuccess'), 'success');
     } catch (error) {
       console.error('Failed to save settings', error);
-      setStatusMessage('Error: Could not save settings');
-      setStatusType('error');
+      setStatus(t('profile.saveError'), 'error');
     }
   };
 
   const handleAvatarUpload = async (file) => {
     if (!file) return;
-
     const formData = new FormData();
     formData.append('avatar', file);
 
     try {
-      const res = await fetch('http://localhost:5001/users/avatar', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: formData,
+      const { data } = await axiosClient.post('/users/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-
-      const data = await res.json();
+      
       if (data.avatarUrl) {
         setCurrentUser((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
-        setStatusMessage('Avatar uploaded!');
-        setStatusType('success');
+        setStatus(t('profile.avatarSuccess'), 'success');
       } else {
         throw new Error('No avatarUrl returned');
       }
     } catch (err) {
       console.error('Avatar upload failed', err);
-      setStatusMessage('Failed to upload avatar');
-      setStatusType('error');
+      setStatus(t('profile.avatarError'), 'error');
+    }
+  };
+
+  const exportKey = async () => {
+    try {
+      const { privateKey } = await loadKeysLocal();
+      if (!privateKey) {
+        setStatus(t('profile.noPrivateKey'), 'error');
+        return;
+      }
+      const pwd = window.prompt(t('profile.setBackupPassword'));
+      if (!pwd) return;
+
+      const blob = await exportEncryptedPrivateKey(privateKey, pwd);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chat-orbit-key.backup.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setStatus(t('profile.backupDownloaded'));
+    } catch (e) {
+      console.error(e);
+      setStatus(t('profile.exportFailed'), 'error');
+    }
+  };
+
+  const importKey = async (file) => {
+    try {
+      if (!file) return;
+      const pwd = window.prompt(t('profile.enterBackupPassword'));
+      if (!pwd) return;
+
+      const privateKeyB64 = await importEncryptedPrivateKey(file, pwd);
+      const existing = await loadKeysLocal();
+      await saveKeysLocal({ publicKey: existing.publicKey, privateKey: privateKeyB64 });
+
+      setStatus(t('profile.importSuccess'));
+      if (importFileRef.current) importFileRef.current.value = null;
+    } catch (e) {
+      console.error(e);
+      setStatus(t('profile.importFailed'), 'error');
+    }
+  };
+
+  const rotateKeys = async () => {
+    try {
+      const kp = generateKeypair();
+      await saveKeysLocal(kp);
+      await axiosClient.post('/users/keys', { publicKey: kp.publicKey });
+      setCurrentUser((prev) => ({ ...prev, publicKey: kp.publicKey }));
+
+      // ✅ removed localStorage persistence (we no longer store keys or user blobs there)
+      // localStorage.setItem('user', JSON.stringify({ ...currentUser, publicKey: kp.publicKey }));
+
+      setStatus(t('profile.keysRotated'));
+    } catch (e) {
+      console.error(e);
+      setStatus(t('profile.rotateFailed'), 'error');
     }
   };
 
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg" maw={560} mx="auto">
-      <Title order={3} mb="md">
-        User Profile
-      </Title>
+      <Title order={3} mb="md">{t('profile.title')}</Title>
 
       <Stack gap="md">
         {/* Avatar */}
         <Group align="center">
           <Avatar
             src={currentUser.avatarUrl || '/default-avatar.png'}
-            alt="Profile avatar"
+            alt={t('profile.avatarAlt')}
             size={64}
             radius="xl"
           />
           <FileInput
             accept="image/*"
             leftSection={<IconUpload size={16} />}
-            placeholder="Upload new avatar"
+            placeholder={t('profile.uploadAvatar')}
             onChange={handleAvatarUpload}
           />
         </Group>
@@ -136,59 +201,66 @@ function UserProfile({ onLanguageChange }) {
         <Divider />
 
         {/* Language */}
-        <Stack gap={4}>
-          <LanguageSelector
-            currentLanguage={preferredLanguage}
-            onChange={setPreferredLanguage}
-          />
-        </Stack>
+        <LanguageSelector
+          currentLanguage={preferredLanguage}
+          onChange={setPreferredLanguage}
+        />
 
         {/* Toggles */}
-        <Stack gap="sm" mt="xs">
-          <Switch
-            checked={showOriginalWithTranslation}
-            onChange={(e) => setShowOriginalWithTranslation(e.currentTarget.checked)}
-            label="Show Original & Translated Messages"
-          />
-
-          {/* Filter: your original UI had checked = !allowExplicitContent */}
-          <Switch
-            checked={!allowExplicitContent}
-            onChange={(e) => setAllowExplicitContent(!e.currentTarget.checked)}
-            label="Filter explicit content"
-          />
-
-          <Switch
-            checked={enableAIResponder}
-            onChange={(e) => setEnableAIResponder(e.currentTarget.checked)}
-            label="AI reply"
-          />
-
-          <Switch
-            checked={enableReadReceipts}
-            onChange={(e) => setEnableReadReceipts(e.currentTarget.checked)}
-            label="Enable Read Receipts"
-          />
-        </Stack>
+        <Switch
+          checked={showOriginalWithTranslation}
+          onChange={(e) => setShowOriginalWithTranslation(e.currentTarget.checked)}
+          label={t('profile.showOriginalWithTranslation')}
+        />
+        <Switch
+          checked={!allowExplicitContent}
+          onChange={(e) => setAllowExplicitContent(!e.currentTarget.checked)}
+          label={t('profile.filterExplicit')}
+        />
+        <Switch
+          checked={enableAIResponder}
+          onChange={(e) => setEnableAIResponder(e.currentTarget.checked)}
+          label={t('profile.aiReply')}
+        />
+        <Switch
+          checked={enableReadReceipts}
+          onChange={(e) => setEnableReadReceipts(e.currentTarget.checked)}
+          label={t('profile.readReceipts')}
+        />
 
         {/* Disappearing messages */}
-        <Stack gap={6} mt="xs">
-          <Switch
-            checked={autoDeleteSeconds > 0}
-            onChange={(e) => setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)} // default 10s
-            label="Enable Disappearing Messages"
+        <Switch
+          checked={autoDeleteSeconds > 0}
+          onChange={(e) => setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)}
+          label={t('profile.disappearingMessages')}
+        />
+        {autoDeleteSeconds > 0 && (
+          <NumberInput
+            min={1}
+            step={1}
+            value={autoDeleteSeconds}
+            onChange={(val) => setAutoDeleteSeconds(Number(val) || 0)}
+            placeholder={t('profile.autoDeleteSeconds')}
+            clampBehavior="strict"
           />
-          {autoDeleteSeconds > 0 && (
-            <NumberInput
-              min={1}
-              step={1}
-              value={autoDeleteSeconds}
-              onChange={(val) => setAutoDeleteSeconds(Number(val) || 0)}
-              placeholder="Seconds until auto-delete"
-              clampBehavior="strict"
-            />
-          )}
-        </Stack>
+        )}
+
+        <Divider label={t('profile.security')} labelPosition="center" />
+
+        {/* Key management */}
+        <Group>
+          <Button variant="light" onClick={exportKey}>{t('profile.exportKey')}</Button>
+          <FileInput
+            ref={importFileRef}
+            accept="application/json"
+            placeholder={t('profile.importKey')}
+            onChange={importKey}
+          />
+          <Button color="orange" variant="light" onClick={rotateKeys}>
+            {t('profile.rotateKeys')}
+          </Button>
+        </Group>
+        <Text size="xs" c="dimmed">{t('profile.keyDisclaimer')}</Text>
 
         {statusMessage && (
           <Alert color={statusType === 'error' ? 'red' : 'green'} variant="light">
@@ -197,7 +269,7 @@ function UserProfile({ onLanguageChange }) {
         )}
 
         <Group justify="flex-end" mt="sm">
-          <Button onClick={saveSettings}>Save</Button>
+          <Button onClick={saveSettings}>{t('common.save')}</Button>
         </Group>
       </Stack>
     </Paper>

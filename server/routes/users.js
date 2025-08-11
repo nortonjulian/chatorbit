@@ -153,6 +153,23 @@ router.post('/avatar', verifyToken, upload.single('avatar'), async (req, res) =>
   }
 });
 
+router.post('/keys', verifyToken, async (req, res) => {
+  const { publicKey } = req.body;
+  if (!publicKey) return res.status(400).json({ error: 'Missing publicKey' });
+
+  try {
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { publicKey },
+      select: { id: true, publicKey: true },
+    });
+    res.json(updated);
+  } catch (e) {
+    console.error('Key upload failed', e);
+    res.status(500).json({ error: 'Failed to upload key' });
+  }
+});
+
 router.patch('/emoji', verifyToken, async (req, res) => {
     const { emoji } = req.body;
     const userId = req.user.id;

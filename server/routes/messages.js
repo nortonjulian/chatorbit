@@ -1,5 +1,4 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
 import prisma from '../utils/prismaClient.js'
 import multer from 'multer'
 import { verifyToken } from '../middleware/auth.js'; 
@@ -10,153 +9,240 @@ const router = express.Router()
 
 const upload = multer({ dest: 'uploads/' })
 
-router.post('/', verifyToken, upload.single('file'), async (req, res) => {
-    const { content, chatRoomId } = req.body;
-    const senderId = req.user.id
-    const file = req.file;
+// router.post('/', verifyToken, upload.single('file'), async (req, res) => {
+//     const { content, chatRoomId } = req.body;
+//     const senderId = req.user.id
+//     const file = req.file;
 
-    if (!content && file) {
-        return res.status(400).json({ error: 'Message must include text or file' })
-    }
+//     if (!content && file) {
+//         return res.status(400).json({ error: 'Message must include text or file' })
+//     }
 
-    if (!senderId && !chatRoomId) {
-        return res.status(400).json({ error: 'Missing senderId or chatRoomId' })
-    }
+//     if (!senderId && !chatRoomId) {
+//         return res.status(400).json({ error: 'Missing senderId or chatRoomId' })
+//     }
 
-    try {
-        // const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
+//     try {
+//         // const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
 
-        // const membership = await prisma.participant.findFirst({
-        //     where: { chatRoomId: Number(chatRoomId), userId: senderId }
-        // });
-        // if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
+//         // const membership = await prisma.participant.findFirst({
+//         //     where: { chatRoomId: Number(chatRoomId), userId: senderId }
+//         // });
+//         // if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
         
-        // let expiresAt = null;
-        // if(sender.autoDeleteSeconds) {
-        //     expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
-        // }
-        // if (!sender) return res.status(404).json({ error: 'Sender not found' })
+//         // let expiresAt = null;
+//         // if(sender.autoDeleteSeconds) {
+//         //     expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
+//         // }
+//         // if (!sender) return res.status(404).json({ error: 'Sender not found' })
 
-        // const participants = await prisma.participant.findMany({
-        //     where: { chatRoomId: Number(chatRoomId) },
-        //     include: { user: true }
-        // })
+//         // const participants = await prisma.participant.findMany({
+//         //     where: { chatRoomId: Number(chatRoomId) },
+//         //     include: { user: true }
+//         // })
 
-        // const senderLang = sender.preferredLanguage || 'en';
+//         // const senderLang = sender.preferredLanguage || 'en';
 
-        // const explicit = content ? isExplicit(content) : false;
+//         // const explicit = content ? isExplicit(content) : false;
 
-        // const requiresClean = !sender.allowExplicitContent || participants.some(p => !p.user.allowExplicitContent)
-        // const cleanContent = content && requiresClean ? cleanText(content) : content
+//         // const requiresClean = !sender.allowExplicitContent || participants.some(p => !p.user.allowExplicitContent)
+//         // const cleanContent = content && requiresClean ? cleanText(content) : content
 
-        // const translationResult = content ? await translateMessageIfNeeded(cleanContent, sender, participants) 
-        //                         : { translatedText: null, targetLang: null}
+//         // const translationResult = content ? await translateMessageIfNeeded(cleanContent, sender, participants) 
+//         //                         : { translatedText: null, targetLang: null}
 
-        // let finalTranslatedContent = translationResult.translatedText;
-        // const recipients = participants.filter(p => p.user.id !== sender.id)
+//         // let finalTranslatedContent = translationResult.translatedText;
+//         // const recipients = participants.filter(p => p.user.id !== sender.id)
 
-        // const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicitContent);
+//         // const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicitContent);
 
-        // if (anyReceiverDisallowsExplicit && finalTranslatedContent && isExplicit(translatedContent)) {
-        //     finalTranslatedContent = '[Message removed due to explicit content]'
-        // }
+//         // if (anyReceiverDisallowsExplicit && finalTranslatedContent && isExplicit(translatedContent)) {
+//         //     finalTranslatedContent = '[Message removed due to explicit content]'
+//         // }
 
-        //     // Encrypt the message for all participants (AES-GCM + NaCl for session keys)
-        // const recipientUsers = participants.map(p => p.user); // includes sender
-        // const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
-        // cleanContent || '',
-        // sender,
-        // recipientUsers
-        // );
+//         //     // Encrypt the message for all participants (AES-GCM + NaCl for session keys)
+//         // const recipientUsers = participants.map(p => p.user); // includes sender
+//         // const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
+//         // cleanContent || '',
+//         // sender,
+//         // recipientUsers
+//         // );
 
-        const fileUrl = file ? `/uploads/${file.filename}` : null;
-        // const message = await prisma.message.create({
-        //     data: {
-        //         contentCiphertext: ciphertext,
-        //         encryptedKeys,
-        //         rawContent: content || null,
-        //         translatedContent: finalTranslatedContent,
-        //         translatedFrom: senderLang,
-        //         translatedTo: translationResult.targetLang, 
-        //         isExplicit: explicit,
-        //         imageUrl: file ? `/uploads/${file.filename}` : null,
-        //         expiresAt,
-        //         sender: { connect: { id: Number(senderId) } },
-        //         chatRoom: { connect: { id: Number(chatRoomId) } },
-        //     },
-        //     include: {
-        //         sender: {
-        //             select: { id: true, username: true, publicKey: true },
-        //         },
-        //     },
-        // })
-        const message = await createMessageService({
-            senderId,
-            chatRoomId,
-            content,
-            fileUrl
-        })
+//         const fileUrl = file ? `/uploads/${file.filename}` : null;
+//         // const message = await prisma.message.create({
+//         //     data: {
+//         //         contentCiphertext: ciphertext,
+//         //         encryptedKeys,
+//         //         rawContent: content || null,
+//         //         translatedContent: finalTranslatedContent,
+//         //         translatedFrom: senderLang,
+//         //         translatedTo: translationResult.targetLang, 
+//         //         isExplicit: explicit,
+//         //         imageUrl: file ? `/uploads/${file.filename}` : null,
+//         //         expiresAt,
+//         //         sender: { connect: { id: Number(senderId) } },
+//         //         chatRoom: { connect: { id: Number(chatRoomId) } },
+//         //     },
+//         //     include: {
+//         //         sender: {
+//         //             select: { id: true, username: true, publicKey: true },
+//         //         },
+//         //     },
+//         // })
+//         const message = await createMessageService({
+//             senderId,
+//             chatRoomId,
+//             content,
+//             fileUrl
+//         })
 
-        res.status(201).json(message)
-    } catch (error) {
-        const status = error.statusCode || 500;
-        console.log('Error creating message:', error)
-        res.status(status).json({ error: 'Failed to create message' })
+//         res.status(201).json(message)
+//     } catch (error) {
+//         const status = error.statusCode || 500;
+//         console.log('Error creating message:', error)
+//         res.status(status).json({ error: 'Failed to create message' })
+//     }
+// })
+
+router.post('/', verifyToken, upload.single('file'), async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const { content, chatRoomId, expireSeconds } = req.body;
+
+    // Clamp optional per-message TTL (5s .. 7d). Omit if invalid.
+    let secs = Number(expireSeconds);
+    if (!Number.isFinite(secs)) {
+      secs = undefined;
+    } else {
+      const MIN = 5;                       // 5 seconds
+      const MAX = 7 * 24 * 60 * 60;        // 7 days
+      secs = Math.max(MIN, Math.min(MAX, secs));
     }
-})
+
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const saved = await createMessageService({
+      senderId,
+      chatRoomId,
+      content,
+      expireSeconds: secs,  // <- per-message override (optional)
+      imageUrl,
+    });
+
+    // Realtime: emit to this chat room only
+    const io = req.app.get('io');
+    io?.to(String(chatRoomId)).emit('receive_message', saved);
+
+    res.status(201).json(saved);
+  } catch (err) {
+    console.error('Error creating message:', err);
+    res.status(500).json({ error: 'Failed to create message' });
+  }
+});
 
 //GET messages
 router.get('/:chatRoomId', verifyToken, async (req, res) => {
-    const chatRoomId = Number(req.params.chatRoomId)
-    const requesterId = req.user.id
-    const isAdmin = req.user.role === 'ADMIN'
+  const chatRoomId = Number(req.params.chatRoomId);
+  const requesterId = req.user.id;
+  const isAdmin = req.user.role === 'ADMIN';
 
-    try {
-        if (!isAdmin) {
-            const membership = await prisma.participant.findFirst({
-                where: { chatRoomId, userId: requesterId }
-            });
-            if (!membership) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    if (!Number.isFinite(chatRoomId)) {
+      return res.status(400).json({ error: 'Invalid chatRoomId' });
+    }
+
+    // Must be a participant unless admin
+    if (!isAdmin) {
+      const membership = await prisma.participant.findFirst({
+        where: { chatRoomId, userId: requesterId },
+      });
+      if (!membership) return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Requester’s UI language
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { preferredLanguage: true },
+    });
+    const myLang = requester?.preferredLanguage || 'en';
+
+    // Fetch messages + ONLY my key from MessageKey
+    const messages = await prisma.message.findMany({
+      where: { chatRoomId, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        contentCiphertext: true,
+        // 🔁 REMOVE encryptedKeys JSON from here (we're normalizing)
+        translations: true,          // JSON map of lang -> text (plaintext)
+        translatedContent: true,     // legacy single translation
+        translatedTo: true,          // legacy single translation
+        imageUrl: true,
+        createdAt: true,
+        rawContent: true,            // will be stripped for non-sender/non-admin
+        deletedBySender: true,
+        sender: { select: { id: true, username: true } },
+        // 👇 Pull exactly one key row for THIS viewer
+        keys: {
+          where: { userId: requesterId },
+          select: { encryptedKey: true },
+          take: 1,
+        },
+      },
+    });
+
+    // Filter and shape
+    const safe = messages
+      .filter((m) => !(m.deletedBySender && m.sender.id === requesterId))
+      .map((m) => {
+        const isSender = m.sender.id === requesterId;
+
+        // Best translation for this viewer
+        const fromMap = m.translations && typeof m.translations === 'object'
+          ? m.translations[myLang] ?? null
+          : null;
+        const legacy = (m.translatedTo && m.translatedTo === myLang)
+          ? m.translatedContent
+          : null;
+        const translatedForMe = fromMap || legacy || null;
+
+        // Extract my encrypted session key from normalized table
+        const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
+
+        // Drop fields we don’t want to send verbatim
+        const {
+          translations,        // drop full map
+          translatedContent,   // drop legacy
+          translatedTo,        // drop legacy
+          keys,                // drop raw keys array
+          ...rest
+        } = m;
+
+        if (isSender || isAdmin) {
+          // Sender/admin can still see rawContent (your previous behavior)
+          return {
+            ...rest,
+            encryptedKeyForMe,
+            translatedForMe,
+          };
         }
 
-        const messages = await prisma.message.findMany({
-            where: { chatRoomId },
-            orderBy: { createdAt: 'asc' },
-            select: {
-                id: true,
-                contentCiphertext: true,
-                encryptedKeys: true,
-                translatedContent: true,
-                imageUrl: true,
-                createdAt: true,
-                sender: {
-                    select: { id: true, username: true }
-                },
-                rawContent: true,
-                deletedBySender: true,
-            },
-        })
+        // Others do NOT get rawContent
+        const { rawContent, ...restNoRaw } = rest;
+        return {
+          ...restNoRaw,
+          encryptedKeyForMe,
+          translatedForMe,
+        };
+      });
 
-        const safeMessages = messages
-            .filter(msg => {
-                // Don't show messages deleted by sender to that sender
-                if (msg.deletedBySender && msg.sender.id === requesterId) return false;
-                return true;
-            })
-            .map(msg => {
-                const isSender = requesterId && msg.sender.id === requesterId;
-                if (isSender || isAdmin) return msg;
-                const { rawContent, ...rest } = msg;
-                return rest;
-            });
-
-
-        res.json(safeMessages)
-    } catch (error) {
-        console.log('Error fetching messages', error)
-        res.status(500).json({ error: 'Failed to fetch messages' })
-    }
-})
+    res.json(safe);
+  } catch (error) {
+    console.error('Error fetching messages', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
 
 // PATCH /messages/:id/read
 router.patch('/:id/read', verifyToken, async (req, res) => {

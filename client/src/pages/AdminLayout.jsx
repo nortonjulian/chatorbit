@@ -1,16 +1,44 @@
-import { Outlet } from 'react-router-dom';
-import { Title, Text, Stack, Paper } from '@mantine/core';
+// client/src/pages/AdminLayout.jsx
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { AppShell, ScrollArea, Title, Stack } from '@mantine/core';
 
 export default function AdminLayout() {
+  const { pathname } = useLocation();
+
   return (
-    <Paper p="lg" radius="xl" withBorder>
-      <Stack>
-        <Title order={3}>Admin</Title>
-        <Text c="dimmed" size="sm">
-          Restricted tools for moderators and administrators.
-        </Text>
+    <AppShell
+      navbar={{ width: 220, breakpoint: 'sm' }}
+      padding="md"
+    >
+      <AppShell.Navbar p="md">
+        <Title order={4} mb="md">Admin</Title>
+        <ScrollArea.Autosize mah="calc(100vh - 140px)">
+          <Stack gap="xs">
+            <NavLink
+              to="/admin/users"
+              className={({ isActive }) => isActive || pathname.startsWith('/admin/users') ? 'active' : undefined}
+            >
+              Users
+            </NavLink>
+            <NavLink
+              to="/admin/reports"
+              className={({ isActive }) => isActive || pathname.startsWith('/admin/reports') ? 'active' : undefined}
+            >
+              Reports
+            </NavLink>
+            <NavLink
+              to="/admin/audit"
+              className={({ isActive }) => isActive || pathname.startsWith('/admin/audit') ? 'active' : undefined}
+            >
+              Audit Logs
+            </NavLink>
+          </Stack>
+        </ScrollArea.Autosize>
+      </AppShell.Navbar>
+
+      <AppShell.Main>
         <Outlet />
-      </Stack>
-    </Paper>
+      </AppShell.Main>
+    </AppShell>
   );
 }
