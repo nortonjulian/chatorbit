@@ -187,5 +187,53 @@ router.patch('/emoji', verifyToken, async (req, res) => {
     }
   });
   
+router.get('/me', verifyToken, async (req, res) => {
+  try {
+    const me = await prisma.user.findUnique({
+      where: { id: Number(req.user.id) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        phoneNumber: true,
+        preferredLanguage: true,
+        avatarUrl: true,
+        emojiTag: true,
+        role: true,
+        enableSmartReplies: true, // ✅ new flag
+      },
+    });
+    res.json(me);
+  } catch (e) {
+    console.error('GET /users/me failed', e);
+    res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
+router.patch('/me', verifyToken, async (req, res) => {
+  try {
+    const { enableSmartReplies } = req.body ?? {};
+    const data = {};
+
+    if (typeof enableSmartReplies === 'boolean') {
+      data.enableSmartReplies = enableSmartReplies;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: Number(req.user.id) },
+      data,
+      select: { id: true, enableSmartReplies: true },
+    });
+
+    res.json(updated);
+  } catch (e) {
+    console.error('PATCH /users/me failed', e);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
 
 export default router

@@ -1,0 +1,16 @@
+/* Base blurred state */
+.privacy-blur .message-bubble {
+  filter: blur(8px);
+  transition: filter 120ms ease;
+}
+
+/* When revealed */
+.privacy-revealed .message-bubble {
+  filter: none;
+}
+
+/* Optional: fade usernames/avatars a bit too */
+.privacy-blur .sender-name,
+.privacy-blur .mantine-Avatar-root {
+  filter: blur(6px);
+}

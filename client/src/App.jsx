@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { AppShell, Burger, Button, Card, Group, Title, Text, ScrollArea, Center } from '@mantine/core';
+import {
+  AppShell,
+  Burger,
+  Button,
+  Card,
+  Group,
+  Title,
+  Text,
+  ScrollArea,
+  Center
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { Notifications } from '@mantine/notifications';
+import SettingsBackups from './pages/SettingsBackups.jsx';
 
 import { useUser } from './context/UserContext';
 import BootstrapUser from './components/BootstrapUser';
@@ -13,6 +25,7 @@ import Registration from './components/Registration';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import PeoplePage from './pages/PeoplePage';
+import JoinInvitePage from './pages/JoinInvitePage.jsx';
 
 // ✅ Admin pieces
 import AdminReportsPage from './pages/AdminReports';
@@ -21,7 +34,6 @@ import AdminLayout from './pages/AdminLayout';
 import UsersAdminPage from './pages/UsersAdminPage';
 import Forbidden from './pages/Forbidden';
 import AuditLogsPage from './pages/AuditLogsPage';
-
 
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
@@ -77,7 +89,6 @@ export default function App() {
       </AppShell.Navbar>
 
       <AppShell.Main>
-        {/* where child routes render */}
         <Outlet />
       </AppShell.Main>
     </AppShell>
@@ -85,6 +96,9 @@ export default function App() {
 
   return (
     <>
+      {/* 🔔 Global Notifications */}
+      <Notifications position="top-right" />
+
       <BootstrapUser />
 
       {!currentUser ? (
@@ -97,17 +111,17 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       ) : (
-        // Authenticated routes (AppShell layout + children)
+        // Authenticated routes
         <Routes>
-          {/* You can allow anyone to see a 403 page if they somehow hit it */}
           <Route path="/forbidden" element={<Forbidden />} />
-
           <Route path="/" element={<AuthedLayout />}>
-            {/* index = main chat UI */}
             <Route index element={<ChatHome />} />
             <Route path="people" element={<PeoplePage />} />
 
-            {/* admin branch, guarded */}
+            <Route path="settings/backups" element={<SettingsBackups />} />
+
+            <Route path="/join/:code" element={<JoinInvitePage />} />
+
             <Route
               path="admin"
               element={
@@ -121,7 +135,6 @@ export default function App() {
               <Route path="audit" element={<AuditLogsPage />} />
             </Route>
 
-            {/* catch-all under authed layout */}
             <Route path="*" element={<Navigate to="/" />} />
           </Route>
         </Routes>
