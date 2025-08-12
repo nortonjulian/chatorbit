@@ -1,9 +1,16 @@
-import { useState, useRef } from 'react';
-import { Group, TextInput, FileInput, Button, ActionIcon, Loader, Select } from '@mantine/core';
+import { useState } from 'react';
+import {
+  Group,
+  TextInput,
+  FileInput,
+  ActionIcon,
+  Loader,
+  Select,
+  Textarea,
+  Button,
+} from '@mantine/core';
 import { IconPaperclip, IconSend } from '@tabler/icons-react';
-import socket from '../socket';
 import axiosClient from '../api/axiosClient';
-import CustomEmojiPicker from './EmojiPicker';
 
 const TTL_OPTIONS = [
   { value: '0', label: 'Off' },
@@ -14,49 +21,55 @@ const TTL_OPTIONS = [
   { value: String(24 * 3600), label: '1d' },
 ];
 
-export default function MessageInput({ chatroomId, currentUser, onMessageSent }) {
+/**
+ * Props:
+ * - chatroomId (number|string)
+ * - currentUser (object)
+ * - onMessageSent (fn) — called with the newly-saved message
+ * - getLastInboundText (optional fn) — still supported but unused here
+ */
+export default function MessageInput({
+  chatroomId,
+  currentUser,
+  onMessageSent,
+  getLastInboundText, // kept for API compatibility
+}) {
   const [content, setContent] = useState('');
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);          // File[]
+  const [captions, setCaptions] = useState({});    // { [idx: number]: string }
   const [loading, setLoading] = useState(false);
-  const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0)); // default from user
-  const typingTimeoutRef = useRef(null);
-
-  const handleTyping = () => {
-    if (!chatroomId || !currentUser?.username) return;
-    socket.emit('typing', { chatRoomId: chatroomId, username: currentUser.username });
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('stop_typing', String(chatroomId));
-    }, 2000);
-  };
+  const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0));
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    if (!content.trim() && !file) return;
+    if (!content.trim() && files.length === 0) return;
 
     setLoading(true);
     try {
-      const expireSeconds = Number(ttl) || 0;
+      const form = new FormData();
+      form.append('chatRoomId', String(chatroomId));
+      form.append('expireSeconds', String(Number(ttl) || 0));
+      if (content.trim()) form.append('content', content.trim());
 
-      // Always use HTTP for now (files must go over HTTP; this also unifies the pipeline).
-      // The server route will emit the saved message to the room.
-      const formData = new FormData();
-      formData.append('chatRoomId', String(chatroomId));
-      formData.append('expireSeconds', String(expireSeconds));
-      if (content) formData.append('content', content);
-      if (file) formData.append('file', file);
+      // Append files[] for multer.array('files', 10)
+      files.forEach((f) => form.append('files', f));
 
-      const { data: newMessage } = await axiosClient.post('/messages', formData, {
+      // Pair meta by index
+      const meta = files.map((_, i) => ({
+        idx: i,
+        caption: captions[i] || null,
+        // width/height/durationSec can be added after client-side inspection/cropping
+      }));
+      form.append('attachmentsMeta', JSON.stringify(meta));
+
+      const { data: saved } = await axiosClient.post('/messages', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      // Let parent append immediately; server also broadcasts to others
-      onMessageSent?.(newMessage);
-
-      // Reset inputs
+      onMessageSent?.(saved);
       setContent('');
-      setFile(null);
+      setFiles([]);
+      setCaptions({});
     } catch (err) {
       console.error('Error sending message', err);
     } finally {
@@ -67,22 +80,15 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
   return (
     <form onSubmit={handleSubmit}>
       <Group align="end" gap="xs" wrap="nowrap">
-        {/* Emoji */}
-        <CustomEmojiPicker onSelect={(emoji) => setContent((v) => (v || '') + emoji)} />
-
-        {/* Message input */}
+        {/* Text message */}
         <TextInput
           style={{ flex: 1 }}
-          placeholder="Type your message..."
+          placeholder="Say something…"
           value={content}
-          onChange={(e) => {
-            setContent(e.currentTarget.value);
-            handleTyping();
-          }}
+          onChange={(e) => setContent(e.currentTarget.value)}
           rightSection={loading ? <Loader size="xs" /> : null}
           disabled={loading}
           onKeyDown={(e) => {
-            // submit on Enter (but allow Shift+Enter if you switch to a Textarea later)
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
@@ -100,16 +106,16 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
           disabled={loading}
         />
 
-        {/* File picker */}
+        {/* Multi-file picker (append to list) */}
         <FileInput
-          value={file}
-          onChange={setFile}
-          accept="image/*,video/*"
+          value={null} // always null so the same file can be picked again later
+          onChange={(f) => f && setFiles((prev) => [...prev, f])}
+          accept="image/*,video/*,audio/*"
           placeholder="Attach"
           leftSection={<IconPaperclip size={16} />}
-          clearable
           w={180}
           disabled={loading}
+          clearable
         />
 
         {/* Send */}
@@ -118,12 +124,79 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
           variant="filled"
           radius="xl"
           size="lg"
-          disabled={loading || (!content.trim() && !file)}
+          disabled={loading || (!content.trim() && files.length === 0)}
           aria-label="Send"
         >
           <IconSend size={18} />
         </ActionIcon>
       </Group>
+
+      {/* Simple media list with per-file captions */}
+      {files.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {files.map((f, i) => (
+            <Group
+              key={`${f.name}-${i}`}
+              gap="xs"
+              align="center"
+              wrap="nowrap"
+              style={{ marginBottom: 6 }}
+            >
+              <div
+                style={{
+                  width: 180,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={`${f.name} (${f.type || 'unknown'})`}
+              >
+                {f.name} <small>({f.type || 'file'})</small>
+              </div>
+
+              {/* Optional: launch an editor/cropper here, then replace file in state */}
+              {/* <Button size="xs" variant="light" onClick={() => setEditorIndex(i)}>Edit</Button> */}
+
+              <Textarea
+                placeholder="Caption (optional)"
+                autosize
+                minRows={1}
+                maxRows={2}
+                w={320}
+                value={captions[i] || ''}
+                onChange={(e) =>
+                  setCaptions((s) => ({ ...s, [i]: e.currentTarget.value }))
+                }
+              />
+
+              <Button
+                size="xs"
+                variant="subtle"
+                color="red"
+                onClick={() =>
+                  setFiles((prev) => prev.filter((_, idx) => idx !== i))
+                }
+              >
+                Remove
+              </Button>
+            </Group>
+          ))}
+        </div>
+      )}
+
+      {/*
+        If you later add an ImageEditorModal/cropper:
+        <ImageEditorModal
+          file={files[editorIndex]}
+          onCancel={() => setEditorIndex(null)}
+          onSave={(blob, meta) => {
+            const newFile = new File([blob], files[editorIndex].name, { type: files[editorIndex].type });
+            setFiles(prev => prev.map((f, i) => i === editorIndex ? newFile : f));
+            // Optionally store meta.width/height in captions/meta map by index
+            setEditorIndex(null);
+          }}
+        />
+      */}
     </form>
   );
 }

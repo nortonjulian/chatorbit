@@ -1,15 +1,11 @@
-// server/index.js
 import express from 'express';
 import http from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
-// ⬇️ replace the old side-effect import
-// import './cron/deleteExpiredMessages.js';
 import { initDeleteExpired } from './cron/deleteExpiredMessages.js';
 
 import usersRouter from './routes/users.js';
@@ -19,11 +15,19 @@ import authRouter from './routes/auth.js';
 import randomChatsRouter from './routes/randomChats.js';
 import contactRoutes from './routes/contacts.js';
 import invitesRouter from './routes/invites.js';
+import aiRouter from './routes/ai.js';
+import groupInvitesRouter from './routes/groupInvites.js';
+import mediaRouter from './routes/media.js';
 
 // Admin routes
 import adminReportsRouter from './routes/adminReports.js';
 import adminUsersRouter from './routes/adminUsers.js';
 import adminAuditRouter from './routes/adminAudit.js';
+
+// ✅ NEW: use the server-side Socket.IO bootstrap
+import { initSocket } from './socket.js';
+
+import { startCleanupJobs } from './cleanup.js';
 
 dotenv.config();
 
@@ -34,15 +38,11 @@ const PORT = process.env.PORT || 5001;
 // --- HTTP server (needed by Socket.IO) ---
 const server = http.createServer(app);
 
-// --- Socket.IO setup ---
-const io = new Server(server, {
-  cors: {
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  },
-});
+// --- Initialize Socket.IO via our helper ---
+const { io, emitToUser } = initSocket(server);
+app.set('emitToUser', emitToUser); // routes can emit to user rooms
 
-// --- Socket auth (JWT in handshake) ---
+// --- (Optional) extra auth layer for your own events, if desired ---
 io.use((socket, next) => {
   try {
     const token =
@@ -71,6 +71,7 @@ app.use(express.json());
 
 // --- Routes ---
 app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
+app.use('/ai', aiRouter);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/auth/login', authLimiter);
@@ -83,18 +84,23 @@ app.use('/messages', messagesRouter);
 app.use('/random-chats', randomChatsRouter);
 app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
+app.use('/media', mediaRouter);
+app.use(groupInvitesRouter);
 
 // Admin APIs
 app.use('/admin/reports', adminReportsRouter);
 app.use('/admin/users', adminUsersRouter);
 app.use('/admin/audit', adminAuditRouter);
 
+startCleanupJobs();
+
 // Serve uploaded avatars
 app.use('/uploads/avatars', express.static('uploads/avatars'));
+app.use('/uploads', express.static('uploads'));
 
 // --- RANDOM CHAT STATE ---
-let waitingUsers = [];                 // sockets waiting to be paired
-const activePairs = new Map();         // roomId -> [socket1, socket2]
+let waitingUsers = [];
+const activePairs = new Map();
 
 // --- Socket event handlers ---
 io.on('connection', (socket) => {
@@ -234,45 +240,53 @@ io.on('connection', (socket) => {
       const senderId = socket.user?.id;
       if (!content || !senderId || !chatRoomId) return;
 
-      const { createMessageService } = await import('./services/messageService.js');
+      // Create + emit the original message
+      const { createMessageService, maybeAutoTranslate } = await import('./services/messageService.js');
       const saved = await createMessageService({
         senderId,
         chatRoomId,
         content,
         expireSeconds,
       });
-
       io.to(String(chatRoomId)).emit('receive_message', saved);
 
-      // optional AI autoresponder...
-      const participants = await prisma.participant.findMany({
-        where: { chatRoomId: Number(chatRoomId) },
-        include: { user: true },
-      });
-      const aiEnabledUsers = participants.filter(
-        (p) => p.user.enableAIResponder && p.user.id !== senderId
-      );
-      if (aiEnabledUsers.length) {
-        const { generateAIResponse } = await import('./utils/generateAIResponse.js');
-        for (const p of aiEnabledUsers) {
-          const aiReply = await generateAIResponse(content, p.user.username);
-          const savedAi = await createMessageService({
-            senderId: p.user.id,
-            chatRoomId,
-            content: aiReply,
-          });
-          io.to(String(chatRoomId)).emit('receive_message', savedAi);
-        }
-      }
+      // 🔁 Auto-translation replies (OrbitBot); non-blocking
+      maybeAutoTranslate({ savedMessage: saved, io, prisma }).catch(() => {});
+
+      // 🔁 @OrbitBot assistant / mention modes; non-blocking
+      const { maybeInvokeOrbitBot } = await import('./services/botAssistant.js');
+      maybeInvokeOrbitBot({ text: content, savedMessage: saved, io, prisma }).catch(() => {});
+
+      // 🔁 NEW: per-user auto-responder; non-blocking
+      const { maybeAutoRespondUsers } = await import('./services/autoResponder.js');
+      maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(() => {});
     } catch (e) {
       console.error('Message save failed:', e);
     }
   });
+
+  socket.on('message_copied', async ({ messageId }) => {
+    try {
+      const m = await prisma.message.findUnique({
+        where: { id: Number(messageId) },
+        select: { id: true, senderId: true, chatRoomId: true }
+      });
+    }
+    catch {}
+    if (!m) return;
+
+    io.to(String(m.chatRoomId)).emit('message_copy_notice', {
+      messageId: m.id,
+      toUserId: m.senderId,
+      byUserId: socket.user?.id
+    });
+  });
 });
 
+// Expose io if any other module still needs it:
 app.set('io', io);
 
-// ⬇️ Start the expiry sweeper now that `io` exists
+// Start sweeper once io exists
 const { stop: stopDeleteExpired } = initDeleteExpired(io);
 
 // --- Bootstrap ---

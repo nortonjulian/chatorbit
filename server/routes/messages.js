@@ -1,138 +1,85 @@
-import express from 'express'
-import prisma from '../utils/prismaClient.js'
-import multer from 'multer'
-import { verifyToken } from '../middleware/auth.js'; 
+import express from 'express';
+import prisma from '../utils/prismaClient.js';
+import multer from 'multer';
+import { verifyToken } from '../middleware/auth.js';
 import { audit } from '../middleware/audit.js';
 import { createMessageService } from '../services/messageService.js';
 
-const router = express.Router()
+const router = express.Router();
 
-const upload = multer({ dest: 'uploads/' })
+// Store uploads on disk (adjust to memory/S3/etc. as needed)
+const upload = multer({ dest: 'uploads/' });
 
-// router.post('/', verifyToken, upload.single('file'), async (req, res) => {
-//     const { content, chatRoomId } = req.body;
-//     const senderId = req.user.id
-//     const file = req.file;
-
-//     if (!content && file) {
-//         return res.status(400).json({ error: 'Message must include text or file' })
-//     }
-
-//     if (!senderId && !chatRoomId) {
-//         return res.status(400).json({ error: 'Missing senderId or chatRoomId' })
-//     }
-
-//     try {
-//         // const sender = await prisma.user.findUnique({ where: { id: Number(senderId) } })
-
-//         // const membership = await prisma.participant.findFirst({
-//         //     where: { chatRoomId: Number(chatRoomId), userId: senderId }
-//         // });
-//         // if (!membership) return res.status(403).json({ error: 'Not a participant in this chat' });
-        
-//         // let expiresAt = null;
-//         // if(sender.autoDeleteSeconds) {
-//         //     expiresAt = new Date(Date.now() + sender.autoDeleteSeconds * 1000);
-//         // }
-//         // if (!sender) return res.status(404).json({ error: 'Sender not found' })
-
-//         // const participants = await prisma.participant.findMany({
-//         //     where: { chatRoomId: Number(chatRoomId) },
-//         //     include: { user: true }
-//         // })
-
-//         // const senderLang = sender.preferredLanguage || 'en';
-
-//         // const explicit = content ? isExplicit(content) : false;
-
-//         // const requiresClean = !sender.allowExplicitContent || participants.some(p => !p.user.allowExplicitContent)
-//         // const cleanContent = content && requiresClean ? cleanText(content) : content
-
-//         // const translationResult = content ? await translateMessageIfNeeded(cleanContent, sender, participants) 
-//         //                         : { translatedText: null, targetLang: null}
-
-//         // let finalTranslatedContent = translationResult.translatedText;
-//         // const recipients = participants.filter(p => p.user.id !== sender.id)
-
-//         // const anyReceiverDisallowsExplicit = recipients.some(p => !p.user.allowExplicitContent);
-
-//         // if (anyReceiverDisallowsExplicit && finalTranslatedContent && isExplicit(translatedContent)) {
-//         //     finalTranslatedContent = '[Message removed due to explicit content]'
-//         // }
-
-//         //     // Encrypt the message for all participants (AES-GCM + NaCl for session keys)
-//         // const recipientUsers = participants.map(p => p.user); // includes sender
-//         // const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
-//         // cleanContent || '',
-//         // sender,
-//         // recipientUsers
-//         // );
-
-//         const fileUrl = file ? `/uploads/${file.filename}` : null;
-//         // const message = await prisma.message.create({
-//         //     data: {
-//         //         contentCiphertext: ciphertext,
-//         //         encryptedKeys,
-//         //         rawContent: content || null,
-//         //         translatedContent: finalTranslatedContent,
-//         //         translatedFrom: senderLang,
-//         //         translatedTo: translationResult.targetLang, 
-//         //         isExplicit: explicit,
-//         //         imageUrl: file ? `/uploads/${file.filename}` : null,
-//         //         expiresAt,
-//         //         sender: { connect: { id: Number(senderId) } },
-//         //         chatRoom: { connect: { id: Number(chatRoomId) } },
-//         //     },
-//         //     include: {
-//         //         sender: {
-//         //             select: { id: true, username: true, publicKey: true },
-//         //         },
-//         //     },
-//         // })
-//         const message = await createMessageService({
-//             senderId,
-//             chatRoomId,
-//             content,
-//             fileUrl
-//         })
-
-//         res.status(201).json(message)
-//     } catch (error) {
-//         const status = error.statusCode || 500;
-//         console.log('Error creating message:', error)
-//         res.status(status).json({ error: 'Failed to create message' })
-//     }
-// })
-
-router.post('/', verifyToken, upload.single('file'), async (req, res) => {
+/**
+ * CREATE message (HTTP)
+ * - Supports multiple file uploads via `files[]`
+ * - Accepts optional `attachmentsMeta` JSON to pair per-file metadata by index
+ * - Emits the saved message to the room via Socket.IO
+ *
+ * Body:
+ *  - content?: string
+ *  - chatRoomId: number|string
+ *  - expireSeconds?: number
+ *  - attachmentsMeta?: string (JSON: [{ idx, width?, height?, durationSec?, caption?, kind? }])
+ *
+ * Files:
+ *  - files[]: up to 10 files (image/video/audio/file)
+ */
+router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
   try {
     const senderId = req.user.id;
-    const { content, chatRoomId, expireSeconds } = req.body;
+    const { content, chatRoomId, expireSeconds, attachmentsMeta } = req.body;
 
     // Clamp optional per-message TTL (5s .. 7d). Omit if invalid.
     let secs = Number(expireSeconds);
-    if (!Number.isFinite(secs)) {
-      secs = undefined;
-    } else {
-      const MIN = 5;                       // 5 seconds
-      const MAX = 7 * 24 * 60 * 60;        // 7 days
-      secs = Math.max(MIN, Math.min(MAX, secs));
+    secs = Number.isFinite(secs) ? Math.max(5, Math.min(7 * 24 * 60 * 60, secs)) : undefined;
+
+    // Pair files with client-provided meta (index-based)
+    let meta = [];
+    try {
+      meta = JSON.parse(attachmentsMeta || '[]');
+    } catch {
+      meta = [];
     }
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const files = Array.isArray(req.files) ? req.files : [];
+
+    const attachments = files.map((f, i) => {
+      const m = meta.find((x) => Number(x.idx) === i) || {};
+      const mime = f.mimetype || '';
+      const kind =
+        mime.startsWith('image/') ? 'IMAGE' :
+        mime.startsWith('video/') ? 'VIDEO' :
+        mime.startsWith('audio/') ? 'AUDIO' : 'FILE';
+
+      return {
+        kind,
+        url: `/uploads/${f.filename}`,
+        mimeType: mime,
+        width: m.width ?? null,
+        height: m.height ?? null,
+        durationSec: m.durationSec ?? null,
+        caption: m.caption ?? null,
+      };
+    });
+
+    // Backward-compat single media (optional; can be removed once fully on attachments)
+    const firstImage = files.find((f) => f.mimetype?.startsWith('image/'));
+    const firstAudio = files.find((f) => f.mimetype?.startsWith('audio/'));
+    const firstAudioMeta = meta.find((m) => m.kind === 'AUDIO');
 
     const saved = await createMessageService({
       senderId,
       chatRoomId,
       content,
-      expireSeconds: secs,  // <- per-message override (optional)
-      imageUrl,
+      expireSeconds: secs,
+      imageUrl: firstImage ? `/uploads/${firstImage.filename}` : null, // legacy surface
+      audioUrl: firstAudio ? `/uploads/${firstAudio.filename}` : null, // legacy surface
+      audioDurationSec: firstAudioMeta?.durationSec ?? null,
+      attachments,
     });
 
-    // Realtime: emit to this chat room only
-    const io = req.app.get('io');
-    io?.to(String(chatRoomId)).emit('receive_message', saved);
-
+    req.app.get('io')?.to(String(chatRoomId)).emit('receive_message', saved);
     res.status(201).json(saved);
   } catch (err) {
     console.error('Error creating message:', err);
@@ -140,7 +87,12 @@ router.post('/', verifyToken, upload.single('file'), async (req, res) => {
   }
 });
 
-//GET messages
+/**
+ * LIST messages in a room
+ * - Includes readBy for receipts
+ * - Includes per-viewer encryptedKey via normalized MessageKey table
+ * - Includes attachments array
+ */
 router.get('/:chatRoomId', verifyToken, async (req, res) => {
   const chatRoomId = Number(req.params.chatRoomId);
   const requesterId = req.user.id;
@@ -166,51 +118,72 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
     });
     const myLang = requester?.preferredLanguage || 'en';
 
-    // Fetch messages + ONLY my key from MessageKey
+    // Fetch messages + ONLY my key from normalized MessageKey table
     const messages = await prisma.message.findMany({
-      where: { chatRoomId, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+      where: {
+        chatRoomId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
         contentCiphertext: true,
-        // 🔁 REMOVE encryptedKeys JSON from here (we're normalizing)
         translations: true,          // JSON map of lang -> text (plaintext)
         translatedContent: true,     // legacy single translation
         translatedTo: true,          // legacy single translation
-        imageUrl: true,
+        imageUrl: true,              // legacy single media
+        audioUrl: true,              // legacy single media
+        audioDurationSec: true,      // legacy single media
+        isExplicit: true,
         createdAt: true,
-        rawContent: true,            // will be stripped for non-sender/non-admin
+        expiresAt: true,
+        rawContent: true,            // sender/admin only in response shaping
         deletedBySender: true,
         sender: { select: { id: true, username: true } },
-        // 👇 Pull exactly one key row for THIS viewer
+        readBy: {                    // read receipts UI
+          select: { id: true, username: true, avatarUrl: true },
+        },
+        attachments: {               // ← include attachments for gallery/forwarding
+          select: {
+            id: true,
+            kind: true,
+            url: true,
+            mimeType: true,
+            width: true,
+            height: true,
+            durationSec: true,
+            caption: true,
+            createdAt: true,
+          },
+        },
         keys: {
           where: { userId: requesterId },
           select: { encryptedKey: true },
           take: 1,
         },
+        chatRoomId: true,
       },
     });
 
-    // Filter and shape
+    // Filter and shape for client
     const safe = messages
       .filter((m) => !(m.deletedBySender && m.sender.id === requesterId))
       .map((m) => {
         const isSender = m.sender.id === requesterId;
 
         // Best translation for this viewer
-        const fromMap = m.translations && typeof m.translations === 'object'
-          ? m.translations[myLang] ?? null
-          : null;
-        const legacy = (m.translatedTo && m.translatedTo === myLang)
-          ? m.translatedContent
-          : null;
+        const fromMap =
+          m.translations && typeof m.translations === 'object'
+            ? m.translations[myLang] ?? null
+            : null;
+        const legacy =
+          m.translatedTo && m.translatedTo === myLang
+            ? m.translatedContent
+            : null;
         const translatedForMe = fromMap || legacy || null;
 
-        // Extract my encrypted session key from normalized table
         const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
 
-        // Drop fields we don’t want to send verbatim
         const {
           translations,        // drop full map
           translatedContent,   // drop legacy
@@ -220,7 +193,7 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
         } = m;
 
         if (isSender || isAdmin) {
-          // Sender/admin can still see rawContent (your previous behavior)
+          // Sender/admin can see rawContent
           return {
             ...rest,
             encryptedKeyForMe,
@@ -244,129 +217,263 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
   }
 });
 
-// PATCH /messages/:id/read
+/**
+ * PATCH /messages/:id/read
+ * Single mark-as-read with membership check + socket emit
+ */
 router.patch('/:id/read', verifyToken, async (req, res) => {
-    const messageId = Number(req.params.id);
-    const userId = req.user.id;
-  
-    try {
-      const updated = await prisma.message.update({
-        where: { id: messageId },
-        data: {
-          readBy: {
-            connect: { id: userId }
-          }
-        },
-      });
-  
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Failed to mark message as read', error);
-      res.status(500).json({ error: 'Could not mark message as read' });
-    }
-  });
+  const id = Number(req.params.id);
+  const userId = req.user.id;
 
-router.patch('/:id/edit', verifyToken, async (req, res) => {
-    const messageId = parseInt(req.params.id);
-    const requesterId = req.user.id
-    const { newContent } = req.body;
+  try {
+    // Look up message to get room for membership check
+    const m = await prisma.message.findUnique({
+      where: { id },
+      select: { id: true, chatRoomId: true },
+    });
+    if (!m) return res.status(404).json({ error: 'Not found' });
 
-    try {
-        const message = await prisma.message.findUnique({
-            where: { id: messageId },
-            include: {
-              sender: true,
-              chatRoom: { include: { participants: { include: { user: true } } } },
-            },
-          });
-      
-          if (!message || message.sender.id !== requesterId|| message.readBy?.length > 0) {
-            return res.status(403).json({ error: 'Unauthorized or already read' });
-          }
+    const isMember = await prisma.participant.findFirst({
+      where: { chatRoomId: m.chatRoomId, userId },
+      select: { id: true },
+    });
+    if (!isMember) return res.status(403).json({ error: 'Forbidden' });
 
-        const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
-            newContent,
-            message.sender,
-            message.chatRoom.participants.map((p) => p.user)
-        );
+    // Connect user to readBy (no-op if already connected)
+    await prisma.message.update({
+      where: { id },
+      data: { readBy: { connect: { id: userId } } },
+      select: { id: true }, // minimal select
+    });
 
-        const { translatedText, targetLang } = await translateMessageIfNeeded(
-            newContent,
-            message.sender,
-            message.chatRoom.participants
-        )
+    // Notify room in real-time
+    const io = req.app.get('io');
+    io?.to(String(m.chatRoomId)).emit('message_read', {
+      messageId: id,
+      reader: { id: userId, username: req.user.username },
+    });
 
-        const updated = await prisma.message.update({
-            where: { id: messageId },
-            data: {
-                rawContent: newContent,
-                contentCiphertext: ciphertext,
-                encryptedKeys,
-                translatedContent: translatedText,
-                translatedTo: targetLang, 
-            },
-            include : {
-                sender: { select: { id: true, username: true } },
-            },
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to mark message as read', error);
+    res.status(500).json({ error: 'Could not mark message as read' });
+  }
+});
+
+/**
+ * POST /messages/read-bulk
+ * Batched mark-as-read with membership check + per-message socket emit
+ */
+router.post('/read-bulk', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+  const ids = (req.body?.ids || []).map(Number).filter(Boolean);
+
+  try {
+    if (!ids.length) return res.json({ ok: true });
+
+    const msgs = await prisma.message.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, chatRoomId: true },
+    });
+
+    // Only allow marking read in rooms the user belongs to
+    const rooms = [...new Set(msgs.map((m) => m.chatRoomId))];
+    const allowed = await prisma.participant.findMany({
+      where: { userId, chatRoomId: { in: rooms } },
+      select: { chatRoomId: true },
+    });
+    const allowedSet = new Set(allowed.map((a) => a.chatRoomId));
+    const allowedIds = msgs
+      .filter((m) => allowedSet.has(m.chatRoomId))
+      .map((m) => m.id);
+
+    if (!allowedIds.length) return res.json({ ok: true });
+
+    // One-by-one so we can emit per-message (updateMany can't connect M2M)
+    await prisma.$transaction(
+      allowedIds.map((id) =>
+        prisma.message.update({
+          where: { id },
+          data: { readBy: { connect: { id: userId } } },
+          select: { id: true },
         })
+      )
+    );
 
-        res.json(updated)
-    } catch (error) {
-        console.log('Failed to edit message', error)
-        res.status(500).json({ error: 'Edit failed' })
+    const io = req.app.get('io');
+    for (const m of msgs.filter((m) => allowedIds.includes(m.id))) {
+      io?.to(String(m.chatRoomId)).emit('message_read', {
+        messageId: m.id,
+        reader: { id: userId, username: req.user.username },
+      });
     }
-})  
 
-router.delete('/:id', verifyToken, audit('messages.delete', {
+    res.json({ ok: true, count: allowedIds.length });
+  } catch (error) {
+    console.error('Failed bulk mark as read', error);
+    res.status(500).json({ error: 'Could not bulk mark messages as read' });
+  }
+});
+
+/**
+ * EDIT message (kept as in your codebase)
+ */
+router.patch('/:id/edit', verifyToken, async (req, res) => {
+  const messageId = parseInt(req.params.id);
+  const requesterId = req.user.id;
+  const { newContent } = req.body;
+
+  try {
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        sender: true,
+        chatRoom: { include: { participants: { include: { user: true } } } },
+      },
+    });
+
+    if (!message || message.sender.id !== requesterId || message.readBy?.length > 0) {
+      return res.status(403).json({ error: 'Unauthorized or already read' });
+    }
+
+    // NOTE: assumes you have these helpers in your codebase.
+    // If not, reuse your createMessageService-style pipeline here.
+    const { encryptMessageForParticipants } = await import('../utils/encryption.js');
+    const { translateMessageIfNeeded } = await import('../utils/translateMessageIfNeeded.js');
+
+    const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
+      newContent,
+      message.sender,
+      message.chatRoom.participants.map((p) => p.user)
+    );
+
+    const { translatedText, targetLang } = await translateMessageIfNeeded(
+      newContent,
+      message.sender,
+      message.chatRoom.participants
+    );
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        rawContent: newContent,
+        contentCiphertext: ciphertext,
+        encryptedKeys,
+        translatedContent: translatedText,
+        translatedTo: targetLang,
+      },
+      include: {
+        sender: { select: { id: true, username: true } },
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.log('Failed to edit message', error);
+    res.status(500).json({ error: 'Edit failed' });
+  }
+});
+
+/**
+ * DELETE message
+ */
+router.delete(
+  '/:id',
+  verifyToken,
+  audit('messages.delete', {
     resource: 'message',
-    resourceId: (req) => req.params.id
-  }), async (req, res) => {
+    resourceId: (req) => req.params.id,
+  }),
+  async (req, res) => {
     const messageId = parseInt(req.params.id);
-    const requesterId = parseInt(req.userId, 10);
+    const requesterId = req.user.id;
     const isAdmin = req.user.role === 'ADMIN';
 
     try {
-        const message = await prisma.message.findUnique({
-            where: { id: messageId },
-            select: { senderId: true },
-        })
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        select: { senderId: true },
+      });
 
-        if (!message || (!isAdmin && message.senderId !== requesterId)) {
-            return res.status(400).json({ error: 'Unauthorized to delete this message' })
-        }
+      if (!message || (!isAdmin && message.senderId !== requesterId)) {
+        return res.status(400).json({ error: 'Unauthorized to delete this message' });
+      }
 
-        await prisma.message.update({
-            where: { id: messageId },
-            data: { deletedBySender: true },
-        })
+      await prisma.message.update({
+        where: { id: messageId },
+        data: { deletedBySender: true },
+      });
 
-        res.json({ success: true })
+      res.json({ success: true });
     } catch (error) {
-        console.log('Failed to delete message', error);
-        res.status(500).json({ error: 'Failed to delete message' })
+      console.log('Failed to delete message', error);
+      res.status(500).json({ error: 'Failed to delete message' });
     }
-})
+  }
+);
 
-// POST - Report a message (user forwards decrypted content to admin)
+/**
+ * Report a message (user forwards decrypted content to admin)
+ */
 router.post('/report', async (req, res) => {
-    const { messageId, reporterId, decryptedContent} = req.body;
-    if (!messageId || !reporterId || !decryptedContent) {
-        return res.status(400).json({ error: 'Missing required fields' })
-    }
+  const { messageId, reporterId, decryptedContent } = req.body;
+  if (!messageId || !reporterId || !decryptedContent) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
-    try {
-        await prisma.report.create({
-            data: {
-                messageId: Number(messageId),
-                reporterId: Number(reporterId),
-                decryptedContent,
-            }
-        })
-        res.status(201).json({ success: true })
-    } catch (error) {
-        console.log('Error reporting messages', error)
-        res.status(500).json({ error: 'Failed to report message' })
-    }
-})
+  try {
+    await prisma.report.create({
+      data: {
+        messageId: Number(messageId),
+        reporterId: Number(reporterId),
+        decryptedContent,
+      },
+    });
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.log('Error reporting messages', error);
+    res.status(500).json({ error: 'Failed to report message' });
+  }
+});
 
-export default router
+/**
+ * FORWARD a message to another room (reuses attachments; add file-copying if desired)
+ */
+router.post('/:id/forward', verifyToken, async (req, res) => {
+  const srcId = Number(req.params.id);
+  const { toRoomId, note } = req.body;
+  const userId = req.user.id;
+
+  const src = await prisma.message.findUnique({
+    where: { id: srcId },
+    include: { chatRoom: { select: { id: true } }, attachments: true },
+  });
+  if (!src) return res.status(404).json({ error: 'Not found' });
+
+  // Must be a participant in BOTH rooms
+  const [inSrc, inDst] = await Promise.all([
+    prisma.participant.findFirst({ where: { chatRoomId: src.chatRoomId, userId } }),
+    prisma.participant.findFirst({ where: { chatRoomId: Number(toRoomId), userId } }),
+  ]);
+  if (!inSrc || !inDst) return res.status(403).json({ error: 'Forbidden' });
+
+  const saved = await createMessageService({
+    senderId: userId,
+    chatRoomId: Number(toRoomId),
+    content: note || '(forwarded)',
+    attachments: src.attachments.map((a) => ({
+      kind: a.kind,
+      url: a.url, // reuse (or copy file to a new path if you prefer)
+      mimeType: a.mimeType,
+      width: a.width,
+      height: a.height,
+      durationSec: a.durationSec,
+      caption: a.caption,
+    })),
+  });
+
+  req.app.get('io')?.to(String(toRoomId)).emit('receive_message', saved);
+  res.json(saved);
+});
+
+export default router;

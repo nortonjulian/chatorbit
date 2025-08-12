@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchChatrooms } from '../api/chatrooms';
-import socket from '../socket';
+import socket from '../lib/socket';
 import { ScrollArea, Stack, NavLink, Badge, Text, Box } from '@mantine/core';
 
 export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
