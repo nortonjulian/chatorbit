@@ -1,3 +1,4 @@
+// src/components/ChatView.jsx
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -22,6 +23,8 @@ import {
   IconPhoto,
 } from '@tabler/icons-react';
 import MessageInput from './MessageInput';
+import ReactionBar from './ReactionBar.jsx';
+import EventSuggestionBar from './EventSuggestionBar.jsx';
 import socket from '../lib/socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient';
 import axiosClient from '../api/axiosClient';
@@ -254,40 +257,30 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     return () => socket.off('message_read', onRead);
   }, [currentUserId]);
 
-  // ✅ Batch mark inbound unread as read (runs when messages change)
-  // You can later refine this to only mark visible messages via IntersectionObserver.
+  // ✅ Reactions live updates
   useEffect(() => {
-    if (!messages.length || !currentUserId || !currentUser?.showReadReceipts) return;
-
-    const unreadInbound = messages.filter(
-      (m) =>
-        m.sender?.id !== currentUserId &&
-        !(m.readBy?.some((u) => u.id === currentUserId))
-    );
-
-    if (!unreadInbound.length) return;
-
-    const ids = unreadInbound.map((m) => m.id);
-
-    // Optimistic update
-    setMessages((prev) =>
-      prev.map((m) =>
-        ids.includes(m.id)
-          ? {
-              ...m,
-              readBy: [
-                ...(m.readBy || []),
-                { id: currentUserId, username: currentUser?.username },
-              ],
-            }
-          : m
-      )
-    );
-
-    axiosClient
-      .post('/messages/read-bulk', { ids })
-      .catch((err) => console.error('read-bulk failed', err));
-  }, [messages, currentUserId, currentUser?.showReadReceipts]);
+    const onReaction = ({ messageId, emoji, op, user, count }) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const summary = { ...(m.reactionSummary || {}) };
+          // if server sent a count, trust it; otherwise do +/- 1 locally
+          summary[emoji] =
+            typeof count === 'number'
+              ? count
+              : Math.max(0, (summary[emoji] || 0) + (op === 'added' ? 1 : -1));
+          const my = new Set(m.myReactions || []);
+          if (user?.id === currentUserId) {
+            if (op === 'added') my.add(emoji);
+            else my.delete(emoji);
+          }
+          return { ...m, reactionSummary: summary, myReactions: Array.from(my) };
+        })
+      );
+    };
+    socket.on('reaction_updated', onReaction);
+    return () => socket.off('reaction_updated', onReaction);
+  }, [currentUserId]);
 
   // ✅ Smart Replies: compute suggestions from last few decrypted turns
   const { suggestions, clear } = useSmartReplies({
@@ -539,6 +532,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     </Text>
                   )}
 
+                  {/* ⭐ Reactions */}
+                  <ReactionBar message={msg} currentUserId={currentUserId} />
+
                   {msg.translatedForMe && msg.rawContent && (
                     <Text size="xs" mt={4} fs="italic">
                       Original: {msg.rawContent}
@@ -602,6 +598,13 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           onPick={(t) => sendSmartReply(t)}
         />
       </div>
+
+      {/* 📅 Calendar suggestion bar (detect dates in recent messages) */}
+      <EventSuggestionBar
+        messages={messages}
+        currentUser={currentUser}
+        chatroom={chatroom}
+      />
 
       {chatroom && (
         <Box mt="sm">

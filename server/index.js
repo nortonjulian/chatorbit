@@ -8,23 +8,28 @@ import jwt from 'jsonwebtoken';
 
 import { initDeleteExpired } from './cron/deleteExpiredMessages.js';
 
-import usersRouter from './routes/users.js';
+import adminReportsRouter from './routes/adminReports.js';
+import adminUsersRouter from './routes/users.js';
+import adminAuditRouter   from './routes/adminAudit.js';
 import chatroomsRouter from './routes/chatrooms.js';
 import messagesRouter from './routes/messages.js';
 import authRouter from './routes/auth.js';
 import randomChatsRouter from './routes/randomChats.js';
 import contactRoutes from './routes/contacts.js';
+import usersRouter from './routes/users.js';
 import invitesRouter from './routes/invites.js';
 import aiRouter from './routes/ai.js';
 import groupInvitesRouter from './routes/groupInvites.js';
 import mediaRouter from './routes/media.js';
+import statusRoutes from './routes/status.js';
+import calendarRouter from './routes/calendar.js';
+import { registerStatusExpiryJob } from './jobs/statusExpiry.js';
 
-// Admin routes
-import adminReportsRouter from './routes/adminReports.js';
-import adminUsersRouter from './routes/adminUsers.js';
-import adminAuditRouter from './routes/adminAudit.js';
+// ✅ NEW: Private bots
+import botsRouter from './routes/bots.js';
+import { startBotDispatcher } from './jobs/botDispatcher.js';
 
-// ✅ NEW: use the server-side Socket.IO bootstrap
+// ✅ Socket.IO bootstrap (returns { io, emitToUser })
 import { initSocket } from './socket.js';
 
 import { startCleanupJobs } from './cleanup.js';
@@ -42,7 +47,7 @@ const server = http.createServer(app);
 const { io, emitToUser } = initSocket(server);
 app.set('emitToUser', emitToUser); // routes can emit to user rooms
 
-// --- (Optional) extra auth layer for your own events, if desired ---
+// --- (Optional) extra auth layer for Socket.IO events ---
 io.use((socket, next) => {
   try {
     const token =
@@ -85,7 +90,14 @@ app.use('/random-chats', randomChatsRouter);
 app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
 app.use('/media', mediaRouter);
+app.use('/status', statusRoutes);
+app.use('/calendar', calendarRouter);
 app.use(groupInvitesRouter);
+
+// ✅ Private bots router
+app.use('/bots', botsRouter);
+
+registerStatusExpiryJob(io);
 
 // Admin APIs
 app.use('/admin/reports', adminReportsRouter);
@@ -94,7 +106,7 @@ app.use('/admin/audit', adminAuditRouter);
 
 startCleanupJobs();
 
-// Serve uploaded avatars
+// Serve uploaded avatars and other uploads
 app.use('/uploads/avatars', express.static('uploads/avatars'));
 app.use('/uploads', express.static('uploads'));
 
@@ -105,6 +117,14 @@ const activePairs = new Map();
 // --- Socket event handlers ---
 io.on('connection', (socket) => {
   console.log(`🟢 User connected: ${socket.id}`);
+
+  // ✅ Per-user room join (for status events & targeted emits)
+  socket.on('join_user', (_userIdIgnored) => {
+    // Security: always join the authenticated user's room
+    const uid = Number(socket.user?.id);
+    if (!uid) return;
+    socket.join(`user:${uid}`);
+  });
 
   // RANDOM CHAT MATCHING ...
   socket.on('find_random_chat', (username) => {
@@ -257,7 +277,7 @@ io.on('connection', (socket) => {
       const { maybeInvokeOrbitBot } = await import('./services/botAssistant.js');
       maybeInvokeOrbitBot({ text: content, savedMessage: saved, io, prisma }).catch(() => {});
 
-      // 🔁 NEW: per-user auto-responder; non-blocking
+      // 🔁 per-user auto-responder; non-blocking
       const { maybeAutoRespondUsers } = await import('./services/autoResponder.js');
       maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(() => {});
     } catch (e) {
@@ -266,19 +286,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('message_copied', async ({ messageId }) => {
+    let m;
     try {
-      const m = await prisma.message.findUnique({
+      m = await prisma.message.findUnique({
         where: { id: Number(messageId) },
-        select: { id: true, senderId: true, chatRoomId: true }
+        select: { id: true, senderId: true, chatRoomId: true },
       });
+    } catch {
+      // ignore
     }
-    catch {}
     if (!m) return;
 
     io.to(String(m.chatRoomId)).emit('message_copy_notice', {
       messageId: m.id,
       toUserId: m.senderId,
-      byUserId: socket.user?.id
+      byUserId: socket.user?.id,
     });
   });
 });
@@ -289,15 +311,19 @@ app.set('io', io);
 // Start sweeper once io exists
 const { stop: stopDeleteExpired } = initDeleteExpired(io);
 
+// ✅ Start private bot dispatcher (noop if disabled)
+const { stop: stopBotDispatcher } = startBotDispatcher(io);
+
 // --- Bootstrap ---
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
 
-// Graceful shutdown (stop sweeper + Prisma)
+// Graceful shutdown (stop sweeper, bot dispatcher, Prisma)
 async function shutdown(code = 0) {
   try {
     await stopDeleteExpired?.();
+    await stopBotDispatcher?.();
     await prisma.$disconnect();
   } finally {
     process.exit(code);

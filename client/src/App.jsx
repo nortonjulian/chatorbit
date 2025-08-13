@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import {
   AppShell,
@@ -9,7 +9,7 @@ import {
   Title,
   Text,
   ScrollArea,
-  Center
+  Center,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
@@ -26,6 +26,7 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import PeoplePage from './pages/PeoplePage';
 import JoinInvitePage from './pages/JoinInvitePage.jsx';
+import ChatHome from './components/ChatHome.jsx';
 
 // ✅ Admin pieces
 import AdminReportsPage from './pages/AdminReports';
@@ -35,34 +36,27 @@ import UsersAdminPage from './pages/UsersAdminPage';
 import Forbidden from './pages/Forbidden';
 import AuditLogsPage from './pages/AuditLogsPage';
 
+// 🔌 Socket for per-user room join
+import socket from './lib/socket';
+
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
   const [selectedRoom, setSelectedRoom] = useState(null);
 
   const { currentUser, setCurrentUser } = useUser();
 
+  // Join per-user Socket.IO room so server can push targeted events (e.g., status updates)
+  useEffect(() => {
+    if (currentUser?.id) {
+      socket.emit('join_user', currentUser.id);
+    }
+  }, [currentUser?.id]);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setCurrentUser(null);
   };
-
-  const ChatHome = () => (
-    selectedRoom ? (
-      <Card withBorder radius="xl" p="lg">
-        <Title order={4} mb="sm">{selectedRoom?.name || 'Chat'}</Title>
-        <ChatView
-          chatroom={selectedRoom}
-          currentUserId={currentUser.id}
-          currentUser={currentUser}
-        />
-      </Card>
-    ) : (
-      <Center mih="70vh">
-        <Text c="dimmed">Select a text or chatroom to begin chatting</Text>
-      </Center>
-    )
-  );
 
   const AuthedLayout = () => (
     <AppShell
@@ -115,11 +109,33 @@ export default function App() {
         <Routes>
           <Route path="/forbidden" element={<Forbidden />} />
           <Route path="/" element={<AuthedLayout />}>
-            <Route index element={<ChatHome />} />
+            {/* 👇 ChatHome wrapper WITH children + currentUser prop */}
+            <Route
+              index
+              element={
+                <ChatHome currentUser={currentUser}>
+                  {selectedRoom ? (
+                    <Card withBorder radius="xl" p="lg">
+                      <Title order={4} mb="sm">
+                        {selectedRoom?.name || 'Chat'}
+                      </Title>
+                      <ChatView
+                        chatroom={selectedRoom}
+                        currentUserId={currentUser.id}
+                        currentUser={currentUser}
+                      />
+                    </Card>
+                  ) : (
+                    <Center mih="70vh">
+                      <Text c="dimmed">Select a text or chatroom to begin chatting</Text>
+                    </Center>
+                  )}
+                </ChatHome>
+              }
+            />
+
             <Route path="people" element={<PeoplePage />} />
-
             <Route path="settings/backups" element={<SettingsBackups />} />
-
             <Route path="/join/:code" element={<JoinInvitePage />} />
 
             <Route

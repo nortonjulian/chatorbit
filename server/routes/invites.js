@@ -106,4 +106,22 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+router.post('/email', verifyToken, async (req, res) => {
+  const { to, roomId } = req.body || {};
+  if (!Array.isArray(to) || !to.length || !roomId) {
+    return res.status(400).json({ error: 'to[] and roomId required' });
+  }
+  // assume you already create a code elsewhere
+  const joinUrl = `${process.env.APP_ORIGIN || 'http://localhost:5173'}/join/${roomId}`;
+  const transport = nodemailer.createTransport(process.env.SMTP_URL /* ...same as above... */);
+  await transport.sendMail({
+    from: process.env.MAIL_FROM || 'noreply@chatorbit.app',
+    to,
+    subject: 'Join me on ChatOrbit',
+    text: `Join my chat: ${joinUrl}`,
+  });
+  res.json({ ok: true, sent: to.length });
+});
+
+
 export default router;
