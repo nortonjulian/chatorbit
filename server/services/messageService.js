@@ -185,6 +185,14 @@ export async function createMessageService({
     },
   });
 
+  // 7.5) Queue private webhook bot events (non-blocking)
+  try {
+    const { enqueueBotEventsForMessage } = await import('./botPlatform.js');
+    enqueueBotEventsForMessage(saved).catch(() => {});
+  } catch {
+    // bot platform not present/disabled — ignore
+  }
+
   // 8) (Optional) Normalize keys into MessageKey table
   try {
     const entries = Object.entries(saved.encryptedKeys || {}); // [ [userId, encKey], ... ]

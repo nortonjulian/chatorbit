@@ -1,31 +1,37 @@
+// client/src/lib/socket.js
 import { io } from 'socket.io-client';
 
-const URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+// Prefer Vite env vars, fall back to localhost
+const URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:5001';
 
-// if you have a JWT, include it; or pass userId if your server accepts that
-function getAuth() {
-  const token = localStorage.getItem('token');
-  const userId = localStorage.getItem('userId'); // or from your auth context
-  // Prefer token/JWT; fallback to userId for demo
-  return token ? { token } : userId ? { userId } : {};
+// Create a single shared client
+const socket = io(URL, {
+  autoConnect: true,
+  transports: ['websocket'],
+  withCredentials: true,
+  // Send JWT to server's io.use(auth) middleware
+  auth: (cb) => cb({ token: localStorage.getItem('token') || '' }),
+});
+
+// Optional: helpful logging
+socket.on('connect', () => console.debug('[socket] connected', socket.id));
+socket.on('disconnect', (reason) => console.debug('[socket] disconnected', reason));
+socket.on('connect_error', (err) => console.warn('[socket] connect_error', err?.message));
+
+/**
+ * If your token changes at runtime (login/logout), call this so the next
+ * reconnect uses the fresh token.
+ */
+export function setSocketAuthToken(token) {
+  socket.auth = { token: token || '' };
+  // If already connected, force a quick reconnect with new auth
+  if (socket.connected) {
+    socket.disconnect();
+    socket.connect();
+  }
 }
 
-export const socket = io(URL, {
-  autoConnect: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  auth: getAuth(),
-  withCredentials: true,
-});
-
-socket.on('connect', () => {
-  console.log(`🟢 Connected to Socket.IO (id: ${socket.id})`);
-});
-
-socket.on('disconnect', (reason) => {
-  console.warn(`🔴 Disconnected: ${reason}`);
-});
-
-socket.on('connect_error', (err) => {
-  console.error('Socket connect_error:', err?.message || err);
-});
+export default socket; // <-- default export is required for your imports

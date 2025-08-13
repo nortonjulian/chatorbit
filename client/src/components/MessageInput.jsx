@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { IconPaperclip, IconSend } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
+import StickerPicker from './StickerPicker.jsx';
 
 const TTL_OPTIONS = [
   { value: '0', label: 'Off' },
@@ -40,9 +41,17 @@ export default function MessageInput({
   const [loading, setLoading] = useState(false);
   const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0));
 
+  // Stickers / GIFs picked from remote providers (no upload)
+  // Each item: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
+  const [inlineAttachments, setInlineAttachments] = useState([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const nothingToSend =
+    !content.trim() && files.length === 0 && inlineAttachments.length === 0;
+
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    if (!content.trim() && files.length === 0) return;
+    if (nothingToSend) return;
 
     setLoading(true);
     try {
@@ -62,14 +71,22 @@ export default function MessageInput({
       }));
       form.append('attachmentsMeta', JSON.stringify(meta));
 
+      // Inline stickers/GIFs (no upload; server will merge with uploaded attachments)
+      if (inlineAttachments.length) {
+        form.append('attachmentsInline', JSON.stringify(inlineAttachments));
+      }
+
       const { data: saved } = await axiosClient.post('/messages', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       onMessageSent?.(saved);
+
+      // Reset inputs
       setContent('');
       setFiles([]);
       setCaptions({});
+      setInlineAttachments([]);
     } catch (err) {
       console.error('Error sending message', err);
     } finally {
@@ -106,6 +123,15 @@ export default function MessageInput({
           disabled={loading}
         />
 
+        {/* Sticker/GIF picker trigger */}
+        <Button
+          variant="light"
+          onClick={() => setPickerOpen(true)}
+          disabled={loading}
+        >
+          😀
+        </Button>
+
         {/* Multi-file picker (append to list) */}
         <FileInput
           value={null} // always null so the same file can be picked again later
@@ -124,7 +150,7 @@ export default function MessageInput({
           variant="filled"
           radius="xl"
           size="lg"
-          disabled={loading || (!content.trim() && files.length === 0)}
+          disabled={loading || nothingToSend}
           aria-label="Send"
         >
           <IconSend size={18} />
@@ -183,6 +209,48 @@ export default function MessageInput({
           ))}
         </div>
       )}
+
+      {/* Inline stickers / GIFs preview badges */}
+      {inlineAttachments.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {inlineAttachments.map((a, i) => (
+            <span
+              key={`${a.url}-${i}`}
+              style={{
+                display: 'inline-block',
+                fontSize: 12,
+                background: '#f3f3f3',
+                borderRadius: 8,
+                padding: '4px 8px',
+                marginRight: 8,
+              }}
+              title={a.url}
+            >
+              {a.kind === 'GIF' ? 'GIF' : 'Sticker'}
+            </span>
+          ))}
+          <Button
+            size="xs"
+            variant="subtle"
+            color="red"
+            onClick={() => setInlineAttachments([])}
+            style={{ marginLeft: 4 }}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Sticker / GIF picker modal */}
+      <StickerPicker
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={(att) => {
+          // Expect att: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
+          setInlineAttachments((prev) => [...prev, att]);
+          setPickerOpen(false);
+        }}
+      />
 
       {/*
         If you later add an ImageEditorModal/cropper:
