@@ -17,7 +17,6 @@
     "@prisma/client": "^6.13.0",
     "bad-words-next": "^3.1.1",
     "bcrypt": "^6.0.0",
-    "boom": "^7.3.0",
     "chrono-node": "^2.8.4",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
@@ -46,6 +45,7 @@
   "devDependencies": {
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "husky": "^9.1.7",

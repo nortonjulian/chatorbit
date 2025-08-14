@@ -1,9 +1,11 @@
-// server/routes/messages.js
 import express from 'express';
-import prisma from '../utils/prismaClient.js';
+import Boom from '@hapi/boom';
 import multer from 'multer';
+
+import prisma from '../utils/prismaClient.js';
 import { verifyToken } from '../middleware/auth.js';
 import { audit } from '../middleware/audit.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
 
 const router = express.Router();
@@ -28,10 +30,16 @@ const upload = multer({ dest: 'uploads/' });
  * Files:
  *  - files[]: up to 10 files (image/video/audio/file)
  */
-router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
-  try {
-    const senderId = req.user.id;
-    const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } = req.body;
+router.post(
+  '/',
+  verifyToken,
+  upload.array('files', 10),
+  asyncHandler(async (req, res) => {
+    const senderId = req.user?.id;
+    if (!senderId) throw Boom.unauthorized();
+
+    const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } = req.body || {};
+    if (!chatRoomId) throw Boom.badRequest('chatRoomId is required');
 
     // Clamp optional per-message TTL (5s .. 7d). Omit if invalid.
     let secs = Number(expireSeconds);
@@ -41,6 +49,7 @@ router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
     let meta = [];
     try {
       meta = JSON.parse(attachmentsMeta || '[]');
+      if (!Array.isArray(meta)) meta = [];
     } catch {
       meta = [];
     }
@@ -70,10 +79,11 @@ router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
     let inline = [];
     try {
       inline = JSON.parse(attachmentsInline || '[]');
+      if (!Array.isArray(inline)) inline = [];
     } catch {
       inline = [];
     }
-    inline = (Array.isArray(inline) ? inline : [])
+    inline = inline
       .filter((a) => a && a.url && a.kind)
       .map((a) => ({
         kind: a.kind, // 'STICKER' | 'GIF' | etc.
@@ -104,12 +114,9 @@ router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
     });
 
     req.app.get('io')?.to(String(chatRoomId)).emit('receive_message', saved);
-    res.status(201).json(saved);
-  } catch (err) {
-    console.error('Error creating message:', err);
-    res.status(500).json({ error: 'Failed to create message' });
-  }
-});
+    return res.status(201).json(saved);
+  })
+);
 
 /**
  * LIST messages in a room
@@ -118,22 +125,22 @@ router.post('/', verifyToken, upload.array('files', 10), async (req, res) => {
  * - Includes attachments array
  * - Includes reactions summary + viewer's own reactions
  */
-router.get('/:chatRoomId', verifyToken, async (req, res) => {
-  const chatRoomId = Number(req.params.chatRoomId);
-  const requesterId = req.user.id;
-  const isAdmin = req.user.role === 'ADMIN';
+router.get(
+  '/:chatRoomId',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const chatRoomId = Number(req.params.chatRoomId);
+    const requesterId = req.user?.id;
+    const isAdmin = req.user?.role === 'ADMIN';
 
-  try {
-    if (!Number.isFinite(chatRoomId)) {
-      return res.status(400).json({ error: 'Invalid chatRoomId' });
-    }
+    if (!Number.isFinite(chatRoomId)) throw Boom.badRequest('Invalid chatRoomId');
 
     // Must be a participant unless admin
     if (!isAdmin) {
       const membership = await prisma.participant.findFirst({
         where: { chatRoomId, userId: requesterId },
       });
-      if (!membership) return res.status(403).json({ error: 'Forbidden' });
+      if (!membership) throw Boom.forbidden('Forbidden');
     }
 
     // Requester’s UI language
@@ -247,34 +254,35 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
         return restNoRaw;
       });
 
-    res.json(safe);
-  } catch (error) {
-    console.error('Error fetching messages', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
+    return res.json(safe);
+  })
+);
 
 /**
  * PATCH /messages/:id/read
  * Single mark-as-read with membership check + socket emit
  */
-router.patch('/:id/read', verifyToken, async (req, res) => {
-  const id = Number(req.params.id);
-  const userId = req.user.id;
+router.patch(
+  '/:id/read',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const userId = req.user?.id;
 
-  try {
+    if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
+
     // Look up message to get room for membership check
     const m = await prisma.message.findUnique({
       where: { id },
       select: { id: true, chatRoomId: true },
     });
-    if (!m) return res.status(404).json({ error: 'Not found' });
+    if (!m) throw Boom.notFound('Not found');
 
     const isMember = await prisma.participant.findFirst({
       where: { chatRoomId: m.chatRoomId, userId },
       select: { id: true },
     });
-    if (!isMember) return res.status(403).json({ error: 'Forbidden' });
+    if (!isMember) throw Boom.forbidden('Forbidden');
 
     // Connect user to readBy (no-op if already connected)
     await prisma.message.update({
@@ -290,22 +298,21 @@ router.patch('/:id/read', verifyToken, async (req, res) => {
       reader: { id: userId, username: req.user.username },
     });
 
-    res.json({ ok: true });
-  } catch (error) {
-    console.error('Failed to mark message as read', error);
-    res.status(500).json({ error: 'Could not mark message as read' });
-  }
-});
+    return res.json({ ok: true });
+  })
+);
 
 /**
  * POST /messages/read-bulk
  * Batched mark-as-read with membership check + per-message socket emit
  */
-router.post('/read-bulk', verifyToken, async (req, res) => {
-  const userId = req.user.id;
-  const ids = (req.body?.ids || []).map(Number).filter(Boolean);
+router.post(
+  '/read-bulk',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    const ids = (req.body?.ids || []).map(Number).filter(Number.isFinite);
 
-  try {
     if (!ids.length) return res.json({ ok: true });
 
     const msgs = await prisma.message.findMany({
@@ -345,38 +352,38 @@ router.post('/read-bulk', verifyToken, async (req, res) => {
       });
     }
 
-    res.json({ ok: true, count: allowedIds.length });
-  } catch (error) {
-    console.error('Failed bulk mark as read', error);
-    res.status(500).json({ error: 'Could not bulk mark messages as read' });
-  }
-});
+    return res.json({ ok: true, count: allowedIds.length });
+  })
+);
 
 /**
  * REACTIONS
  * Toggle (POST) and remove (DELETE)
  */
-router.post('/:id/reactions', verifyToken, async (req, res) => {
-  const messageId = Number(req.params.id);
-  const userId = req.user.id;
-  const { emoji } = req.body;
+router.post(
+  '/:id/reactions',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const messageId = Number(req.params.id);
+    const userId = req.user?.id;
+    const { emoji } = req.body || {};
 
-  if (!emoji || typeof emoji !== 'string') {
-    return res.status(400).json({ error: 'emoji is required' });
-  }
+    if (!emoji || typeof emoji !== 'string') {
+      throw Boom.badRequest('emoji is required');
+    }
+    if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
 
-  try {
     // ensure membership
     const msg = await prisma.message.findUnique({
       where: { id: messageId },
       select: { chatRoomId: true },
     });
-    if (!msg) return res.status(404).json({ error: 'Not found' });
+    if (!msg) throw Boom.notFound('Not found');
 
     const member = await prisma.participant.findFirst({
       where: { chatRoomId: msg.chatRoomId, userId },
     });
-    if (!member) return res.status(403).json({ error: 'Forbidden' });
+    if (!member) throw Boom.forbidden('Forbidden');
 
     // toggle
     const existing = await prisma.messageReaction.findUnique({
@@ -387,7 +394,6 @@ router.post('/:id/reactions', verifyToken, async (req, res) => {
       await prisma.messageReaction.delete({
         where: { messageId_userId_emoji: { messageId, userId, emoji } },
       });
-      // recompute counts for this emoji
       const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
       req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
         messageId,
@@ -411,64 +417,73 @@ router.post('/:id/reactions', verifyToken, async (req, res) => {
       user: { id: userId, username: req.user.username },
       count,
     });
-    res.json({ ok: true, op: 'added', emoji, count });
-  } catch (e) {
-    console.error('reaction toggle failed', e);
-    res.status(500).json({ error: 'Failed to update reaction' });
-  }
-});
+    return res.json({ ok: true, op: 'added', emoji, count });
+  })
+);
 
-router.delete('/:id/reactions/:emoji', verifyToken, async (req, res) => {
-  const messageId = Number(req.params.id);
-  const userId = req.user.id;
-  const emoji = decodeURIComponent(req.params.emoji || '');
+router.delete(
+  '/:id/reactions/:emoji',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const messageId = Number(req.params.id);
+    if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
 
-  try {
+    const userId = req.user?.id;
+    const emoji = decodeURIComponent(req.params.emoji || '');
+
+    // Idempotent remove: do not throw if it doesn't exist
     await prisma.messageReaction.delete({
       where: { messageId_userId_emoji: { messageId, userId, emoji } },
-    });
+    }).catch(() => {});
+
     const msg = await prisma.message.findUnique({
       where: { id: messageId },
       select: { chatRoomId: true },
     });
-    const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
-    req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
-      messageId,
-      emoji,
-      op: 'removed',
-      user: { id: userId, username: req.user.username },
-      count,
-    });
-    res.json({ ok: true, op: 'removed', emoji, count });
-  } catch (e) {
-    // idempotent remove
-    res.json({ ok: true, op: 'removed' });
-  }
-});
+
+    if (msg) {
+      const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
+      req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
+        messageId,
+        emoji,
+        op: 'removed',
+        user: { id: userId, username: req.user.username },
+        count,
+      });
+    }
+
+    return res.json({ ok: true, op: 'removed', emoji });
+  })
+);
 
 /**
- * EDIT message (kept as in your codebase)
+ * EDIT message
  */
-router.patch('/:id/edit', verifyToken, async (req, res) => {
-  const messageId = parseInt(req.params.id);
-  const requesterId = req.user.id;
-  const { newContent } = req.body;
+router.patch(
+  '/:id/edit',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const messageId = Number(req.params.id);
+    const requesterId = req.user?.id;
+    const { newContent } = req.body || {};
 
-  try {
+    if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
+    if (!newContent) throw Boom.badRequest('newContent is required');
+
     const message = await prisma.message.findUnique({
       where: { id: messageId },
       include: {
         sender: true,
         chatRoom: { include: { participants: { include: { user: true } } } },
+        readBy: true,
       },
     });
 
-    if (!message || message.sender.id !== requesterId || message.readBy?.length > 0) {
-      return res.status(403).json({ error: 'Unauthorized or already read' });
+    if (!message) throw Boom.notFound('Message not found');
+    if (message.sender.id !== requesterId || (message.readBy?.length ?? 0) > 0) {
+      throw Boom.forbidden('Unauthorized or already read');
     }
 
-    // NOTE: assumes you have these helpers in your codebase.
-    // If not, reuse your createMessageService-style pipeline here.
     const { encryptMessageForParticipants } = await import('../utils/encryption.js');
     const { translateMessageIfNeeded } = await import('../utils/translateMessageIfNeeded.js');
 
@@ -498,15 +513,13 @@ router.patch('/:id/edit', verifyToken, async (req, res) => {
       },
     });
 
-    res.json(updated);
-  } catch (error) {
-    console.log('Failed to edit message', error);
-    res.status(500).json({ error: 'Edit failed' });
-  }
-});
+    return res.json(updated);
+  })
+);
 
 /**
  * DELETE message
+ * (soft-delete by sender; admins allowed)
  */
 router.delete(
   '/:id',
@@ -515,44 +528,46 @@ router.delete(
     resource: 'message',
     resourceId: (req) => req.params.id,
   }),
-  async (req, res) => {
-    const messageId = parseInt(req.params.id);
-    const requesterId = req.user.id;
-    const isAdmin = req.user.role === 'ADMIN';
+  asyncHandler(async (req, res) => {
+    const messageId = Number(req.params.id);
+    const requesterId = req.user?.id;
+    const isAdmin = req.user?.role === 'ADMIN';
 
-    try {
-      const message = await prisma.message.findUnique({
-        where: { id: messageId },
-        select: { senderId: true },
-      });
+    if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
 
-      if (!message || (!isAdmin && message.senderId !== requesterId)) {
-        return res.status(400).json({ error: 'Unauthorized to delete this message' });
-      }
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { senderId: true },
+    });
 
-      await prisma.message.update({
-        where: { id: messageId },
-        data: { deletedBySender: true },
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.log('Failed to delete message', error);
-      res.status(500).json({ error: 'Failed to delete message' });
+    if (!message) throw Boom.notFound('Message not found');
+    if (!isAdmin && message.senderId !== requesterId) {
+      throw Boom.forbidden('Unauthorized to delete this message');
     }
-  }
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { deletedBySender: true },
+    });
+
+    return res.json({ success: true });
+  })
 );
 
 /**
  * Report a message (user forwards decrypted content to admin)
  */
-router.post('/report', async (req, res) => {
-  const { messageId, reporterId, decryptedContent } = req.body;
-  if (!messageId || !reporterId || !decryptedContent) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
+router.post(
+  '/report',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const { messageId, decryptedContent } = req.body || {};
+    const reporterId = req.user?.id;
 
-  try {
+    if (!messageId || !decryptedContent) {
+      throw Boom.badRequest('messageId and decryptedContent are required');
+    }
+
     await prisma.report.create({
       data: {
         messageId: Number(messageId),
@@ -560,51 +575,56 @@ router.post('/report', async (req, res) => {
         decryptedContent,
       },
     });
-    res.status(201).json({ success: true });
-  } catch (error) {
-    console.log('Error reporting messages', error);
-    res.status(500).json({ error: 'Failed to report message' });
-  }
-});
+
+    return res.status(201).json({ success: true });
+  })
+);
 
 /**
  * FORWARD a message to another room (reuses attachments; add file-copying if desired)
  */
-router.post('/:id/forward', verifyToken, async (req, res) => {
-  const srcId = Number(req.params.id);
-  const { toRoomId, note } = req.body;
-  const userId = req.user.id;
+router.post(
+  '/:id/forward',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const srcId = Number(req.params.id);
+    const { toRoomId, note } = req.body || {};
+    const userId = req.user?.id;
 
-  const src = await prisma.message.findUnique({
-    where: { id: srcId },
-    include: { chatRoom: { select: { id: true } }, attachments: true },
-  });
-  if (!src) return res.status(404).json({ error: 'Not found' });
+    if (!Number.isFinite(srcId)) throw Boom.badRequest('Invalid id');
+    if (!toRoomId) throw Boom.badRequest('toRoomId is required');
 
-  // Must be a participant in BOTH rooms
-  const [inSrc, inDst] = await Promise.all([
-    prisma.participant.findFirst({ where: { chatRoomId: src.chatRoomId, userId } }),
-    prisma.participant.findFirst({ where: { chatRoomId: Number(toRoomId), userId } }),
-  ]);
-  if (!inSrc || !inDst) return res.status(403).json({ error: 'Forbidden' });
+    const src = await prisma.message.findUnique({
+      where: { id: srcId },
+      include: { chatRoom: { select: { id: true } }, attachments: true },
+    });
+    if (!src) throw Boom.notFound('Not found');
 
-  const saved = await createMessageService({
-    senderId: userId,
-    chatRoomId: Number(toRoomId),
-    content: note || '(forwarded)',
-    attachments: src.attachments.map((a) => ({
-      kind: a.kind,
-      url: a.url, // reuse (or copy file to a new path if you prefer)
-      mimeType: a.mimeType,
-      width: a.width,
-      height: a.height,
-      durationSec: a.durationSec,
-      caption: a.caption,
-    })),
-  });
+    // Must be a participant in BOTH rooms
+    const [inSrc, inDst] = await Promise.all([
+      prisma.participant.findFirst({ where: { chatRoomId: src.chatRoomId, userId } }),
+      prisma.participant.findFirst({ where: { chatRoomId: Number(toRoomId), userId } }),
+    ]);
+    if (!inSrc || !inDst) throw Boom.forbidden('Forbidden');
 
-  req.app.get('io')?.to(String(toRoomId)).emit('receive_message', saved);
-  res.json(saved);
-});
+    const saved = await createMessageService({
+      senderId: userId,
+      chatRoomId: Number(toRoomId),
+      content: note || '(forwarded)',
+      attachments: src.attachments.map((a) => ({
+        kind: a.kind,
+        url: a.url, // reuse (or copy file to a new path if you prefer)
+        mimeType: a.mimeType,
+        width: a.width,
+        height: a.height,
+        durationSec: a.durationSec,
+        caption: a.caption,
+      })),
+    });
+
+    req.app.get('io')?.to(String(toRoomId)).emit('receive_message', saved);
+    return res.json(saved);
+  })
+);
 
 export default router;
