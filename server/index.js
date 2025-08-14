@@ -23,7 +23,10 @@ import groupInvitesRouter from './routes/groupInvites.js';
 import mediaRouter from './routes/media.js';
 import statusRoutes from './routes/status.js';
 import calendarRouter from './routes/calendar.js';
+import devicesRouter from './routes/devices.js';
 import { registerStatusExpiryJob } from './jobs/statusExpiry.js';
+
+import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 // ✅ NEW: Private bots
 import botsRouter from './routes/bots.js';
@@ -91,8 +94,13 @@ app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
 app.use('/media', mediaRouter);
 app.use('/status', statusRoutes);
+app.use('/devices', devicesRouter)
 app.use('/calendar', calendarRouter);
 app.use(groupInvitesRouter);
+
+// 404 then error handler
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // ✅ Private bots router
 app.use('/bots', botsRouter);

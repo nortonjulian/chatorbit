@@ -1,5 +1,6 @@
 import express from 'express';
-import * as Boom from '@hapi/boom';
+import Boom from '@hapi/boom';
+import { asyncHandler } from '../utils/asyncHandler.js';
 import { suggestLimiter, translateLimiter } from '../rateLimit.js';
 import { translateText } from '../utils/translateText.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -9,8 +10,10 @@ const router = express.Router();
 /** robust JSON extractor */
 function tryParseJson(str) {
   try { return JSON.parse(str); } catch {}
-  const m = str.match(/\{[\s\S]*\}/); if (m) { try { return JSON.parse(m[0]); } catch {} }
-  const a = str.match(/\[[\s\S]*\]/); if (a) { try { return JSON.parse(a[0]); } catch {} }
+  const m = str?.match?.(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  const a = str?.match?.(/\[[\s\S]*\]/);
+  if (a) { try { return JSON.parse(a[0]); } catch {} }
   return null;
 }
 
@@ -26,14 +29,14 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
     'Return JSON ONLY like: {"suggestions":[{"text":"..."},{"text":"..."}]}',
     '- 2–3 options maximum',
     '- <= 60 characters each',
-    '- mirror the user\'s language',
+    "- mirror the user's language",
     '- no URLs, no emojis, no personal data',
   ].join('\n');
 
   const userContent = [
     locale ? `Locale hint: ${locale}` : '',
     'Conversation (latest last):',
-    ...safe.map(s => `${s.role.toUpperCase()}(${s.author||'user'}): ${s.text}`)
+    ...safe.map(s => `${s.role?.toUpperCase?.() || 'USER'}(${s.author || 'user'}): ${s.text}`)
   ].filter(Boolean).join('\n');
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -54,9 +57,10 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
   });
 
   if (!res.ok) {
-    const txt = await res.text();
-    throw Boom.badGateway(`LLM error: ${res.status} ${txt}`);
+    const txt = await res.text().catch(() => '');
+    throw Boom.badGateway(`LLM error: ${res.status} ${txt || res.statusText}`);
   }
+
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content || '';
   const json = tryParseJson(text) || { suggestions: [] };
@@ -66,37 +70,34 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
     .slice(0, 3);
 }
 
-// Suggest replies
-router.post('/suggest-replies', verifyToken, suggestLimiter, async (req, res, next) => {
-  try {
+// POST /ai/suggest-replies
+router.post(
+  '/suggest-replies',
+  verifyToken,
+  suggestLimiter,
+  asyncHandler(async (req, res) => {
     const { snippets, locale } = req.body || {};
-    if (!Array.isArray(snippets) || !snippets.length) throw Boom.badRequest('snippets required');
+    if (!Array.isArray(snippets) || snippets.length === 0) {
+      throw Boom.badRequest('snippets required');
+    }
     const suggestions = await callOpenAIForSuggestions({ snippets, locale });
-    res.json({ suggestions });
-  } catch (e) { next(e); }
-});
+    return res.json({ suggestions });
+  })
+);
 
-// Translate
-router.post('/translate', verifyToken, translateLimiter, async (req, res) => {
-  try {
+// POST /ai/translate
+router.post(
+  '/translate',
+  verifyToken,
+  translateLimiter,
+  asyncHandler(async (req, res) => {
     const { text, targetLang, sourceLang } = req.body ?? {};
-    if (!text || !targetLang) return res.status(400).json({ error: 'text and targetLang required' });
+    if (!text || !targetLang) {
+      throw Boom.badRequest('text and targetLang required');
+    }
     const out = await translateText({ text, targetLang, sourceLang });
-    res.json(out);
-  } catch (e) {
-    console.error('translate failed', e);
-    res.status(500).json({ error: 'translate failed' });
-  }
-});
-
-// Error handler
-router.use((err, _req, res, _next) => {
-  if (Boom.isBoom(err)) {
-    const { output } = err;
-    return res.status(output.statusCode).json(output.payload);
-  }
-  console.error(err);
-  res.status(500).json({ statusCode: 500, error: 'Internal Server Error' });
-});
+    return res.json(out);
+  })
+);
 
 export default router;

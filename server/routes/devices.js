@@ -1,29 +1,21 @@
 import express from 'express';
-import * as Boom from '@hapi/boom';
-import { PrismaClient } from '@prisma/client';
+import Boom from '@hapi/boom';
+import prisma from '../utils/prismaClient.js';
+import { verifyToken } from '../middleware/auth.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 import { provisionLimiter, deviceOpsLimiter } from '../rateLimit.js';
 import { randomBytes, toB64 } from '../utils/cryptoProvision.js';
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
-/** OPTIONAL: replace with your real auth middleware */
-function ensureAuthed(req, _res, next) {
-  if (!req.user?.id) return next(Boom.unauthorized('Auth required'));
-  next();
-}
-
 const nowPlusMinutes = (m) => new Date(Date.now() + m * 60 * 1000);
-
-const asyncHandler = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
 
 /* -----------------------------
    Devices: list / rename / revoke / heartbeat
 --------------------------------*/
 router.get(
   '/devices',
-  ensureAuthed,
+  verifyToken,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const devices = await prisma.device.findMany({
@@ -39,18 +31,20 @@ router.get(
         revokedAt: true,
       },
     });
-    res.json(devices);
+    return res.json(devices);
   })
 );
 
 router.post(
   '/devices/rename/:deviceId',
-  ensureAuthed,
+  verifyToken,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const { deviceId } = req.params;
     const { name } = req.body ?? {};
-    if (!name || name.length > 64) throw Boom.badRequest('Invalid name');
+    if (!name || typeof name !== 'string' || name.length > 64) {
+      throw Boom.badRequest('Invalid name');
+    }
 
     const device = await prisma.device.findFirst({
       where: { id: deviceId, userId: req.user.id },
@@ -62,17 +56,19 @@ router.post(
       data: { name },
     });
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   })
 );
 
 router.post(
   '/devices/revoke/:deviceId',
-  ensureAuthed,
+  verifyToken,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
+    const { deviceId } = req.params;
+
     const device = await prisma.device.findFirst({
-      where: { id: req.params.deviceId, userId: req.user.id },
+      where: { id: deviceId, userId: req.user.id },
     });
     if (!device) throw Boom.notFound('Device not found');
     if (device.revokedAt) return res.json({ ok: true }); // idempotent
@@ -82,16 +78,14 @@ router.post(
       data: { revokedAt: new Date(), revokedById: req.user.id },
     });
 
-    // Optional: emit websocket "device:revoked"
-    // const emitToUser = req.app.get('emitToUser'); emitToUser?.(req.user.id, 'device:revoked', { deviceId: device.id });
-
-    res.json({ ok: true });
+    // Optionally emit: req.app.get('emitToUser')?.(req.user.id, 'device:revoked', { deviceId: device.id });
+    return res.json({ ok: true });
   })
 );
 
 router.post(
   '/devices/heartbeat',
-  ensureAuthed,
+  verifyToken,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const { deviceId } = req.body ?? {};
@@ -108,7 +102,7 @@ router.post(
       data: { lastSeenAt: new Date() },
     });
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   })
 );
 
@@ -124,7 +118,7 @@ router.post(
 // 1) PRIMARY: create link + QR payload
 router.post(
   '/devices/provision/start',
-  ensureAuthed,
+  verifyToken,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const secret = toB64(randomBytes(32));
@@ -137,13 +131,13 @@ router.post(
         secret,
         sasCode: sas,
         expiresAt: nowPlusMinutes(10),
-        // optional columns you may have added:
+        // optional columns if present:
         // clientEPub, serverEPub, relayCiphertext, relayNonce, usedAt, tempDeviceName, tempPlatform
       },
       select: { id: true, secret: true, sasCode: true },
     });
 
-    res.json({
+    return res.json({
       linkId: link.id,
       qrPayload: {
         type: 'chatorbit-provision',
@@ -156,7 +150,7 @@ router.post(
   })
 );
 
-// 2) NEW DEVICE: announce ephemeral pubkey + device info
+// 2) NEW DEVICE: announce ephemeral pubkey + device info (unauthenticated)
 router.post(
   '/devices/provision/client-init',
   provisionLimiter,
@@ -179,7 +173,7 @@ router.post(
       },
     });
 
-    // server ephemeral "pubkey" placeholder (switch to real ECDH if you want)
+    // server ephemeral "pubkey" placeholder (swap for real ECDH as needed)
     const sPub = toB64(randomBytes(32));
 
     await prisma.provisionLink.update({
@@ -187,14 +181,14 @@ router.post(
       data: { serverEPub: sPub },
     });
 
-    res.json({ ok: true, sPub, sasCode: link.sasCode });
+    return res.json({ ok: true, sPub, sasCode: link.sasCode });
   })
 );
 
 // 3) PRIMARY: approve + relay ciphertext
 router.post(
   '/devices/provision/approve',
-  ensureAuthed,
+  verifyToken,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, ciphertext, nonce, sPub } = req.body ?? {};
@@ -216,14 +210,12 @@ router.post(
       data: { relayCiphertext: ciphertext, relayNonce: nonce },
     });
 
-    // Optional: notify via WS that payload is ready
-    // const emitToUser = req.app.get('emitToUser'); emitToUser?.(req.user.id, 'provision:ready', { linkId });
-
-    res.json({ ok: true });
+    // Optionally notify: req.app.get('emitToUser')?.(req.user.id, 'provision:ready', { linkId });
+    return res.json({ ok: true });
   })
 );
 
-// 4) NEW DEVICE: poll for ciphertext
+// 4) NEW DEVICE: poll for ciphertext (unauthenticated)
 router.get(
   '/devices/provision/poll',
   provisionLimiter,
@@ -239,7 +231,7 @@ router.get(
       return res.json({ ready: false });
     }
 
-    res.json({
+    return res.json({
       ready: true,
       ciphertext: link.relayCiphertext,
       nonce: link.relayNonce,
@@ -252,7 +244,7 @@ router.get(
 // 5) NEW DEVICE: register device
 router.post(
   '/devices/register',
-  ensureAuthed,
+  verifyToken,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, publicKey, deviceName, platform } = req.body ?? {};
@@ -279,23 +271,9 @@ router.post(
       data: { usedAt: new Date() },
     });
 
-    // Optional: emit websocket "device:linked"
-    // const emitToUser = req.app.get('emitToUser'); emitToUser?.(req.user.id, 'device:linked', { device: created });
-
-    res.json({ ok: true, device: created });
+    // Optionally emit: req.app.get('emitToUser')?.(req.user.id, 'device:linked', { device: created });
+    return res.json({ ok: true, device: created });
   })
 );
-
-/* -----------------------------
-   Error handler (Boom-friendly)
---------------------------------*/
-router.use((err, _req, res, _next) => {
-  if (Boom.isBoom(err)) {
-    const { output } = err;
-    return res.status(output.statusCode).json(output.payload);
-  }
-  console.error(err);
-  res.status(500).json({ statusCode: 500, error: 'Internal Server Error' });
-});
 
 export default router;

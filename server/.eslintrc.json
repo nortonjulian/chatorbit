@@ -1,0 +1,11 @@
+{
+  "plugins": ["promise", "import"],
+  "extends": ["plugin:promise/recommended", "plugin:import/recommended"],
+  "rules": {
+    "promise/catch-or-return": "error",
+    "promise/no-return-wrap": "error",
+    "promise/always-return": "off",
+    "no-useless-catch": "error",
+    "import/no-extraneous-dependencies": ["error", { "devDependencies": ["**/test/**", "**/*.test.*"] }]
+  }
+}
