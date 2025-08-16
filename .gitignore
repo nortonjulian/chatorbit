@@ -1,1 +1,3 @@
 chatorbit/ # Prevents future re-adding
+.env
+server/.env 

@@ -37,45 +37,39 @@ model User {
   autoResponderMode        AutoResponderMode @default(dm)
   autoResponderCooldownSec Int               @default(120)
   autoResponderActiveUntil DateTime?
-  autoResponderSignature   String? // e.g. "🤖 Auto-reply"
+  autoResponderSignature   String?
 
-  // Encryption key
-  publicKey  String? // for E2EE
-  privateKey String? // (optional for now — may not store this in DB)
+  publicKey  String?
+  privateKey String?
 
-  // Relations
-  messages          Message[]        @relation("UserMessages") // Messages sent by the user
-  participants      Participant[] // User's membership in chat rooms
-  reports           Report[]         @relation("UserReports") // NEW backreference
-  randomChatRooms   RandomChatRoom[] @relation("RandomChatParticipants") // For random chat pairing
+  messages          Message[]        @relation("UserMessages")
+  participants      Participant[]
+  reports           Report[]         @relation("UserReports")
+  randomChatRooms   RandomChatRoom[] @relation("RandomChatParticipants")
   autoDeleteSeconds Int?
   showReadReceipts  Boolean          @default(true)
   readMessages      Message[]        @relation("ReadMessages")
   avatarUrl         String?
   emojiTag          String?
 
-  // ✅ New backrelations
   contactsOwned Contact[] @relation("ContactsOwned")
   contactsSaved Contact[] @relation("ContactsSaved")
 
-  auditLogs AuditLog[] @relation("AuditActor")
-
-  messageKeys MessageKey[]
-
-  // ✅ back-relation for Device.user
+  auditLogs         AuditLog[]        @relation("AuditActor")
+  messageKeys       MessageKey[]
   devices           Device[]
-  // If you keep a "revokedBy" relation, add the named back-relation too:
-  deviceRevocations Device[] @relation("DeviceRevokedBy")
-
-  // back-relation to invites the user created
-  createdInvites ChatRoomInvite[] @relation("InviteCreator")
-
-  messageReactions MessageReaction[]
+  deviceRevocations Device[]          @relation("DeviceRevokedBy")
+  createdInvites    ChatRoomInvite[]  @relation("InviteCreator")
+  messageReactions  MessageReaction[]
 
   statusesAuthored Status[]
   statusKeys       StatusKey[]
   statusViews      StatusView[]
   statusReactions  StatusReaction[]
+
+  // ⬇️ NEW back-relations for Bot
+  botsOwned     Bot[] @relation("BotsOwned")
+  botsAsService Bot[] @relation("BotServiceUser")
 }
 
 enum AutoTranslateMode {
@@ -97,23 +91,25 @@ enum RoomRole {
 }
 
 model ChatRoom {
-  id   Int     @id @default(autoincrement())
-  name String?
-
+  id              Int             @id @default(autoincrement())
+  name            String?
   aiAssistantMode AIAssistantMode @default(off)
   isGroup         Boolean         @default(false)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  // Relations
-  participants Participant[] // Users in this chatroom (via join table)
-  messages     Message[]     @relation("ChatRoomMessages") // Standard chat messages
+  participants Participant[]
+  messages     Message[]     @relation("ChatRoomMessages")
 
   autoTranslateMode AutoTranslateMode @default(off)
   allowOrbitBot     Boolean           @default(false)
 
-  // back-relation to room invites
   invites ChatRoomInvite[] @relation("RoomInvites")
+
+  // ⬇️ NEW back-relation for BotInstall
+  botInstalls BotInstall[] @relation("BotInstallRoom")
+
+  @@index([updatedAt, id], map: "room_updated_id")
 }
 
 model Participant {
@@ -129,7 +125,7 @@ model Participant {
   allowAIBot Boolean  @default(true)
 
   @@unique([userId, chatRoomId]) // Each user can only be in a chatroom once
-  @@index([chatRoomId, role])
+  @@index([chatRoomId], map: "part_room")
 }
 
 enum AttachmentKind {
@@ -176,7 +172,8 @@ model Message {
   reactions MessageReaction[]
 
   @@index([expiresAt])
-  @@index([chatRoomId, createdAt])
+  @@index([chatRoomId, id], map: "msg_room_id") // cursor paging by room
+  @@index([chatRoomId, createdAt], map: "msg_room_time")
 }
 
 // one row per (message, recipient)
@@ -376,29 +373,29 @@ enum StatusAssetKind {
 }
 
 model Status {
-  id               Int             @id @default(autoincrement())
-  author           User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId         Int
+  id                Int            @id @default(autoincrement())
+  author            User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId          Int
   captionCiphertext String?
-  encryptedKeys    Json?
-  translatedFrom   String?
-  translations     Json?
-  isExplicit       Boolean         @default(false)
-  audience         StatusAudience  @default(MUTUALS)
-  expiresAt        DateTime
-  createdAt        DateTime        @default(now())
+  encryptedKeys     Json?
+  translatedFrom    String?
+  translations      Json?
+  isExplicit        Boolean        @default(false)
+  audience          StatusAudience @default(MUTUALS)
+  expiresAt         DateTime
+  createdAt         DateTime       @default(now())
 
-  assets           StatusAsset[]
-  keys             StatusKey[]
-  views            StatusView[]
-  reactions        StatusReaction[]
+  assets    StatusAsset[]
+  keys      StatusKey[]
+  views     StatusView[]
+  reactions StatusReaction[]
 
   @@index([authorId, expiresAt])
 }
 
 model StatusAsset {
-  id          Int            @id @default(autoincrement())
-  status      Status         @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  id          Int             @id @default(autoincrement())
+  status      Status          @relation(fields: [statusId], references: [id], onDelete: Cascade)
   statusId    Int
   kind        StatusAssetKind
   url         String
@@ -407,7 +404,7 @@ model StatusAsset {
   height      Int?
   durationSec Int?
   caption     String?
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime        @default(now())
 
   @@index([statusId])
 }
@@ -423,12 +420,12 @@ model StatusKey {
 }
 
 model StatusView {
-  id        Int    @id @default(autoincrement())
-  status    Status @relation(fields: [statusId], references: [id], onDelete: Cascade)
-  statusId  Int
-  viewer    User   @relation(fields: [viewerId], references: [id], onDelete: Cascade)
-  viewerId  Int
-  viewedAt  DateTime @default(now())
+  id       Int      @id @default(autoincrement())
+  status   Status   @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  statusId Int
+  viewer   User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+  viewerId Int
+  viewedAt DateTime @default(now())
 
   @@unique([statusId, viewerId])
   @@index([viewerId])
@@ -442,6 +439,7 @@ model StatusReaction {
   emoji    String
 
   @@id([statusId, userId, emoji])
+  @@index([statusId, emoji], map: "status_emoji")
 }
 
 enum ContentScope {
@@ -453,49 +451,56 @@ enum ContentScope {
 //Bot
 
 model Bot {
-  id             Int       @id @default(autoincrement())
-  ownerId        Int
-  owner          User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  name           String
-  url            String
-  secret         String    // stored server-side only; used for HMAC
-  serviceUserId  Int?
-  serviceUser    User?     @relation("BotServiceUser", fields: [serviceUserId], references: [id])
-  installs       BotInstall[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id      Int  @id @default(autoincrement())
+  ownerId Int
+  // ⬇️ Name the relation and match it on User.botsOwned
+  owner   User @relation("BotsOwned", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  name   String
+  url    String
+  secret String
+
+  serviceUserId Int?
+  // ⬇️ Name the second User↔Bot relation and match it on User.botsAsService
+  serviceUser   User? @relation("BotServiceUser", fields: [serviceUserId], references: [id])
+
+  installs  BotInstall[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([ownerId, name])
 }
 
 model BotInstall {
-  id           Int           @id @default(autoincrement())
+  id           Int          @id @default(autoincrement())
   botId        Int
   chatRoomId   Int
-  contentScope ContentScope  @default(COMMANDS)
-  isEnabled    Boolean       @default(true)
-  scopes       String?       // optional JSON string for future auth/scopes
-  bot          Bot           @relation(fields: [botId], references: [id], onDelete: Cascade)
-  chatRoom     ChatRoom      @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  events       BotEventLog[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  contentScope ContentScope @default(COMMANDS)
+  isEnabled    Boolean      @default(true)
+  scopes       String?
+
+  bot      Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  // ⬇️ Name the relation and match it on ChatRoom.botInstalls
+  chatRoom ChatRoom @relation("BotInstallRoom", fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  events    BotEventLog[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@unique([botId, chatRoomId])
 }
 
 model BotEventLog {
-  id            Int       @id @default(autoincrement())
+  id            Int        @id @default(autoincrement())
   installId     Int
-  eventId       String    @unique @default(cuid())
+  eventId       String     @unique @default(cuid())
   type          String
   payload       Json
-  status        String    @default("pending") // pending|delivered|failed
-  attempts      Int       @default(0)
+  status        String     @default("pending") // pending|delivered|failed
+  attempts      Int        @default(0)
   nextAttemptAt DateTime?
   lastError     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   install       BotInstall @relation(fields: [installId], references: [id], onDelete: Cascade)
 }
-

@@ -1,7 +1,6 @@
-// src/components/ChatBackupManager.jsx
 import React, { useState } from 'react';
 import { Button, Card, Group, PasswordInput, Stack, Text } from '@mantine/core';
-import { createEncryptedChatBackup, restoreEncryptedChatBackup } from '../utils/chatBackupClient.js';
+import { createEncryptedChatBackup, restoreEncryptedChatBackup } from '../utils/backupClient.js';
 import { unlockKeyBundle } from '../utils/encryptionClient.js';
 
 /**

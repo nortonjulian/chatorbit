@@ -1,11 +1,22 @@
 import express from 'express';
 import Boom from '@hapi/boom';
+import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { suggestLimiter, translateLimiter } from '../rateLimit.js';
 import { translateText } from '../utils/translateText.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// e.g., 20 requests per minute per IP for all AI endpoints
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply limiter to all AI routes
+router.use(aiLimiter);
 
 /** robust JSON extractor */
 function tryParseJson(str) {
@@ -74,7 +85,6 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
 router.post(
   '/suggest-replies',
   verifyToken,
-  suggestLimiter,
   asyncHandler(async (req, res) => {
     const { snippets, locale } = req.body || {};
     if (!Array.isArray(snippets) || snippets.length === 0) {
@@ -89,7 +99,6 @@ router.post(
 router.post(
   '/translate',
   verifyToken,
-  translateLimiter,
   asyncHandler(async (req, res) => {
     const { text, targetLang, sourceLang } = req.body ?? {};
     if (!text || !targetLang) {

@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
@@ -22,8 +23,14 @@ import aiRouter from './routes/ai.js';
 import groupInvitesRouter from './routes/groupInvites.js';
 import mediaRouter from './routes/media.js';
 import statusRoutes from './routes/status.js';
-import calendarRouter from './routes/calendar.js';
 import devicesRouter from './routes/devices.js';
+import featuresRouter from './routes/features.js';
+
+import helmet from 'helmet';
+import compression from 'compression';
+
+import filesRouter from './routes/files.js';
+
 import { registerStatusExpiryJob } from './jobs/statusExpiry.js';
 
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -37,9 +44,65 @@ import { initSocket } from './socket.js';
 
 import { startCleanupJobs } from './cleanup.js';
 
+// ✅ Redis adapter for Socket.IO (multi-node ready)
+import { createAdapter } from '@socket.io/redis-adapter';
+import { ensureRedis, redisPub, redisSub } from './utils/redisClient.js';
+
+// ✅ Redis-backed random chat queue helpers
+import {
+  enqueueWaiting,
+  tryDequeuePartner,
+  savePair,
+  getPair,
+  deletePair,
+} from './random/queue.js';
+
+// ✅ In-memory token bucket for socket spam control
+import { allow } from './utils/tokenBucket.js';
+
 dotenv.config();
 
+import { assertRequiredEnv } from './utils/env.js';
+assertRequiredEnv(['JWT_SECRET']);
+
 const app = express();
+
+app.set('trust proxy', 1);
+
+// Remove X-Powered-By header
+app.disable('x-powered-by');
+
+// Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "script-src": ["'self'", "'unsafe-inline'"], // tighten later
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "img-src": ["'self'", "data:", "blob:"],
+        // Add your allowed API/web origins here
+        "connect-src": [
+          "'self'",
+          ...(process.env.CORS_ORIGINS || '').split(',').filter(Boolean),
+          "ws:", "wss:", // needed for Socket.IO/websockets
+        ],
+        "frame-ancestors": ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// (optionally CORS next)
+app.use(cors({ /* your allowlist config */ }));
+
+// gzip responses
+app.use(compression());
+
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5001;
 
@@ -58,7 +121,7 @@ io.use((socket, next) => {
       (socket.handshake.headers.authorization || '').split(' ')[1];
 
     if (!token) return next(new Error('Unauthorized'));
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.user = decoded; // { id, username, role, ... }
     next();
   } catch {
@@ -73,9 +136,35 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 
-// --- Middleware ---
-app.use(cors());
+// --- CORS (allow-list) + cookies ---
+const ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, cb) {
+    // allow tools like curl / server-side with no Origin header
+    if (!origin) return cb(null, true);
+    if (ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS: Origin not allowed'), false);
+  },
+  credentials: true, // allow cookie auth
+}));
+
+// --- Parsers ---
+app.use(cookieParser());
 app.use(express.json());
+
+// --- Lightweight CSRF header check for state-changing requests ---
+app.use((req, res, next) => {
+  const method = req.method.toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const ok = req.headers['x-requested-with'] === 'XMLHttpRequest';
+    if (!ok) return res.status(403).json({ error: 'CSRF check failed' });
+  }
+  next();
+});
 
 // --- Routes ---
 app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
@@ -93,9 +182,13 @@ app.use('/random-chats', randomChatsRouter);
 app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
 app.use('/media', mediaRouter);
-app.use('/status', statusRoutes);
-app.use('/devices', devicesRouter)
-app.use('/calendar', calendarRouter);
+
+if (process.env.STATUS_ENABLED === 'true') {
+  app.use('/status', statusRoutes);
+}
+
+app.use('/devices', devicesRouter);
+app.use('/features', featuresRouter);
 app.use(groupInvitesRouter);
 
 // 404 then error handler
@@ -105,7 +198,9 @@ app.use(errorHandler);
 // ✅ Private bots router
 app.use('/bots', botsRouter);
 
-registerStatusExpiryJob(io);
+if (process.env.STATUS_ENABLED === 'true') {
+  registerStatusExpiryJob(io);
+}
 
 // Admin APIs
 app.use('/admin/reports', adminReportsRouter);
@@ -114,105 +209,88 @@ app.use('/admin/audit', adminAuditRouter);
 
 startCleanupJobs();
 
-// Serve uploaded avatars and other uploads
-app.use('/uploads/avatars', express.static('uploads/avatars'));
-app.use('/uploads', express.static('uploads'));
+// Serve uploaded avatars and other uploads via signed proxy (moved to /files)
+// app.use('/uploads/avatars', express.static('uploads/avatars'));
+// app.use('/uploads', express.static('uploads'));
 
-// --- RANDOM CHAT STATE ---
-let waitingUsers = [];
-const activePairs = new Map();
+app.use('/files', filesRouter);
 
-// --- Socket event handlers ---
+// --- RANDOM CHAT (Redis-backed; no in-memory state) ---
 io.on('connection', (socket) => {
   console.log(`🟢 User connected: ${socket.id}`);
 
   // ✅ Per-user room join (for status events & targeted emits)
   socket.on('join_user', (_userIdIgnored) => {
-    // Security: always join the authenticated user's room
     const uid = Number(socket.user?.id);
     if (!uid) return;
     socket.join(`user:${uid}`);
   });
 
-  // RANDOM CHAT MATCHING ...
-  socket.on('find_random_chat', (username) => {
-    socket.username = username;
+  // RANDOM CHAT MATCHING (multi-node safe via Redis queue)
+  socket.on('find_random_chat', async (username) => {
+    try {
+      const me = { socketId: socket.id, username, userId: socket.user?.id };
 
-    if (waitingUsers.length > 0) {
-      const partnerSocket = waitingUsers.shift();
-      const roomId = `random-${socket.id}-${partnerSocket.id}`;
+      const partner = await tryDequeuePartner();
 
-      socket.join(roomId);
-      partnerSocket.join(roomId);
-      activePairs.set(roomId, [socket, partnerSocket]);
+      if (partner && partner.socketId !== socket.id) {
+        const roomId = `random:${partner.socketId}:${socket.id}`;
 
-      io.to(socket.id).emit('pair_found', { roomId, partner: partnerSocket.username });
-      io.to(partnerSocket.id).emit('pair_found', { roomId, partner: username });
-    } else {
-      waitingUsers.push(socket);
-      socket.emit('no_partner', {
-        message: 'No one is online right now. Want to chat with OrbitBot instead?',
-      });
-    }
-  });
+        socket.join(roomId);
+        io.to(partner.socketId).socketsJoin?.(roomId);
 
-  // START AI CHAT ...
-  socket.on('start_ai_chat', (username) => {
-    const roomId = `random-${socket.id}-AI`;
-    socket.join(roomId);
+        await savePair(roomId, me, partner);
 
-    setTimeout(() => {
-      io.to(socket.id).emit('receive_message', {
-        id: Date.now(),
-        sender: { username: 'OrbitBot', id: 0 },
-        content: `Hi ${username}, I'm OrbitBot! Let's chat.`,
-        chatRoomId: roomId,
-      });
-    }, 500);
-
-    socket.on('send_message', async (msg) => {
-      if (msg.chatRoomId === roomId) {
-        const { generateAIResponse } = await import('./utils/generateAIResponse.js');
-        const aiReply = await generateAIResponse(msg.content);
-        io.to(socket.id).emit('receive_message', {
-          id: Date.now(),
-          sender: { username: 'OrbitBot', id: 0 },
-          content: aiReply,
-          chatRoomId: roomId,
+        io.to(socket.id).emit('pair_found', { roomId, partner: partner.username });
+        io.to(partner.socketId).emit('pair_found', { roomId, partner: username });
+      } else {
+        await enqueueWaiting(me);
+        socket.emit('no_partner', {
+          message: 'No one is online right now. Want to chat with OrbitBot instead?',
         });
       }
-    });
-  });
-
-  // SKIP ...
-  socket.on('skip_random_chat', () => {
-    const pairEntry = [...activePairs.entries()].find(([, users]) => users.includes(socket));
-    if (pairEntry) {
-      const [roomId, users] = pairEntry;
-      const [socket1, socket2] = users;
-
-      io.to(roomId).emit('chat_skipped', 'Partner skipped. Returning to lobby.');
-      socket1.leave(roomId);
-      socket2.leave(roomId);
-      activePairs.delete(roomId);
-
-      waitingUsers.push(socket1);
-      waitingUsers.push(socket2);
+    } catch (err) {
+      console.error('find_random_chat failed:', err);
+      socket.emit('no_partner', { message: 'Matchmaking temporarily unavailable.' });
     }
   });
 
-  // SAVE RANDOM CHAT ...
-  socket.on('save_random_chat', async ({ roomId, messages }) => {
-    const pair = activePairs.get(roomId);
-    if (!pair) return;
-
-    const [s1, s2] = pair;
+  // SKIP — break up the pair, notify peer, optionally re-enqueue both
+  socket.on('skip_random_chat', async ({ roomId }) => {
     try {
+      if (!roomId) return;
+      const pair = await getPair(roomId);
+      if (!pair) return;
+
+      const { a, b } = pair;
+      const other = a.socketId === socket.id ? b : a;
+
+      io.to(other.socketId).emit('chat_skipped', 'Partner skipped. Returning to lobby.');
+
+      io.in(roomId).socketsLeave(roomId);
+
+      await deletePair(roomId);
+
+      await enqueueWaiting({ socketId: socket.id, username: a.username, userId: a.userId });
+      await enqueueWaiting({ socketId: other.socketId, username: other.username, userId: other.userId });
+    } catch (err) {
+      console.error('skip_random_chat failed:', err);
+    }
+  });
+
+  // SAVE RANDOM CHAT — read pair from Redis (works cross-node)
+  socket.on('save_random_chat', async ({ roomId, messages }) => {
+    try {
+      const pair = await getPair(roomId);
+      if (!pair) return;
+
+      const [s1, s2] = [pair.a, pair.b];
+
       const savedRoom = await prisma.randomChatRoom.create({
         data: {
           participants: { connect: [{ id: s1.userId }, { id: s2.userId }] },
           messages: {
-            create: messages.map((m) => ({
+            create: (messages || []).map((m) => ({
               content: m.content,
               rawContent: m.rawContent || m.content,
               translatedContent: m.translatedContent || null,
@@ -234,19 +312,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // DISCONNECT CLEANUP ...
-  socket.on('disconnect', () => {
-    waitingUsers = waitingUsers.filter((u) => u.id !== socket.id);
-
-    const pairEntry = [...activePairs.entries()].find(([, users]) => users.includes(socket));
-    if (pairEntry) {
-      const [roomId, users] = pairEntry;
-      const otherSocket = users.find((s) => s !== socket);
-      io.to(otherSocket.id).emit('partner_disconnected', 'Your chat partner left.');
-      otherSocket.leave(roomId);
-      activePairs.delete(roomId);
-    }
-
+  // DISCONNECT — best-effort cleanup
+  socket.on('disconnect', async () => {
+    try {
+      // If entries have TTL in Redis, passive cleanup is fine.
+    } catch {}
     console.log(`🔴 User disconnected: ${socket.id}`);
   });
 
@@ -264,11 +334,13 @@ io.on('connection', (socket) => {
   // MESSAGE HANDLING via shared service ...
   socket.on('send_message', async (messageData) => {
     try {
-      const { content, chatRoomId, expireSeconds } = messageData || {};
       const senderId = socket.user?.id;
+      // throttle: e.g., max 10 emits per 10s per sender
+      if (!allow(senderId, 10, 10_000)) return;
+
+      const { content, chatRoomId, expireSeconds } = messageData || {};
       if (!content || !senderId || !chatRoomId) return;
 
-      // Create + emit the original message
       const { createMessageService, maybeAutoTranslate } = await import('./services/messageService.js');
       const saved = await createMessageService({
         senderId,
@@ -278,15 +350,11 @@ io.on('connection', (socket) => {
       });
       io.to(String(chatRoomId)).emit('receive_message', saved);
 
-      // 🔁 Auto-translation replies (OrbitBot); non-blocking
-      maybeAutoTranslate({ savedMessage: saved, io, prisma }).catch(() => {});
-
-      // 🔁 @OrbitBot assistant / mention modes; non-blocking
       const { maybeInvokeOrbitBot } = await import('./services/botAssistant.js');
-      maybeInvokeOrbitBot({ text: content, savedMessage: saved, io, prisma }).catch(() => {});
-
-      // 🔁 per-user auto-responder; non-blocking
       const { maybeAutoRespondUsers } = await import('./services/autoResponder.js');
+
+      maybeAutoTranslate({ savedMessage: saved, io, prisma }).catch(() => {});
+      maybeInvokeOrbitBot({ text: content, savedMessage: saved, io, prisma }).catch(() => {});
       maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(() => {});
     } catch (e) {
       console.error('Message save failed:', e);
@@ -322,10 +390,21 @@ const { stop: stopDeleteExpired } = initDeleteExpired(io);
 // ✅ Start private bot dispatcher (noop if disabled)
 const { stop: stopBotDispatcher } = startBotDispatcher(io);
 
-// --- Bootstrap ---
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// --- Bootstrap with Redis adapter attached first ---
+async function start() {
+  try {
+    await ensureRedis();                       // connect redis clients
+    io.adapter(createAdapter(redisPub, redisSub)); // attach adapter
+
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+start();
 
 // Graceful shutdown (stop sweeper, bot dispatcher, Prisma)
 async function shutdown(code = 0) {
