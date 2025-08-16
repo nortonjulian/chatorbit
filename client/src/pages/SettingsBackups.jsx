@@ -1,4 +1,3 @@
-// src/pages/SettingsBackups.jsx
 import React, { useMemo, useState } from 'react';
 import { Card, Stack, Title, PasswordInput, Group, Button, Text } from '@mantine/core';
 import BackupManager from '../components/settings/BackupManager.jsx';

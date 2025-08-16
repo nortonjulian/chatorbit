@@ -1,4 +1,3 @@
-// src/components/ChatView.jsx
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -67,9 +66,13 @@ function useNow(interval = 1000) {
 }
 
 export default function ChatView({ chatroom, currentUserId, currentUser }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([]); // oldest → newest for render
   const [typingUser, setTypingUser] = useState('');
   const [showNewMessage, setShowNewMessage] = useState(false);
+
+  // pagination state
+  const [cursor, setCursor] = useState(null);  // server "nextCursor" (message id), null => no more
+  const [loading, setLoading] = useState(false);
 
   // privacy UI state
   const [reveal, setReveal] = useState(false);
@@ -142,56 +145,105 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     setShowNewMessage(false);
   };
 
-  // Blur on unfocus (Page Visibility API)
-  useEffect(() => {
-    if (!currentUser?.privacyBlurOnUnfocus) return;
-    const onVis = () => {
-      if (document.hidden) setReveal(false);
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [currentUser?.privacyBlurOnUnfocus]);
+  // --- Pagination loader (initial + older pages) ---
+  async function loadMore(initial = false) {
+    if (!chatroom?.id || loading) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', initial ? '50' : '30');
+      if (!initial && cursor) params.set('cursor', String(cursor));
 
-  // --- Main socket listeners for messages, typing, etc. ---
+      const { data } = await axiosClient.get(`/messages/${chatroom.id}?${params.toString()}`);
+
+      // data: { items, nextCursor, count }
+      const decrypted = await decryptFetchedMessages(data.items || [], currentUserId);
+
+      // Server returns newest → oldest; we render oldest → newest
+      const chronological = decrypted.slice().reverse();
+
+      if (initial) {
+        setMessages(chronological);
+        setCursor(data.nextCursor ?? null);
+        // scroll to bottom on first load
+        setTimeout(scrollToBottom, 0);
+      } else {
+        // Preserve scroll position when prepending older messages
+        const v = scrollViewportRef.current;
+        const prevHeight = v ? v.scrollHeight : 0;
+
+        setMessages((prev) => [...chronological, ...prev]);
+        setCursor(data.nextCursor ?? null);
+
+        // After DOM paints, keep the viewport anchored around the same content
+        setTimeout(() => {
+          if (!v) return;
+          const newHeight = v.scrollHeight;
+          v.scrollTop = newHeight - prevHeight + v.scrollTop;
+        }, 0);
+      }
+
+      // Cache locally for search/media
+      addMessages(chatroom.id, chronological).catch(() => {});
+    } catch (err) {
+      console.error('Failed to fetch/decrypt paged messages', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --- Initial load / room change ---
+  useEffect(() => {
+    setMessages([]);
+    setCursor(null);
+    setShowNewMessage(false);
+    if (chatroom?.id) {
+      loadMore(true);
+      socket.emit('join_room', chatroom.id);
+    }
+    return () => {
+      if (chatroom?.id) socket.emit('leave_room', chatroom.id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatroom?.id]);
+
+  // --- Infinite scroll: load older when near TOP ---
+  useEffect(() => {
+    const v = scrollViewportRef.current;
+    if (!v) return;
+
+    const onScroll = () => {
+      const nearTop = v.scrollTop <= 120;
+      if (nearTop && cursor && !loading) loadMore(false);
+    };
+
+    v.addEventListener('scroll', onScroll);
+    return () => v.removeEventListener('scroll', onScroll);
+  }, [cursor, loading]);
+
+  // --- Realtime: receiving new messages (append at bottom) ---
   useEffect(() => {
     if (!chatroom || !currentUserId) return;
 
-    const fetchAndDecryptMessages = async () => {
-      try {
-        const { data } = await axiosClient.get(`/messages/${chatroom.id}`);
-        const decrypted = await decryptFetchedMessages(data, currentUserId);
-        setMessages(decrypted);
-        addMessages(chatroom.id, decrypted).catch(() => {}); // cache locally for search/media
-        setTimeout(scrollToBottom, 0);
-      } catch (err) {
-        console.error('Failed to fetch/decrypt messages', err);
-      }
-    };
-
-    fetchAndDecryptMessages();
-
-    socket.emit('join_room', chatroom.id);
-
     const handleReceiveMessage = async (data) => {
-      if (data.chatRoomId === chatroom.id) {
-        try {
-          const decryptedArr = await decryptFetchedMessages([data], currentUserId);
-          const decrypted = decryptedArr[0];
+      if (data.chatRoomId !== chatroom.id) return;
+      try {
+        const decryptedArr = await decryptFetchedMessages([data], currentUserId);
+        const decrypted = decryptedArr[0];
 
-          setMessages((prev) => [...prev, decrypted]);
-          addMessages(chatroom.id, [decrypted]).catch(() => {});
+        setMessages((prev) => [...prev, decrypted]);
+        addMessages(chatroom.id, [decrypted]).catch(() => {});
 
-          const v = scrollViewportRef.current;
-          if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
-            scrollToBottom();
-          } else {
-            setShowNewMessage(true);
-          }
-        } catch (e) {
-          console.error('Failed to decrypt incoming message', e);
-          setMessages((prev) => [...prev, data]);
+        const v = scrollViewportRef.current;
+        if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
+          scrollToBottom();
+        } else {
           setShowNewMessage(true);
         }
+      } catch (e) {
+        console.error('Failed to decrypt incoming message', e);
+        setMessages((prev) => [...prev, data]);
+        setShowNewMessage(true);
       }
     };
 
@@ -203,28 +255,23 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     socket.on('user_stopped_typing', handleStopTyping);
 
     return () => {
-      socket.emit('leave_room', chatroom.id);
       socket.off('receive_message', handleReceiveMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_stopped_typing', handleStopTyping);
     };
   }, [chatroom, currentUserId]);
 
-  // --- Expired message listener (simple & isolated) ---
+  // --- Expired message listener ---
   useEffect(() => {
     if (!chatroom) return;
-
     const onExpired = ({ id }) => {
       setMessages((prev) => prev.filter((m) => m.id !== id));
     };
-
     socket.on('message_expired', onExpired);
-    return () => {
-      socket.off('message_expired', onExpired);
-    };
+    return () => socket.off('message_expired', onExpired);
   }, [chatroom?.id]);
 
-  // --- Copy notice listener (notify sender when someone copies) ---
+  // --- Copy notice listener ---
   useEffect(() => {
     const onCopyNotice = ({ messageId, toUserId }) => {
       if (toUserId !== currentUserId) return;
@@ -234,7 +281,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     return () => socket.off('message_copy_notice', onCopyNotice);
   }, [currentUserId]);
 
-  // 🔔 Real-time: when others read our messages, update UI
+  // 🔔 Real-time: read receipts
   useEffect(() => {
     const onRead = ({ messageId, reader }) => {
       if (!reader || reader.id === currentUserId) return; // ignore our own echo
@@ -264,7 +311,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         prev.map((m) => {
           if (m.id !== messageId) return m;
           const summary = { ...(m.reactionSummary || {}) };
-          // if server sent a count, trust it; otherwise do +/- 1 locally
           summary[emoji] =
             typeof count === 'number'
               ? count
@@ -303,7 +349,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     const readers = (msg.readBy || []).filter((u) => u.id !== currentUserId);
     if (!readers.length) return null;
 
-    // show at most 3 names + "+N"
     const limit = 3;
     const shown = readers.slice(0, limit).map((u) => u.username).join(', ');
     const extra = readers.length - limit;
@@ -547,7 +592,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     </Text>
                   )}
 
-                  {/* 🟣 Auto-reply badge (for messages generated by auto-responder) */}
+                  {/* 🟣 Auto-reply badge */}
                   {msg.isAutoReply && (
                     <Group justify="flex-end" mt={4}>
                       <Badge size="xs" variant="light" color="grape">
@@ -611,7 +656,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           <MessageInput
             chatroomId={chatroom.id}
             currentUser={currentUser}
-            // Optional convenience for /tr <lang> with no text
             getLastInboundText={() => {
               const lastInbound = messages
                 .slice()
@@ -620,7 +664,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
               return lastInbound?.decryptedContent || lastInbound?.content || '';
             }}
             onMessageSent={(msg) => {
-              setMessages((prev) => [...prev, msg]);
+              setMessages((prev) => [...prev, msg]); // append at bottom
               addMessages(chatroom.id, [msg]).catch(() => {});
               scrollToBottom();
             }}

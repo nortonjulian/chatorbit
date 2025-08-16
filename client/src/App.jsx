@@ -39,11 +39,23 @@ import AuditLogsPage from './pages/AuditLogsPage';
 // 🔌 Socket for per-user room join
 import socket from './lib/socket';
 
+// ✅ Feature flags (server-driven)
+import { fetchFeatures } from './lib/features'; // <<— JS version at client/src/lib/features.js
+// Optional: a minimal page to render the status feed
+import StatusFeed from './pages/StatusFeed.jsx'; // create a stub if you don't have it yet
+
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
   const [selectedRoom, setSelectedRoom] = useState(null);
 
   const { currentUser, setCurrentUser } = useUser();
+
+  // 🔧 Server-driven features
+  const [features, setFeatures] = useState({ status: false });
+
+  useEffect(() => {
+    fetchFeatures().then(setFeatures).catch(() => setFeatures({ status: false }));
+  }, []);
 
   // Join per-user Socket.IO room so server can push targeted events (e.g., status updates)
   useEffect(() => {
@@ -78,7 +90,12 @@ export default function App() {
 
       <AppShell.Navbar p="md">
         <ScrollArea.Autosize mah="calc(100vh - 120px)">
-          <Sidebar currentUser={currentUser} setSelectedRoom={setSelectedRoom} />
+          {/* Pass features to Sidebar so it can show/hide the Status nav item */}
+          <Sidebar
+            currentUser={currentUser}
+            setSelectedRoom={setSelectedRoom}
+            features={features}
+          />
         </ScrollArea.Autosize>
       </AppShell.Navbar>
 
@@ -137,6 +154,9 @@ export default function App() {
             <Route path="people" element={<PeoplePage />} />
             <Route path="settings/backups" element={<SettingsBackups />} />
             <Route path="/join/:code" element={<JoinInvitePage />} />
+
+            {/* ✅ Feature-flagged Status route: only register when enabled */}
+            {features.status && <Route path="status" element={<StatusFeed />} />}
 
             <Route
               path="admin"

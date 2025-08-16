@@ -26,7 +26,10 @@ export default function LinkOnNewDevice() {
 
       const res = await fetch('/devices/provision/client-init', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         body: JSON.stringify({
           linkId: payload.linkId,
           secret: payload.secret,
@@ -59,7 +62,10 @@ export default function LinkOnNewDevice() {
         // Register this device on the backend
         await fetch('/devices/register', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+                    headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
           credentials: 'include',
           body: JSON.stringify({
             linkId: payload.linkId,

@@ -54,7 +54,10 @@ export async function decryptFetchedMessages(
 export async function reportMessage(messageId, decryptedContent, reporterId) {
   return fetch('/messages/report', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
     body: JSON.stringify({ messageId, reporterId, decryptedContent }),
   });
 }

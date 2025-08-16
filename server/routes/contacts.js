@@ -1,6 +1,8 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import verifyToken from '../middleware/verifyToken.js';
+import { verifyToken } from '../middleware/auth.js';
+import asyncHandler from 'express-async-handler';
+
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -9,21 +11,29 @@ const normalizePhone = (s) =>
   (s || '').toString().replace(/[^\d+]/g, '');
 
 // GET /contacts  -> all contacts for the authed user (both linked + external)
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const contacts = await prisma.contact.findMany({
-      where: { ownerId: req.user.id },
-      include: {
-        user: { select: { id: true, username: true, email: true, phoneNumber: true } },
-      },
-      orderBy: [{ favorite: 'desc' }, { createdAt: 'desc' }],
+// server/routes/contacts.js (example)
+router.get(
+  '/',
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const limitRaw = Number(req.query.limit ?? 50);
+    const limit = Math.min(Math.max(1, limitRaw), 100);
+    const cursorId = req.query.cursor ? Number(req.query.cursor) : null;
+
+    const where = {}; // add search filters if needed
+
+    const items = await prisma.user.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      take: limit,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      select: { id: true, username: true, avatarUrl: true },
     });
-    res.json(contacts);
-  } catch (err) {
-    console.error('Error fetching contacts:', err);
-    res.status(500).json({ error: 'Failed to load contacts' });
-  }
-});
+
+    const nextCursor = items.length === limit ? items[items.length - 1].id : null;
+    res.json({ items, nextCursor, count: items.length });
+  })
+);
 
 // POST /contacts  -> create or update (upsert) a contact
 // Accepts either { userId } OR { externalPhone }, with optional { alias, externalName, favorite }

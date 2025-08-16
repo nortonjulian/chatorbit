@@ -1,18 +1,26 @@
 import express from 'express';
+import asyncHandler from 'express-async-handler';
 import Boom from '@hapi/boom';
-import prisma from '../utils/prismaClient.js';
+
 import { verifyToken } from '../middleware/auth.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { requireRoomRank, RoleRank, getEffectiveRoomRank } from '../utils/roomAuth.js';
+import { prisma } from '../utils/prismaClient.js';
+
+// Rank-based helpers (assumes you created these in utils/roomAuth.js)
+import {
+  requireRoomRank,
+  RoleRank,
+  getEffectiveRoomRank,
+  canActOnRank,
+} from '../utils/roomAuth.js';
 
 const router = express.Router();
 
-/** Owner-or-admin guard for a room (admins bypass) */
+/** Owner-or-admin guard for a room (global ADMIN bypasses) */
 const requireRoomOwner = async (req, _res, next) => {
   const roomId = Number(req.params.id ?? req.body?.chatRoomId);
   if (!Number.isFinite(roomId)) throw Boom.badRequest('Invalid room id');
 
-  const userId = req.user?.id;
+  const userId = Number(req.user?.id);
   const isAdmin = req.user?.role === 'ADMIN';
   if (isAdmin) return next();
 
@@ -27,23 +35,64 @@ const requireRoomOwner = async (req, _res, next) => {
   return next();
 };
 
-// GET /chatrooms
+// GET /chatrooms  (cursor by updatedAt,id; optional membership filter)
 router.get(
   '/',
   verifyToken,
   asyncHandler(async (req, res) => {
-    const { userId } = req.query;
-    const where = userId
-      ? { participants: { some: { userId: Number(userId) } } }
+    const limit = Math.min(Math.max(1, Number(req.query.limit ?? 30)), 100);
+
+    // optional membership filter: only rooms containing userId
+    const qUserId = req.query.userId ? Number(req.query.userId) : null;
+    const whereBase = qUserId
+      ? { participants: { some: { userId: qUserId } } }
       : {};
 
-    const chatRooms = await prisma.chatRoom.findMany({
+    // composite cursor: updatedAt + id
+    const curIdRaw = req.query.cursorId;
+    const curAtRaw = req.query.cursorUpdatedAt;
+
+    let cursorId = null;
+    let cursorAt = null;
+
+    if (curIdRaw && curAtRaw) {
+      const n = Number(curIdRaw);
+      const d = new Date(curAtRaw);
+      if (Number.isFinite(n) && !Number.isNaN(d.getTime())) {
+        cursorId = n;
+        cursorAt = d;
+      }
+    }
+
+    const where =
+      cursorId && cursorAt
+        ? {
+            ...whereBase,
+            OR: [
+              { updatedAt: { lt: cursorAt } },
+              { updatedAt: cursorAt, id: { lt: cursorId } },
+            ],
+          }
+        : whereBase;
+
+    const items = await prisma.chatRoom.findMany({
       where,
-      include: { participants: { include: { user: true } } },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      include: {
+        participants: { include: { user: true } },
+      },
     });
 
-    return res.json(chatRooms);
+    const nextCursor =
+      items.length === limit
+        ? {
+            updatedAt: items[items.length - 1].updatedAt,
+            id: items[items.length - 1].id,
+          }
+        : null;
+
+    return res.json({ items, nextCursor, count: items.length });
   })
 );
 
@@ -52,19 +101,20 @@ router.post(
   '/direct/:targetUserId',
   verifyToken,
   asyncHandler(async (req, res) => {
-    const userId1 = req.user.id;
+    const userId1 = Number(req.user.id);
     const userId2 = Number(req.params.targetUserId);
 
-    if (!userId1 || !userId2 || userId1 === userId2) {
+    if (!Number.isFinite(userId1) || !Number.isFinite(userId2) || userId1 === userId2) {
       throw Boom.badRequest('Invalid or duplicate user IDs');
     }
 
     const existingRoom = await prisma.chatRoom.findFirst({
       where: {
         isGroup: false,
-        participants: {
-          every: { OR: [{ userId: userId1 }, { userId: userId2 }] },
-        },
+        AND: [
+          { participants: { some: { userId: userId1 } } },
+          { participants: { some: { userId: userId2 } } },
+        ],
       },
       include: { participants: true },
     });
@@ -88,7 +138,7 @@ router.post(
   })
 );
 
-// POST /chatrooms/group
+// POST /chatrooms/group  (exact participant-set match check, else create)
 router.post(
   '/group',
   verifyToken,
@@ -97,40 +147,33 @@ router.post(
     if (!Array.isArray(userIds) || userIds.length < 2) {
       throw Boom.badRequest('Provide at least 2 user IDs for a group chat');
     }
-    const idsNum = userIds.map(Number);
+    const ids = [...new Set(userIds.map(Number))];
 
-    // Step 1: candidate rooms that include all target users
-    const possibleRooms = await prisma.chatRoom.findMany({
+    const existing = await prisma.chatRoom.findFirst({
       where: {
         isGroup: true,
-        participants: { every: { userId: { in: idsNum } } },
+        AND: [
+          ...ids.map((id) => ({ participants: { some: { userId: id } } })),
+          { participants: { every: { userId: { in: ids } } } },
+        ],
       },
       include: { participants: true },
     });
 
-    // Step 2: exact participant match
-    const targetSorted = [...idsNum].sort();
-    const matchingRoom = possibleRooms.find((room) => {
-      const ids = room.participants.map((p) => p.userId).sort();
-      return ids.length === targetSorted.length &&
-             ids.every((id, idx) => id === targetSorted[idx]);
-    });
+    if (existing) return res.json(existing);
 
-    if (matchingRoom) return res.json(matchingRoom);
-
-    // Step 3: create new
-    const newRoom = await prisma.chatRoom.create({
+    const created = await prisma.chatRoom.create({
       data: {
         name: name || 'Group chat',
         isGroup: true,
         participants: {
-          create: idsNum.map((id) => ({ user: { connect: { id } } })),
+          create: ids.map((id) => ({ user: { connect: { id } } })),
         },
       },
       include: { participants: true },
     });
 
-    return res.status(201).json(newRoom);
+    return res.status(201).json(created);
   })
 );
 
@@ -153,22 +196,17 @@ router.get(
   })
 );
 
-// PATCH /chatrooms/:id/auto-translate
+// PATCH /chatrooms/:id/auto-translate  (room admin+)
 router.patch(
   '/:id/auto-translate',
   verifyToken,
+  requireRoomRank(prisma, RoleRank.ADMIN),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { mode } = req.body ?? {};
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
     if (!['off', 'tagged', 'all'].includes(mode)) {
       throw Boom.badRequest('invalid mode');
-    }
-
-    // Authorization: owner/admin required
-    const rank = await getEffectiveRoomRank(prisma, req.user.id, id);
-    if (req.user.role !== 'ADMIN' && rank < RoleRank.ADMIN) {
-      throw Boom.forbidden('Insufficient permissions');
     }
 
     const updated = await prisma.chatRoom.update({
@@ -181,7 +219,7 @@ router.patch(
   })
 );
 
-// PATCH /chatrooms/:id/ai-assistant  (owner/admin)
+// PATCH /chatrooms/:id/ai-assistant  (owner or global admin)
 router.patch(
   '/:id/ai-assistant',
   verifyToken,
@@ -249,7 +287,7 @@ router.get(
   })
 );
 
-// POST /chatrooms/:id/participants  (admins+)
+// POST /chatrooms/:id/participants  (admin+)
 router.post(
   '/:id/participants',
   verifyToken,
@@ -270,7 +308,6 @@ router.post(
       select: { userId: true, role: true },
     });
 
-    // io?.to(roomId).emit('room:member_added', { userId })
     return res.json({ ok: true, participant: created });
   })
 );
@@ -286,8 +323,15 @@ router.delete(
       throw Boom.badRequest('Invalid id');
     }
 
-    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId);
-    if (actorRank < RoleRank.MODERATOR) throw Boom.forbidden('Forbidden');
+    const actorRank = await getEffectiveRoomRank(
+      prisma,
+      req.user.id,
+      roomId,
+      req.user.role
+    );
+    if (actorRank === null || actorRank < RoleRank.MODERATOR) {
+      throw Boom.forbidden('Forbidden');
+    }
 
     const room = await prisma.chatRoom.findUnique({
       where: { id: roomId },
@@ -303,19 +347,14 @@ router.delete(
     if (!target) return res.json({ ok: true }); // idempotent
 
     const targetRank = RoleRank[target.role] ?? RoleRank.MEMBER;
-
-    const canKick =
-      (actorRank >= RoleRank.OWNER) ||
-      (actorRank >= RoleRank.ADMIN && targetRank <= RoleRank.MODERATOR) ||
-      (actorRank >= RoleRank.MODERATOR && targetRank <= RoleRank.MEMBER);
-
-    if (!canKick) throw Boom.forbidden('Insufficient rank');
+    if (!canActOnRank(actorRank, targetRank)) {
+      throw Boom.forbidden('Insufficient rank');
+    }
 
     await prisma.participant.delete({
       where: { userId_chatRoomId: { userId: targetId, chatRoomId: roomId } },
     });
 
-    // io?.to(roomId).emit('room:member_removed', { userId: targetId })
     return res.json({ ok: true });
   })
 );
@@ -343,7 +382,12 @@ router.patch(
     });
     if (!room) throw Boom.notFound('Room not found');
 
-    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId);
+    const actorRank = await getEffectiveRoomRank(
+      prisma,
+      req.user.id,
+      roomId,
+      req.user.role
+    );
     if (actorRank < RoleRank.ADMIN) throw Boom.forbidden('Forbidden');
 
     if (role === 'ADMIN' && actorRank < RoleRank.OWNER) {
@@ -359,33 +403,7 @@ router.patch(
       select: { userId: true, role: true },
     });
 
-    // io?.to(roomId).emit('room:role_changed', updated)
     return res.json({ ok: true, participant: updated });
-  })
-);
-
-// POST /chatrooms/:id/transfer-owner (owner only)
-router.post(
-  '/:id/transfer-owner',
-  verifyToken,
-  requireRoomRank(prisma, RoleRank.OWNER),
-  asyncHandler(async (req, res) => {
-    const roomId = Number(req.params.id);
-    const { newOwnerId } = req.body ?? {};
-    if (!Number.isFinite(roomId)) throw Boom.badRequest('Invalid id');
-    if (!newOwnerId) throw Boom.badRequest('newOwnerId required');
-
-    const exists = await prisma.participant.findUnique({
-      where: { userId_chatRoomId: { userId: Number(newOwnerId), chatRoomId: roomId } },
-    });
-    if (!exists) throw Boom.badRequest('Target must be a participant');
-
-    await prisma.chatRoom.update({
-      where: { id: roomId },
-      data: { ownerId: Number(newOwnerId) },
-    });
-
-    return res.json({ ok: true });
   })
 );
 
@@ -407,7 +425,7 @@ router.get(
   })
 );
 
-// PATCH /chatrooms/:id/meta (owner or admin)
+// PATCH /chatrooms/:id/meta (owner or global admin)
 router.patch(
   '/:id/meta',
   verifyToken,

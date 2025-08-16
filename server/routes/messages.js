@@ -1,6 +1,8 @@
 import express from 'express';
 import Boom from '@hapi/boom';
-import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import rateLimit from 'express-rate-limit';
 
 import prisma from '../utils/prismaClient.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -8,10 +10,25 @@ import { audit } from '../middleware/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
 
+// 🔐 secure upload utilities
+import { makeUploader } from '../utils/upload.js';
+import { scanFile } from '../utils/antivirus.js';
+import { ensureThumb } from '../utils/thumbnailer.js';
+import { signDownloadToken } from '../utils/downloadTokens.js';
+
 const router = express.Router();
 
-// Store uploads on disk (adjust to memory/S3/etc. as needed)
-const upload = multer({ dest: 'uploads/' });
+// Replace old multer with hardened uploader
+const uploadMedia = makeUploader({ maxFiles: 10, maxBytes: 15 * 1024 * 1024, kind: 'media' });
+
+// Per-endpoint rate limit for POST creates
+const postMessageLimiter = rateLimit({
+  windowMs: 10 * 1000, // 10s
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method !== 'POST',
+});
 
 /**
  * CREATE message (HTTP)
@@ -32,8 +49,9 @@ const upload = multer({ dest: 'uploads/' });
  */
 router.post(
   '/',
+  postMessageLimiter,
   verifyToken,
-  upload.array('files', 10),
+  uploadMedia.array('files', 10),
   asyncHandler(async (req, res) => {
     const senderId = req.user?.id;
     if (!senderId) throw Boom.unauthorized();
@@ -41,52 +59,70 @@ router.post(
     const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } = req.body || {};
     if (!chatRoomId) throw Boom.badRequest('chatRoomId is required');
 
-    // Clamp optional per-message TTL (5s .. 7d). Omit if invalid.
+    // Clamp optional per-message TTL (5s .. 7d)
     let secs = Number(expireSeconds);
     secs = Number.isFinite(secs) ? Math.max(5, Math.min(7 * 24 * 60 * 60, secs)) : undefined;
 
-    // Pair files with client-provided meta (index-based)
+    // Parse meta
     let meta = [];
-    try {
-      meta = JSON.parse(attachmentsMeta || '[]');
-      if (!Array.isArray(meta)) meta = [];
-    } catch {
-      meta = [];
-    }
+    try { meta = JSON.parse(attachmentsMeta || '[]'); if (!Array.isArray(meta)) meta = []; } catch { meta = []; }
 
     const files = Array.isArray(req.files) ? req.files : [];
 
-    const uploaded = files.map((f, i) => {
+    // AV scan + derive attachments with PRIVATE paths (no /uploads in DB)
+    const uploaded = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
       const m = meta.find((x) => Number(x.idx) === i) || {};
       const mime = f.mimetype || '';
-      const kind =
-        mime.startsWith('image/') ? 'IMAGE' :
-        mime.startsWith('video/') ? 'VIDEO' :
-        mime.startsWith('audio/') ? 'AUDIO' : 'FILE';
 
-      return {
-        kind,
-        url: `/uploads/${f.filename}`,
+      // Antivirus scan — delete & skip if bad
+      const av = await scanFile(f.path);
+      if (!av.ok) {
+        await fs.promises.unlink(f.path).catch(() => {});
+        continue;
+      }
+
+      const relName = path.basename(f.path);     // e.g. "1712345678_abcd_file.jpg"
+      const relPath = path.join('media', relName); // private ref
+
+      // Generate thumbnail for images
+      const isImage = mime.startsWith('image/');
+      let thumbRel = null;
+      if (isImage) {
+        try {
+          const t = await ensureThumb(f.path, relName); // returns { abs, rel }
+          thumbRel = t.rel; // e.g. 'thumbs/1712..._file.thumb.jpg'
+        } catch {
+          // thumbnail generation best-effort
+        }
+      }
+
+      uploaded.push({
+        kind: isImage
+          ? 'IMAGE'
+          : mime.startsWith('video/')
+          ? 'VIDEO'
+          : mime.startsWith('audio/')
+          ? 'AUDIO'
+          : 'FILE',
+        url: relPath,              // store PRIVATE path in DB
         mimeType: mime,
         width: m.width ?? null,
         height: m.height ?? null,
         durationSec: m.durationSec ?? null,
         caption: m.caption ?? null,
-      };
-    });
+        _thumb: thumbRel,          // temp helper for shaping response
+      });
+    }
 
     // Inline attachments (stickers/GIFs by URL, no upload)
     let inline = [];
-    try {
-      inline = JSON.parse(attachmentsInline || '[]');
-      if (!Array.isArray(inline)) inline = [];
-    } catch {
-      inline = [];
-    }
+    try { inline = JSON.parse(attachmentsInline || '[]'); if (!Array.isArray(inline)) inline = []; } catch { inline = []; }
     inline = inline
       .filter((a) => a && a.url && a.kind)
       .map((a) => ({
-        kind: a.kind, // 'STICKER' | 'GIF' | etc.
+        kind: a.kind,
         url: a.url,
         mimeType: a.mimeType || (a.kind === 'STICKER' ? 'image/webp' : ''),
         width: a.width ?? null,
@@ -97,7 +133,7 @@ router.post(
 
     const attachments = [...uploaded, ...inline];
 
-    // Backward-compat single media (optional; can be removed once fully on attachments)
+    // Legacy single media fields (store PRIVATE refs; we’ll sign in shaped response)
     const firstImage = files.find((f) => f.mimetype?.startsWith('image/'));
     const firstAudio = files.find((f) => f.mimetype?.startsWith('audio/'));
     const firstAudioMeta = meta.find((m) => m.kind === 'AUDIO');
@@ -107,14 +143,32 @@ router.post(
       chatRoomId,
       content,
       expireSeconds: secs,
-      imageUrl: firstImage ? `/uploads/${firstImage.filename}` : null, // legacy surface
-      audioUrl: firstAudio ? `/uploads/${firstAudio.filename}` : null, // legacy surface
+      imageUrl: firstImage ? path.join('media', path.basename(firstImage.path)) : null,
+      audioUrl: firstAudio ? path.join('media', path.basename(firstAudio.path)) : null,
       audioDurationSec: firstAudioMeta?.durationSec ?? null,
-      attachments, // unified attachments array
+      attachments,
     });
 
-    req.app.get('io')?.to(String(chatRoomId)).emit('receive_message', saved);
-    return res.status(201).json(saved);
+    // Shape response: replace PRIVATE refs with short-lived signed URLs (5 min)
+    const toSigned = (rel, ownerId) =>
+      `/files?token=${encodeURIComponent(signDownloadToken({ path: rel, ownerId, ttlSec: 300 }))}`;
+
+    const shaped = {
+      ...saved,
+      imageUrl: saved.imageUrl ? toSigned(saved.imageUrl, senderId) : null,
+      audioUrl: saved.audioUrl ? toSigned(saved.audioUrl, senderId) : null,
+      attachments: saved.attachments.map((a, idx) => {
+        const src = attachments[idx]; // same order as createMany
+        const out = { ...a };
+        out.url = a.url && !/^https?:\/\//i.test(a.url) ? toSigned(a.url, senderId) : a.url;
+        if (src?._thumb) out.thumbUrl = toSigned(src._thumb, senderId);
+        return out;
+      }),
+    };
+
+    // Emit shaped message (no raw/private paths leave the server)
+    req.app.get('io')?.to(String(chatRoomId)).emit('receive_message', shaped);
+    return res.status(201).json(shaped);
   })
 );
 
@@ -125,88 +179,110 @@ router.post(
  * - Includes attachments array
  * - Includes reactions summary + viewer's own reactions
  */
-router.get(
-  '/:chatRoomId',
-  verifyToken,
-  asyncHandler(async (req, res) => {
-    const chatRoomId = Number(req.params.chatRoomId);
-    const requesterId = req.user?.id;
-    const isAdmin = req.user?.role === 'ADMIN';
+router.get('/:chatRoomId', verifyToken, async (req, res) => {
+  const chatRoomId = Number(req.params.chatRoomId);
+  const requesterId = req.user.id;
+  const isAdmin = req.user.role === 'ADMIN';
 
-    if (!Number.isFinite(chatRoomId)) throw Boom.badRequest('Invalid chatRoomId');
+  try {
+    if (!Number.isFinite(chatRoomId)) {
+      return res.status(400).json({ error: 'Invalid chatRoomId' });
+    }
 
     // Must be a participant unless admin
     if (!isAdmin) {
       const membership = await prisma.participant.findFirst({
         where: { chatRoomId, userId: requesterId },
       });
-      if (!membership) throw Boom.forbidden('Forbidden');
+      if (!membership) return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Requester’s UI language
+    const limitRaw = Number(req.query.limit ?? 50);
+    const limit = Math.min(Math.max(1, limitRaw), 100);
+    const cursorId = req.query.cursor ? Number(req.query.cursor) : null;
+
+    // Page by id (monotonic). Order newest → oldest
+    const where = {
+      chatRoomId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    };
+
+    const baseSelect = {
+      id: true,
+      contentCiphertext: true,
+      translations: true,
+      translatedContent: true,
+      translatedTo: true,
+      imageUrl: true,
+      audioUrl: true,
+      audioDurationSec: true,
+      isExplicit: true,
+      createdAt: true,
+      expiresAt: true,
+      rawContent: true,
+      deletedBySender: true,
+      sender: { select: { id: true, username: true } },
+      readBy: { select: { id: true, username: true, avatarUrl: true} },
+      attachments: {
+        select: {
+          id: true, kind: true, url: true, mimeType: true,
+          width: true, height: true, durationSec: true, caption: true,
+          createdAt: true,
+        },
+      },
+      keys: {
+        where: { userId: requesterId },
+        select: { encryptedKey: true },
+        take: 1,
+      },
+      chatRoomId: true,
+    };
+
+    const items = await prisma.message.findMany({
+      where: cursorId ? { ...where, id: { lt: cursorId } } : where,
+      orderBy: { id: 'desc' },
+      take: limit,
+      select: baseSelect,
+    });
+
+    // Aggregate reactions
+    const messageIds = items.map((m) => m.id);
+
+    let reactionSummaryByMessage = {};
+    let myReactionsByMessage = {};
+
+    if (messageIds.length) {
+      const grouped = await prisma.messageReaction.groupBy({
+        by: ['messageId', 'emoji'],
+        where: { messageId: { in: messageIds } },
+        _count: { emoji: true },
+      });
+      reactionSummaryByMessage = grouped.reduce((acc, r) => {
+        (acc[r.messageId] ||= {})[r.emoji] = r._count.emoji;
+        return acc;
+      }, {});
+
+      const mine = await prisma.messageReaction.findMany({
+        where: { messageId: { in: messageIds }, userId: requesterId },
+        select: { messageId: true, emoji: true },
+      });
+      myReactionsByMessage = mine.reduce((acc, r) => {
+        (acc[r.messageId] ||= new Set()).add(r.emoji);
+        return acc;
+      }, {});
+    }
+
     const requester = await prisma.user.findUnique({
       where: { id: requesterId },
       select: { preferredLanguage: true },
     });
     const myLang = requester?.preferredLanguage || 'en';
 
-    // Fetch messages + ONLY my key from normalized MessageKey table
-    const messages = await prisma.message.findMany({
-      where: {
-        chatRoomId,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        contentCiphertext: true,
-        translations: true,          // JSON map of lang -> text (plaintext)
-        translatedContent: true,     // legacy single translation
-        translatedTo: true,          // legacy single translation
-        imageUrl: true,              // legacy single media
-        audioUrl: true,              // legacy single media
-        audioDurationSec: true,      // legacy single media
-        isExplicit: true,
-        createdAt: true,
-        expiresAt: true,
-        rawContent: true,            // sender/admin only in response shaping
-        deletedBySender: true,
-        sender: { select: { id: true, username: true } },
-        readBy: {                    // read receipts UI
-          select: { id: true, username: true, avatarUrl: true },
-        },
-        attachments: {               // gallery/forwarding
-          select: {
-            id: true,
-            kind: true,
-            url: true,
-            mimeType: true,
-            width: true,
-            height: true,
-            durationSec: true,
-            caption: true,
-            createdAt: true,
-          },
-        },
-        reactions: {                 // for summary + myReactions
-          select: { emoji: true, userId: true },
-        },
-        keys: {
-          where: { userId: requesterId },
-          select: { encryptedKey: true },
-          take: 1,
-        },
-        chatRoomId: true,
-      },
-    });
-
-    // Filter and shape for client
-    const safe = messages
+    const shaped = items
       .filter((m) => !(m.deletedBySender && m.sender.id === requesterId))
       .map((m) => {
         const isSender = m.sender.id === requesterId;
 
-        // Best translation for this viewer
         const fromMap =
           m.translations && typeof m.translations === 'object'
             ? m.translations[myLang] ?? null
@@ -219,20 +295,14 @@ router.get(
 
         const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
 
-        // reactions summary + mine
-        const reactionSummary = {};
-        const myReactions = [];
-        for (const r of (m.reactions || [])) {
-          reactionSummary[r.emoji] = (reactionSummary[r.emoji] || 0) + 1;
-          if (r.userId === requesterId) myReactions.push(r.emoji);
-        }
+        const reactionSummary = reactionSummaryByMessage[m.id] || {};
+        const myReactions = Array.from(myReactionsByMessage[m.id] || []);
 
         const {
-          translations,        // drop full map
-          translatedContent,   // drop legacy
-          translatedTo,        // drop legacy
-          keys,                // drop raw keys array
-          reactions,           // drop raw rows
+          translations,
+          translatedContent,
+          translatedTo,
+          keys,
           ...rest
         } = m;
 
@@ -244,19 +314,20 @@ router.get(
           myReactions,
         };
 
-        if (isSender || isAdmin) {
-          // Sender/admin can see rawContent
-          return base;
-        }
-
-        // Others do NOT get rawContent
+        if (isSender || isAdmin) return base;
         const { rawContent, ...restNoRaw } = base;
         return restNoRaw;
       });
 
-    return res.json(safe);
-  })
-);
+    const nextCursor =
+      shaped.length === limit ? shaped[shaped.length - 1].id : null;
+
+    return res.json({ items: shaped, nextCursor, count: shaped.length });
+  } catch (error) {
+    console.error('Error fetching messages', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
 
 /**
  * PATCH /messages/:id/read
@@ -271,7 +342,6 @@ router.patch(
 
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
 
-    // Look up message to get room for membership check
     const m = await prisma.message.findUnique({
       where: { id },
       select: { id: true, chatRoomId: true },
@@ -284,14 +354,12 @@ router.patch(
     });
     if (!isMember) throw Boom.forbidden('Forbidden');
 
-    // Connect user to readBy (no-op if already connected)
     await prisma.message.update({
       where: { id },
       data: { readBy: { connect: { id: userId } } },
-      select: { id: true }, // minimal select
+      select: { id: true },
     });
 
-    // Notify room in real-time
     const io = req.app.get('io');
     io?.to(String(m.chatRoomId)).emit('message_read', {
       messageId: id,
@@ -304,7 +372,6 @@ router.patch(
 
 /**
  * POST /messages/read-bulk
- * Batched mark-as-read with membership check + per-message socket emit
  */
 router.post(
   '/read-bulk',
@@ -320,20 +387,16 @@ router.post(
       select: { id: true, chatRoomId: true },
     });
 
-    // Only allow marking read in rooms the user belongs to
     const rooms = [...new Set(msgs.map((m) => m.chatRoomId))];
     const allowed = await prisma.participant.findMany({
       where: { userId, chatRoomId: { in: rooms } },
       select: { chatRoomId: true },
     });
     const allowedSet = new Set(allowed.map((a) => a.chatRoomId));
-    const allowedIds = msgs
-      .filter((m) => allowedSet.has(m.chatRoomId))
-      .map((m) => m.id);
+    const allowedIds = msgs.filter((m) => allowedSet.has(m.chatRoomId)).map((m) => m.id);
 
     if (!allowedIds.length) return res.json({ ok: true });
 
-    // One-by-one so we can emit per-message (updateMany can't connect M2M)
     await prisma.$transaction(
       allowedIds.map((id) =>
         prisma.message.update({
@@ -358,7 +421,6 @@ router.post(
 
 /**
  * REACTIONS
- * Toggle (POST) and remove (DELETE)
  */
 router.post(
   '/:id/reactions',
@@ -368,12 +430,9 @@ router.post(
     const userId = req.user?.id;
     const { emoji } = req.body || {};
 
-    if (!emoji || typeof emoji !== 'string') {
-      throw Boom.badRequest('emoji is required');
-    }
+    if (!emoji || typeof emoji !== 'string') throw Boom.badRequest('emoji is required');
     if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
 
-    // ensure membership
     const msg = await prisma.message.findUnique({
       where: { id: messageId },
       select: { chatRoomId: true },
@@ -385,7 +444,6 @@ router.post(
     });
     if (!member) throw Boom.forbidden('Forbidden');
 
-    // toggle
     const existing = await prisma.messageReaction.findUnique({
       where: { messageId_userId_emoji: { messageId, userId, emoji } },
     });
@@ -405,10 +463,7 @@ router.post(
       return res.json({ ok: true, op: 'removed', emoji, count });
     }
 
-    await prisma.messageReaction.create({
-      data: { messageId, userId, emoji },
-    });
-
+    await prisma.messageReaction.create({ data: { messageId, userId, emoji } });
     const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
     req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
       messageId,
@@ -431,10 +486,9 @@ router.delete(
     const userId = req.user?.id;
     const emoji = decodeURIComponent(req.params.emoji || '');
 
-    // Idempotent remove: do not throw if it doesn't exist
-    await prisma.messageReaction.delete({
-      where: { messageId_userId_emoji: { messageId, userId, emoji } },
-    }).catch(() => {});
+    await prisma.messageReaction
+      .delete({ where: { messageId_userId_emoji: { messageId, userId, emoji } } })
+      .catch(() => {});
 
     const msg = await prisma.message.findUnique({
       where: { id: messageId },
@@ -518,8 +572,7 @@ router.patch(
 );
 
 /**
- * DELETE message
- * (soft-delete by sender; admins allowed)
+ * DELETE message (soft-delete by sender; admins allowed)
  */
 router.delete(
   '/:id',
@@ -581,7 +634,7 @@ router.post(
 );
 
 /**
- * FORWARD a message to another room (reuses attachments; add file-copying if desired)
+ * FORWARD a message to another room (reuses attachments)
  */
 router.post(
   '/:id/forward',
@@ -613,7 +666,7 @@ router.post(
       content: note || '(forwarded)',
       attachments: src.attachments.map((a) => ({
         kind: a.kind,
-        url: a.url, // reuse (or copy file to a new path if you prefer)
+        url: a.url, // still private; client will receive signed links on creation path
         mimeType: a.mimeType,
         width: a.width,
         height: a.height,

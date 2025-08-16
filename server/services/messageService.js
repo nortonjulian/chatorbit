@@ -3,8 +3,10 @@ import { isExplicit, cleanText } from '../utils/filter.js';
 import { translateForTargets } from '../utils/translate.js';
 import { encryptMessageForParticipants } from '../utils/encryption.js';
 import { translateText } from '../utils/translateText.js';
+import { allow } from '../utils/tokenBucket.js';
 
 const ORBIT_BOT_USER_ID = Number(process.env.ORBIT_BOT_USER_ID ?? 0);
+const MAX_TRANSLATE_CHARS = Number(process.env.TRANSLATE_MAX_INPUT_CHARS || 1200);
 
 /**
  * Creates a message with full pipeline:
@@ -228,92 +230,85 @@ export async function createMessageService({
 }
 
 /**
- * Auto-translate helper (unchanged).
- * Call AFTER emitting the original message.
+ * Auto-translate helper (privacy-first).
+ * Stores a translations map on the original message:
+ *   message.translations = { "en": "...", "es": "...", ... }
+ * Triggers only when a provider key/endpoint exists and based on room mode.
  */
 export async function maybeAutoTranslate({ savedMessage, io, prisma: prismaArg }) {
-  const db = prismaArg || prisma;
+  try {
+    const db = prismaArg || prisma;
 
-  const text = savedMessage?.rawContent?.trim();
-  if (!text) return;
+    // Provider available?
+    const hasProvider =
+      !!process.env.DEEPL_API_KEY ||
+      !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
+    if (!hasProvider) return;
 
-  // Avoid loops from bot messages
-  const senderId = savedMessage.senderId ?? savedMessage.sender?.id;
-  if (senderId === ORBIT_BOT_USER_ID) return;
+    const roomId = Number(savedMessage.chatRoomId);
+    const senderId = Number(savedMessage.senderId ?? savedMessage.sender?.id);
+    const raw = String(savedMessage.rawContent || savedMessage.content || '').trim();
+    if (!roomId || !raw) return;
 
-  const room = await db.chatRoom.findUnique({
-    where: { id: savedMessage.chatRoomId },
-    select: {
-      autoTranslateMode: true,
-      participants: {
-        select: {
-          userId: true,
-          user: { select: { preferredLanguage: true } },
-        },
-      },
-    },
-  });
+    // Avoid loops for bot/system messages
+    if (senderId && senderId === ORBIT_BOT_USER_ID) return;
 
-  if (!room || room.autoTranslateMode === 'off') return;
+    // Throttle per room to control cost
+    if (!allow(`translate:${roomId}`, 12, 10_000)) return;
 
-  // Tagged mode: require /tr or #translate
-  const isTagged = /^\/tr(\s|$)|#translate\b/i.test(text);
-  if (room.autoTranslateMode === 'tagged' && !isTagged) return;
+    // Mode checks
+    const room = await db.chatRoom.findUnique({
+      where: { id: roomId },
+      select: { autoTranslateMode: true },
+    });
+    if (!room) return;
 
-  // Determine target languages
-  const targets = new Set(
-    room.participants
-      .map((p) => p.user?.preferredLanguage)
-      .filter(Boolean)
-      .map((s) => s.toLowerCase())
-  );
+    const mode = room.autoTranslateMode || 'off';
+    if (mode === 'off') return;
 
-  // If the message specified a target ("/tr es ..."), use that one only
-  const forcedTarget = (() => {
-    const m = text.match(/^\/tr\s+([a-z]{2,3})(\s|$)/i);
-    return m ? m[1].toLowerCase() : null;
-  })();
-  const targetList = forcedTarget ? [forcedTarget] : [...targets];
-
-  // Skip translating into the sender's own language
-  const sender = await db.user.findUnique({
-    where: { id: Number(senderId) },
-    select: { preferredLanguage: true },
-  });
-  const senderLang = sender?.preferredLanguage?.toLowerCase();
-  const uniqueTargets = targetList.filter((l) => l && l !== senderLang);
-
-  // Keep costs sane
-  const SAFE_CHAR_BUDGET = 1200;
-  const source = text
-    .slice(0, SAFE_CHAR_BUDGET)
-    .replace(/^\/tr\s+[a-z]{2,3}\s*/i, '');
-
-  for (const lang of uniqueTargets) {
-    try {
-      const { translated } = await translateText({
-        text: source,
-        targetLang: lang,
-      });
-
-      // Optional: align expiry with the original message if present
-      let expireSeconds;
-      if (savedMessage.expiresAt) {
-        const msLeft = new Date(savedMessage.expiresAt).getTime() - Date.now();
-        if (msLeft > 0) expireSeconds = Math.max(1, Math.floor(msLeft / 1000));
-      }
-
-      const botMsg = await createMessageService({
-        senderId: ORBIT_BOT_USER_ID,
-        chatRoomId: savedMessage.chatRoomId,
-        content: translated,
-        expireSeconds,
-        isAutoReply: false,
-      });
-
-      io.to(String(savedMessage.chatRoomId)).emit('receive_message', botMsg);
-    } catch (e) {
-      console.warn('auto-translate failed', e);
+    if (mode === 'tagged') {
+      const tagged = /(^|\s)#translate(\s|$)|^\/tr(\s|$)/i.test(raw);
+      if (!tagged) return;
     }
+
+    // Clip outbound text (privacy+cost)
+    const clipped = raw.slice(0, MAX_TRANSLATE_CHARS);
+
+    // Target languages = participants' preferredLanguage (unique)
+    const participants = await db.participant.findMany({
+      where: { chatRoomId: roomId },
+      include: { user: { select: { id: true, preferredLanguage: true } } },
+    });
+
+    const targets = new Set(
+      (participants || [])
+        .map((p) => (p.user?.preferredLanguage || 'en').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    if (targets.size === 0) return;
+
+    // Translate fan-out with per-language throttles
+    const results = {};
+    for (const lang of targets) {
+      try {
+        if (!allow(`translate:${roomId}:${lang}`, 6, 10_000)) continue;
+        const out = await translateText({ text: clipped, targetLang: lang });
+        if (out?.text) results[lang] = out.text;
+      } catch {
+        // skip failing languages; continue others
+      }
+    }
+
+    if (Object.keys(results).length === 0) return;
+
+    // Persist translations map onto the original message
+    await db.message.update({
+      where: { id: savedMessage.id },
+      data: { translations: results },
+      select: { id: true },
+    });
+  } catch (err) {
+    console.error('maybeAutoTranslate failed:', err);
   }
 }

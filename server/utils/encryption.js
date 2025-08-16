@@ -1,9 +1,21 @@
-// utils/encryption.js
 import crypto from 'crypto';
 import nacl from 'tweetnacl';
 import naclUtil from 'tweetnacl-util';
 
-const toU8 = (buf) => new Uint8Array(buf); // Buffer -> Uint8Array
+// Optional worker pool; if absent, we fall back to inline sealing
+let pool = null;
+try {
+  const { getCryptoPool } = await import('../services/cryptoPool.js');
+  pool = getCryptoPool?.();
+} catch {
+  // No pool available – will seal inline when needed
+}
+
+// Threshold for switching to parallel sealing via worker threads
+const PARALLEL_THRESHOLD = Number(process.env.ENCRYPT_PARALLEL_THRESHOLD || 8);
+
+// Helper: Buffer → Uint8Array
+const toU8 = (buf) => new Uint8Array(buf);
 
 export function generateKeyPair() {
   const keyPair = nacl.box.keyPair();
@@ -14,39 +26,80 @@ export function generateKeyPair() {
 }
 
 /**
+ * Seal a session key for one recipient using the *sender's* keypair.
+ * Output (base64) packs: [nonce(24) | box]
+ */
+function sealKeyInline(sessionKeyBuf, senderSecretB64, recipientPublicB64) {
+  const nonce = crypto.randomBytes(24);
+  const recipientPublic = naclUtil.decodeBase64(recipientPublicB64);
+  const senderSecret = naclUtil.decodeBase64(senderSecretB64);
+
+  const boxed = nacl.box(toU8(sessionKeyBuf), toU8(nonce), recipientPublic, senderSecret);
+  const packed = Buffer.concat([nonce, Buffer.from(boxed)]);
+  return naclUtil.encodeBase64(packed);
+}
+
+/**
  * AES-256-GCM message encryption; session key sealed for each participant with NaCl box.
  * @param {string} message - UTF-8 plaintext
- * @param {UserLike} sender - { id, publicKey(base64), privateKey(base64) }
- * @param {UserLike[]} recipients - array with { id, publicKey(base64) }
- * @returns {{ciphertext:string, encryptedKeys:Object<string,string>}}
+ * @param {{ id:number, publicKey:string(base64), privateKey:string(base64) }} sender
+ * @param {Array<{ id:number, publicKey:string(base64) }>} recipients
+ * @returns {{ciphertext:string, encryptedKeys:Record<string,string>}}
  */
-export function encryptMessageForParticipants(message, sender, recipients) {
-  // 1) Symmetric encrypt message
-  const sessionKey = crypto.randomBytes(32);     // 256-bit
-  const iv = crypto.randomBytes(12);             // GCM 96-bit IV
+export async function encryptMessageForParticipants(message, sender, recipients) {
+  // 1) Symmetric encrypt the message once
+  const sessionKey = crypto.randomBytes(32); // 256-bit key
+  const iv = crypto.randomBytes(12);         // GCM 96-bit IV
   const cipher = crypto.createCipheriv('aes-256-gcm', sessionKey, iv);
   const enc = Buffer.concat([cipher.update(message, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   const ciphertext = Buffer.concat([iv, tag, enc]).toString('base64');
 
-  // 2) Seal session key to each participant using sender's secret key
-  const senderSecret = naclUtil.decodeBase64(sender.privateKey);
-  const senderPublic = naclUtil.decodeBase64(sender.publicKey);
-
+  // 2) Dedupe recipients
   const encryptedKeys = {};
-
-  // Recipients (everyone in room, excluding or including sender as separate step)
-  for (const recipient of recipients) {
-    const nonce = crypto.randomBytes(24);
-    const recipientPublic = naclUtil.decodeBase64(recipient.publicKey);
-    const boxed = nacl.box(toU8(sessionKey), toU8(nonce), recipientPublic, senderSecret);
-    encryptedKeys[recipient.id] = naclUtil.encodeBase64(Buffer.concat([nonce, Buffer.from(boxed)]));
+  const uniqueRecipients = [];
+  const seen = new Set();
+  for (const r of recipients || []) {
+    if (!r?.id || !r?.publicKey) continue;
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    uniqueRecipients.push(r);
   }
 
-  // Also seal to sender (so they can read from another device, or re-download)
-  const selfNonce = crypto.randomBytes(24);
-  const boxedSelf = nacl.box(toU8(sessionKey), toU8(selfNonce), senderPublic, senderSecret);
-  encryptedKeys[sender.id] = naclUtil.encodeBase64(Buffer.concat([selfNonce, Buffer.from(boxedSelf)]));
+  // Use worker pool for large groups if available
+  const usePool = pool?.run && uniqueRecipients.length >= PARALLEL_THRESHOLD;
+  if (usePool) {
+    const senderSecretB64 = sender.privateKey;
+    const msgKeyB64 = naclUtil.encodeBase64(sessionKey);
+
+    const results = await Promise.all(
+      uniqueRecipients.map(async (r) => {
+        try {
+          const out = await pool.run({
+            msgKeyB64, // base64 of the session key
+            senderSecretB64,
+            recipientPubB64: r.publicKey,
+          });
+          return { userId: r.id, sealed: out.sealedKeyB64 };
+        } catch {
+          // Per-recipient fallback
+          return { userId: r.id, sealed: sealKeyInline(sessionKey, sender.privateKey, r.publicKey) };
+        }
+      })
+    );
+
+    for (const { userId, sealed } of results) {
+      encryptedKeys[userId] = sealed;
+    }
+  } else {
+    // Small rooms → inline sealing
+    for (const r of uniqueRecipients) {
+      encryptedKeys[r.id] = sealKeyInline(sessionKey, sender.privateKey, r.publicKey);
+    }
+  }
+
+  // Always seal to the sender (for multi-device/re-download)
+  encryptedKeys[sender.id] = sealKeyInline(sessionKey, sender.privateKey, sender.publicKey);
 
   return { ciphertext, encryptedKeys };
 }
