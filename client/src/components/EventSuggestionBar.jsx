@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Group, Button, Modal, TextInput, Textarea } from '@mantine/core';
-import chrono from 'chrono-node';
+import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
 import axiosClient from '../api/axiosClient';
 
@@ -15,9 +15,13 @@ function fmtLocalRange(startISO, endISO, isAllDay) {
   if (isAllDay) return `${s.toLocaleString(DateTime.DATE_MED)} (all day)`;
   const sameDay = s.hasSame(e, 'day');
   if (sameDay) {
-    return `${s.toLocaleString(DateTime.DATE_MED)} • ${s.toLocaleString(DateTime.TIME_SIMPLE)}–${e.toLocaleString(DateTime.TIME_SIMPLE)}`;
+    return `${s.toLocaleString(DateTime.DATE_MED)} • ${s.toLocaleString(
+      DateTime.TIME_SIMPLE
+    )}–${e.toLocaleString(DateTime.TIME_SIMPLE)}`;
   }
-  return `${s.toLocaleString(DateTime.DATETIME_MED)} → ${e.toLocaleString(DateTime.DATETIME_MED)}`;
+  return `${s.toLocaleString(DateTime.DATETIME_MED)} → ${e.toLocaleString(
+    DateTime.DATETIME_MED
+  )}`;
 }
 
 export default function EventSuggestionBar({ messages, currentUser, chatroom }) {
@@ -26,15 +30,22 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
 
+  // Scan the last few messages for a natural-language date/time
   const candidate = useMemo(() => {
     const last = (messages || []).slice(-5).reverse();
     for (const m of last) {
-      const text = m.decryptedContent || m.translatedForMe || m.rawContent || '';
+      const text =
+        m.decryptedContent || m.translatedForMe || m.rawContent || '';
       if (!text) continue;
+
+      // Use chrono-node to parse with forwardDate (future-bias)
       const res = chrono.parse(text, new Date(), { forwardDate: true })?.[0];
       if (res?.start) {
         const start = res.start.date();
-        const end = (res.end && res.end.date()) || DateTime.fromJSDate(start).plus({ hours: 1 }).toJSDate();
+        const end =
+          (res.end && res.end.date()) ||
+          DateTime.fromJSDate(start).plus({ hours: 1 }).toJSDate();
+
         return {
           messageId: m.id,
           snippet: text.slice(0, 200),
@@ -82,7 +93,11 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
 
   async function postEventToast(extraLines = []) {
     // Build the message text that will be posted into the room
-    const whenLine = fmtLocalRange(candidate.startISO, candidate.endISO, candidate.isAllDay);
+    const whenLine = fmtLocalRange(
+      candidate.startISO,
+      candidate.endISO,
+      candidate.isAllDay
+    );
     const lines = [
       `📅 ${title || 'Event'}`,
       location ? `📍 ${location}` : null,
@@ -121,21 +136,32 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
   }
 
   async function downloadIcs() {
-    const { data } = await axiosClient.post('/calendar/ics?inline=1', {
-      title,
-      description,
-      location,
-      startISO: candidate.startISO,
-      endISO: candidate.endISO,
-    });
-    const blob = new Blob([data.ics], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'event.ics';
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      const { data } = await axiosClient.post('/calendar/ics?inline=1', {
+        title,
+        description,
+        location,
+        startISO: candidate.startISO,
+        endISO: candidate.endISO,
+      });
+      const blob = new Blob([data.ics], {
+        type: 'text/calendar;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'event.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
 
-    await postEventToast(['⬇️ ICS file downloaded (add to your calendar).']);
+      await postEventToast([
+        '⬇️ ICS file downloaded (add to your calendar).',
+      ]);
+    } catch (e) {
+      console.warn('ICS generation failed', e);
+    }
     setOpen(false);
   }
 
@@ -146,16 +172,19 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
       .filter(Boolean);
     if (!to.length) return;
 
-    await axiosClient.post('/calendar/email-invite', {
-      to,
-      title,
-      description,
-      location,
-      startISO: candidate.startISO,
-      endISO: candidate.endISO,
-    });
-
-    await postEventToast([`📧 Invites emailed to: ${to.join(', ')}`]);
+    try {
+      await axiosClient.post('/calendar/email-invite', {
+        to,
+        title,
+        description,
+        location,
+        startISO: candidate.startISO,
+        endISO: candidate.endISO,
+      });
+      await postEventToast([`📧 Invites emailed to: ${to.join(', ')}`]);
+    } catch (e) {
+      console.warn('email invite failed', e);
+    }
     setOpen(false);
   }
 
@@ -167,18 +196,46 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
         </Button>
       </Group>
 
-      <Modal opened={open} onClose={() => setOpen(false)} title="Create calendar event" centered>
-        <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} mb="sm" />
-        <TextInput label="Location" value={location} onChange={(e) => setLocation(e.currentTarget.value)} mb="sm" />
-        <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} mb="md" />
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title="Create calendar event"
+        centered
+      >
+        <TextInput
+          label="Title"
+          value={title}
+          onChange={(e) => setTitle(e.currentTarget.value)}
+          mb="sm"
+        />
+        <TextInput
+          label="Location"
+          value={location}
+          onChange={(e) => setLocation(e.currentTarget.value)}
+          mb="sm"
+        />
+        <Textarea
+          label="Description"
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+          mb="md"
+        />
 
         <Group justify="space-between">
           <Group gap="xs">
-            <Button size="xs" onClick={clickGoogle}>Google</Button>
-            <Button size="xs" onClick={clickOutlook}>Outlook</Button>
-            <Button size="xs" variant="light" onClick={downloadIcs}>Download .ics</Button>
+            <Button size="xs" onClick={clickGoogle}>
+              Google
+            </Button>
+            <Button size="xs" onClick={clickOutlook}>
+              Outlook
+            </Button>
+            <Button size="xs" variant="light" onClick={downloadIcs}>
+              Download .ics
+            </Button>
           </Group>
-          <Button size="xs" variant="default" onClick={emailInvite}>Email invite</Button>
+          <Button size="xs" variant="default" onClick={emailInvite}>
+            Email invite
+          </Button>
         </Group>
       </Modal>
     </>
