@@ -8,7 +8,9 @@ export function audit(action, { resource, resourceId, redactor } = {}) {
 
       const status = res.statusCode;
       const ip =
-        req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+        req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+        req.socket?.remoteAddress ||
+        null;
       const userAgent = req.get('user-agent') || null;
 
       // Allow caller to provide redacted metadata builder

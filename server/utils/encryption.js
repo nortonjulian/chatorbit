@@ -34,7 +34,12 @@ function sealKeyInline(sessionKeyBuf, senderSecretB64, recipientPublicB64) {
   const recipientPublic = naclUtil.decodeBase64(recipientPublicB64);
   const senderSecret = naclUtil.decodeBase64(senderSecretB64);
 
-  const boxed = nacl.box(toU8(sessionKeyBuf), toU8(nonce), recipientPublic, senderSecret);
+  const boxed = nacl.box(
+    toU8(sessionKeyBuf),
+    toU8(nonce),
+    recipientPublic,
+    senderSecret
+  );
   const packed = Buffer.concat([nonce, Buffer.from(boxed)]);
   return naclUtil.encodeBase64(packed);
 }
@@ -46,7 +51,11 @@ function sealKeyInline(sessionKeyBuf, senderSecretB64, recipientPublicB64) {
  * @param {Array<{ id:number, publicKey:string(base64) }>} recipients
  * @returns {{ciphertext:string, encryptedKeys:Record<string,string>}}
  */
-export async function encryptMessageForParticipants(message, sender, recipients) {
+export async function encryptMessageForParticipants(
+  message,
+  sender,
+  recipients
+) {
   // 1) Symmetric encrypt the message once
   const sessionKey = crypto.randomBytes(32); // 256-bit key
   const iv = crypto.randomBytes(12); // GCM 96-bit IV
@@ -97,12 +106,20 @@ export async function encryptMessageForParticipants(message, sender, recipients)
   } else {
     // Small rooms → inline sealing
     for (const r of uniqueRecipients) {
-      encryptedKeys[r.id] = sealKeyInline(sessionKey, sender.privateKey, r.publicKey);
+      encryptedKeys[r.id] = sealKeyInline(
+        sessionKey,
+        sender.privateKey,
+        r.publicKey
+      );
     }
   }
 
   // Always seal to the sender (for multi-device/re-download)
-  encryptedKeys[sender.id] = sealKeyInline(sessionKey, sender.privateKey, sender.publicKey);
+  encryptedKeys[sender.id] = sealKeyInline(
+    sessionKey,
+    sender.privateKey,
+    sender.publicKey
+  );
 
   return { ciphertext, encryptedKeys };
 }

@@ -182,7 +182,8 @@ router.get(
       reactionSummary: reactionSummaryByStatus[s.id] || {},
     }));
 
-    const nextCursor = shaped.length === limit ? shaped[shaped.length - 1].id : null;
+    const nextCursor =
+      shaped.length === limit ? shaped[shaped.length - 1].id : null;
 
     return res.json({ items: shaped, nextCursor });
   })
@@ -234,7 +235,8 @@ router.post(
     const userId = req.user.id;
     const { emoji } = req.body || {};
     if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
-    if (!emoji || typeof emoji !== 'string') throw Boom.badRequest('emoji required');
+    if (!emoji || typeof emoji !== 'string')
+      throw Boom.badRequest('emoji required');
 
     const existing = await prisma.statusReaction.findUnique({
       where: { statusId_userId_emoji: { statusId, userId, emoji } },

@@ -23,7 +23,10 @@ import {
 import { DateTimePicker } from '@mantine/dates';
 import { IconUpload } from '@tabler/icons-react';
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
-import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
+import {
+  exportEncryptedPrivateKey,
+  importEncryptedPrivateKey,
+} from '../utils/keyBackup';
 import { setPref, PREF_SMART_REPLIES } from '../utils/prefsStore';
 
 function UserProfile({ onLanguageChange }) {
@@ -35,10 +38,11 @@ function UserProfile({ onLanguageChange }) {
   }
 
   // --- Preferences state (backed by server via Save button) ---
-  const [preferredLanguage, setPreferredLanguage] = useState(currentUser.preferredLanguage || 'en');
-  const [showOriginalWithTranslation, setShowOriginalWithTranslation] = useState(
-    currentUser.showOriginalWithTranslation ?? true
+  const [preferredLanguage, setPreferredLanguage] = useState(
+    currentUser.preferredLanguage || 'en'
   );
+  const [showOriginalWithTranslation, setShowOriginalWithTranslation] =
+    useState(currentUser.showOriginalWithTranslation ?? true);
   const [allowExplicitContent, setAllowExplicitContent] = useState(
     currentUser.allowExplicitContent ?? true
   );
@@ -57,13 +61,17 @@ function UserProfile({ onLanguageChange }) {
     currentUser.autoResponderSignature || '🤖 Auto-reply'
   );
   const [autoResponderActiveUntil, setAutoResponderActiveUntil] = useState(
-    currentUser.autoResponderActiveUntil ? new Date(currentUser.autoResponderActiveUntil) : null
+    currentUser.autoResponderActiveUntil
+      ? new Date(currentUser.autoResponderActiveUntil)
+      : null
   );
 
   const [enableReadReceipts, setEnableReadReceipts] = useState(
     currentUser.enableReadReceipts ?? false
   );
-  const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(currentUser.autoDeleteSeconds || 0);
+  const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(
+    currentUser.autoDeleteSeconds || 0
+  );
 
   // Privacy toggles
   const [privacyBlurEnabled, setPrivacyBlurEnabled] = useState(
@@ -75,15 +83,22 @@ function UserProfile({ onLanguageChange }) {
   const [privacyHoldToReveal, setPrivacyHoldToReveal] = useState(
     currentUser.privacyHoldToReveal ?? false
   );
-  const [notifyOnCopy, setNotifyOnCopy] = useState(currentUser.notifyOnCopy ?? false);
+  const [notifyOnCopy, setNotifyOnCopy] = useState(
+    currentUser.notifyOnCopy ?? false
+  );
 
   // --- Smart Replies (saved immediately via /users/me) ---
   const [smartSaving, setSmartSaving] = useState(false);
   const onToggleSmartReplies = async (checked) => {
     setSmartSaving(true);
     try {
-      const { data } = await axiosClient.patch('/users/me', { enableSmartReplies: checked });
-      setCurrentUser((u) => ({ ...u, enableSmartReplies: data.enableSmartReplies }));
+      const { data } = await axiosClient.patch('/users/me', {
+        enableSmartReplies: checked,
+      });
+      setCurrentUser((u) => ({
+        ...u,
+        enableSmartReplies: data.enableSmartReplies,
+      }));
       // Mirror to IndexedDB so ChatView can preload before /users/me loads
       await setPref(PREF_SMART_REPLIES, checked);
     } catch (e) {
@@ -221,12 +236,17 @@ function UserProfile({ onLanguageChange }) {
   const importKey = async (file) => {
     try {
       if (!file) return;
-      const pwd = window.prompt(t('profile.enterBackupPassword', 'Enter your backup password'));
+      const pwd = window.prompt(
+        t('profile.enterBackupPassword', 'Enter your backup password')
+      );
       if (!pwd) return;
 
       const privateKeyB64 = await importEncryptedPrivateKey(file, pwd);
       const existing = await loadKeysLocal();
-      await saveKeysLocal({ publicKey: existing.publicKey, privateKey: privateKeyB64 });
+      await saveKeysLocal({
+        publicKey: existing.publicKey,
+        privateKey: privateKeyB64,
+      });
 
       setStatus(t('profile.importSuccess', 'Backup imported successfully'));
       if (importFileRef.current) importFileRef.current.value = null;
@@ -275,13 +295,21 @@ function UserProfile({ onLanguageChange }) {
         <Divider />
 
         {/* Language */}
-        <LanguageSelector currentLanguage={preferredLanguage} onChange={setPreferredLanguage} />
+        <LanguageSelector
+          currentLanguage={preferredLanguage}
+          onChange={setPreferredLanguage}
+        />
 
         {/* General toggles */}
         <Switch
           checked={showOriginalWithTranslation}
-          onChange={(e) => setShowOriginalWithTranslation(e.currentTarget.checked)}
-          label={t('profile.showOriginalWithTranslation', 'Show original with translation')}
+          onChange={(e) =>
+            setShowOriginalWithTranslation(e.currentTarget.checked)
+          }
+          label={t(
+            'profile.showOriginalWithTranslation',
+            'Show original with translation'
+          )}
         />
         <Switch
           checked={!allowExplicitContent}
@@ -306,7 +334,10 @@ function UserProfile({ onLanguageChange }) {
           )}
         />
 
-        <Divider label={t('profile.autoResponder', 'Auto-responder')} labelPosition="center" />
+        <Divider
+          label={t('profile.autoResponder', 'Auto-responder')}
+          labelPosition="center"
+        />
 
         {/* Auto-responder controls */}
         <Switch
@@ -321,8 +352,14 @@ function UserProfile({ onLanguageChange }) {
           onChange={setAutoResponderMode}
           data={[
             { value: 'dm', label: t('profile.autoReplyDm', '1:1 chats only') },
-            { value: 'mention', label: t('profile.autoReplyMention', 'Only when I’m @mentioned') },
-            { value: 'all', label: t('profile.autoReplyAll', 'All inbound messages') },
+            {
+              value: 'mention',
+              label: t('profile.autoReplyMention', 'Only when I’m @mentioned'),
+            },
+            {
+              value: 'all',
+              label: t('profile.autoReplyAll', 'All inbound messages'),
+            },
             { value: 'off', label: t('common.off', 'Off') },
           ]}
           disabled={!enableAIResponder}
@@ -360,8 +397,13 @@ function UserProfile({ onLanguageChange }) {
         />
         <Switch
           checked={autoDeleteSeconds > 0}
-          onChange={(e) => setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)}
-          label={t('profile.disappearingMessages', 'Enable disappearing messages')}
+          onChange={(e) =>
+            setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)
+          }
+          label={t(
+            'profile.disappearingMessages',
+            'Enable disappearing messages'
+          )}
         />
         {autoDeleteSeconds > 0 && (
           <NumberInput
@@ -375,7 +417,10 @@ function UserProfile({ onLanguageChange }) {
         )}
 
         {/* Privacy */}
-        <Divider label={t('profile.privacy', 'Privacy')} labelPosition="center" />
+        <Divider
+          label={t('profile.privacy', 'Privacy')}
+          labelPosition="center"
+        />
         <Switch
           checked={privacyBlurEnabled}
           onChange={(e) => setPrivacyBlurEnabled(e.currentTarget.checked)}
@@ -384,7 +429,10 @@ function UserProfile({ onLanguageChange }) {
         <Switch
           checked={privacyBlurOnUnfocus}
           onChange={(e) => setPrivacyBlurOnUnfocus(e.currentTarget.checked)}
-          label={t('profile.privacyBlurOnUnfocus', 'Blur when app is unfocused')}
+          label={t(
+            'profile.privacyBlurOnUnfocus',
+            'Blur when app is unfocused'
+          )}
         />
         <Switch
           checked={privacyHoldToReveal}
@@ -398,7 +446,10 @@ function UserProfile({ onLanguageChange }) {
         />
 
         {/* Security */}
-        <Divider label={t('profile.security', 'Security')} labelPosition="center" />
+        <Divider
+          label={t('profile.security', 'Security')}
+          labelPosition="center"
+        />
 
         {/* Key management */}
         <Group>
@@ -420,7 +471,10 @@ function UserProfile({ onLanguageChange }) {
         </Text>
 
         {statusMessage && (
-          <Alert color={statusType === 'error' ? 'red' : 'green'} variant="light">
+          <Alert
+            color={statusType === 'error' ? 'red' : 'green'}
+            variant="light"
+          >
             {statusMessage}
           </Alert>
         )}

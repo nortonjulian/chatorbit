@@ -20,7 +20,9 @@ export default function UsersAdminPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axiosClient.get('/admin/users', { params: { query, take: 50, skip: 0 } });
+      const res = await axiosClient.get('/admin/users', {
+        params: { query, take: 50, skip: 0 },
+      });
       setItems(res.data.items || []);
     } catch (e) {
       setErr(e.response?.data?.error || 'Failed to load users');
@@ -109,26 +111,36 @@ export default function UsersAdminPage() {
                     label="Filter explicit"
                     checked={!u.allowExplicitContent}
                     onChange={(e) =>
-                      setFlags(u.id, { allowExplicitContent: !e.currentTarget.checked })
+                      setFlags(u.id, {
+                        allowExplicitContent: !e.currentTarget.checked,
+                      })
                     }
                   />
                   <Switch
                     label="Show Orig+Trans"
                     checked={u.showOriginalWithTranslation}
                     onChange={(e) =>
-                      setFlags(u.id, { showOriginalWithTranslation: e.currentTarget.checked })
+                      setFlags(u.id, {
+                        showOriginalWithTranslation: e.currentTarget.checked,
+                      })
                     }
                   />
                   <Switch
                     label="AI reply"
                     checked={u.enableAIResponder}
-                    onChange={(e) => setFlags(u.id, { enableAIResponder: e.currentTarget.checked })}
+                    onChange={(e) =>
+                      setFlags(u.id, {
+                        enableAIResponder: e.currentTarget.checked,
+                      })
+                    }
                   />
                   <Switch
                     label="Read receipts"
                     checked={u.enableReadReceipts}
                     onChange={(e) =>
-                      setFlags(u.id, { enableReadReceipts: e.currentTarget.checked })
+                      setFlags(u.id, {
+                        enableReadReceipts: e.currentTarget.checked,
+                      })
                     }
                   />
                 </Group>
@@ -139,7 +151,12 @@ export default function UsersAdminPage() {
                     Unban
                   </Button>
                 ) : (
-                  <Button size="xs" color="red" variant="light" onClick={() => ban(u.id)}>
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="light"
+                    onClick={() => ban(u.id)}
+                  >
                     Ban
                   </Button>
                 )}

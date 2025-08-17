@@ -16,10 +16,13 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
       qs.set('limit', initial ? '50' : '30');
       if (cursor) qs.set('cursor', String(cursor));
 
-      const res = await fetch(`${import.meta.env.VITE_API_BASE}/chatrooms?${qs.toString()}`, {
-        credentials: 'include',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE}/chatrooms?${qs.toString()}`,
+        {
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
       if (!res.ok) throw new Error('Failed to fetch chatrooms');
       const data = await res.json(); // { items, nextCursor }
       setItems((prev) => (initial ? data.items : [...prev, ...data.items]));
@@ -45,7 +48,8 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
     const el = viewportRef.current;
     if (!el) return;
     const onScroll = () => {
-      const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
+      const nearBottom =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
       if (nearBottom && cursor && !loading) loadMore(false);
     };
     el.addEventListener('scroll', onScroll);
@@ -66,7 +70,11 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
           No chatrooms yet.
         </Text>
       ) : (
-        <ScrollArea.Autosize mah="calc(100vh - 160px)" type="auto" viewportRef={viewportRef}>
+        <ScrollArea.Autosize
+          mah="calc(100vh - 160px)"
+          type="auto"
+          viewportRef={viewportRef}
+        >
           <Stack gap="xs" p={0}>
             {items.map((room) => {
               const isSelected = selectedRoom?.id === room.id;

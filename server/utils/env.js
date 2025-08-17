@@ -7,8 +7,12 @@ export function requireEnv(name, opts = {}) {
 }
 
 export function assertRequiredEnv(names) {
-  const missing = names.filter((n) => !process.env[n] || String(process.env[n]).trim() === '');
+  const missing = names.filter(
+    (n) => !process.env[n] || String(process.env[n]).trim() === ''
+  );
   if (missing.length) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`
+    );
   }
 }

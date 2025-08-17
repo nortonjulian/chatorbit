@@ -6,7 +6,13 @@ export function signBody(secret, ts, bodyString) {
   return `sha256=${h.digest('hex')}`;
 }
 
-export function verifySignature(secret, ts, bodyString, headerSig, toleranceSec = 300) {
+export function verifySignature(
+  secret,
+  ts,
+  bodyString,
+  headerSig,
+  toleranceSec = 300
+) {
   const exp = Number(ts);
   if (!Number.isFinite(exp)) return false;
   const now = Date.now();

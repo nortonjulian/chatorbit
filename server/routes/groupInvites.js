@@ -12,7 +12,10 @@ async function assertCanManageRoom(roomId, userId) {
     where: { id: Number(roomId) },
     select: {
       ownerId: true,
-      participants: { where: { userId: Number(userId) }, select: { role: true } },
+      participants: {
+        where: { userId: Number(userId) },
+        select: { role: true },
+      },
     },
   });
   if (!room) throw Object.assign(new Error('Room not found'), { status: 404 });
@@ -46,17 +49,24 @@ router.post('/chatrooms/:roomId/invites', requireAuth, async (req, res) => {
         createdById: req.user.id,
         maxUses: Number(maxUses) || 0,
         expiresAt:
-          expiresInMinutes > 0 ? new Date(Date.now() + expiresInMinutes * 60 * 1000) : null,
+          expiresInMinutes > 0
+            ? new Date(Date.now() + expiresInMinutes * 60 * 1000)
+            : null,
       },
       select: { code: true, expiresAt: true, maxUses: true, usedCount: true },
     });
 
-    const baseUrl = process.env.APP_BASE_URL || process.env.WEB_URL || 'http://localhost:5173';
+    const baseUrl =
+      process.env.APP_BASE_URL ||
+      process.env.WEB_URL ||
+      'http://localhost:5173';
     const url = `${baseUrl}/join/${invite.code}`;
 
     res.json({ ...invite, url });
   } catch (e) {
-    res.status(e.status || 500).json({ error: e.message || 'Failed to create invite' });
+    res
+      .status(e.status || 500)
+      .json({ error: e.message || 'Failed to create invite' });
   }
 });
 
@@ -80,24 +90,32 @@ router.get('/chatrooms/:roomId/invites', requireAuth, async (req, res) => {
     });
     res.json(list);
   } catch (e) {
-    res.status(e.status || 500).json({ error: e.message || 'Failed to list invites' });
+    res
+      .status(e.status || 500)
+      .json({ error: e.message || 'Failed to list invites' });
   }
 });
 
 // Revoke invite
-router.delete('/chatrooms/:roomId/invites/:code', requireAuth, async (req, res) => {
-  try {
-    const { roomId, code } = req.params;
-    await assertCanManageRoom(roomId, req.user.id);
-    await prisma.chatRoomInvite.update({
-      where: { code },
-      data: { revokedAt: new Date() },
-    });
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(e.status || 500).json({ error: e.message || 'Failed to revoke invite' });
+router.delete(
+  '/chatrooms/:roomId/invites/:code',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { roomId, code } = req.params;
+      await assertCanManageRoom(roomId, req.user.id);
+      await prisma.chatRoomInvite.update({
+        where: { code },
+        data: { revokedAt: new Date() },
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res
+        .status(e.status || 500)
+        .json({ error: e.message || 'Failed to revoke invite' });
+    }
   }
-});
+);
 
 // Resolve invite (preview)
 router.get('/invites/:code', async (req, res) => {
@@ -123,7 +141,13 @@ router.get('/invites/:code', async (req, res) => {
     code: inv.code,
     roomId: inv.chatRoom.id,
     roomName: inv.chatRoom.name,
-    status: revoked ? 'revoked' : expired ? 'expired' : exhausted ? 'exhausted' : 'ok',
+    status: revoked
+      ? 'revoked'
+      : expired
+        ? 'expired'
+        : exhausted
+          ? 'exhausted'
+          : 'ok',
   });
 });
 
@@ -151,7 +175,9 @@ router.post('/invites/:code/accept', requireAuth, async (req, res) => {
 
   // upsert participant as MEMBER
   await prisma.participant.upsert({
-    where: { chatRoomId_userId: { chatRoomId: inv.chatRoomId, userId: req.user.id } },
+    where: {
+      chatRoomId_userId: { chatRoomId: inv.chatRoomId, userId: req.user.id },
+    },
     create: { chatRoomId: inv.chatRoomId, userId: req.user.id, role: 'MEMBER' },
     update: {},
   });

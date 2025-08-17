@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
-import { Stack, Group, Text, Loader, Alert, Title, Divider } from '@mantine/core';
+import {
+  Stack,
+  Group,
+  Text,
+  Loader,
+  Alert,
+  Title,
+  Divider,
+} from '@mantine/core';
 
 export default function UsersList({ currentUser }) {
   const [users, setUsers] = useState([]);

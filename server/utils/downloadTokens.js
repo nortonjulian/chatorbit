@@ -17,17 +17,28 @@ export function signDownloadToken({
   issuer = 'chat-orbit',
 }) {
   const exp = Math.min(Math.max(ttlSec, MIN_TTL), MAX_TTL);
-  return jwt.sign({ p: path, o: ownerId ?? null, u: purpose, aud: audience, iss: issuer }, SECRET, {
-    expiresIn: exp,
-  });
+  return jwt.sign(
+    { p: path, o: ownerId ?? null, u: purpose, aud: audience, iss: issuer },
+    SECRET,
+    {
+      expiresIn: exp,
+    }
+  );
 }
 
-export function verifyDownloadToken(token, { audience = 'download', issuer = 'chat-orbit' } = {}) {
+export function verifyDownloadToken(
+  token,
+  { audience = 'download', issuer = 'chat-orbit' } = {}
+) {
   const payload = jwt.verify(token, SECRET, { audience, issuer });
   // minimal shape checks
   if (!payload || typeof payload.p !== 'string' || payload.p.includes('..')) {
     // prevent traversal attempts; we only expect a sanitized relative filename
     throw new Error('Invalid token payload');
   }
-  return { path: payload.p, ownerId: payload.o ?? null, purpose: payload.u ?? 'file' };
+  return {
+    path: payload.p,
+    ownerId: payload.o ?? null,
+    purpose: payload.u ?? 'file',
+  };
 }

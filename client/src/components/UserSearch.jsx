@@ -29,7 +29,9 @@ const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await axiosClient.get(`/users/search?query=${encodeURIComponent(query)}`);
+      const res = await axiosClient.get(
+        `/users/search?query=${encodeURIComponent(query)}`
+      );
 
       const filtered = res.data.filter((user) => user.id !== currentUser.id);
       setResults(filtered);
@@ -70,7 +72,12 @@ const UserSearch = ({ currentUser, onNavigateToChatRoom }) => {
           leftSection={<IconSearch size={16} />}
           style={{ flex: 1 }}
         />
-        <Button onClick={handleSearch} loading={loading} variant="filled" color="blue">
+        <Button
+          onClick={handleSearch}
+          loading={loading}
+          variant="filled"
+          color="blue"
+        >
           Search
         </Button>
       </Group>

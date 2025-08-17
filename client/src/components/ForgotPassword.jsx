@@ -22,7 +22,8 @@ export default function ForgotPassword() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
+  const validateEmail = (val) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,7 +41,9 @@ export default function ForgotPassword() {
 
     try {
       const res = await axiosClient.post('/auth/forgot-password', { email });
-      setMessage(res.data.message || 'Check your email for reset instructions.');
+      setMessage(
+        res.data.message || 'Check your email for reset instructions.'
+      );
       setMessageType('success');
       if (res.data.previewUrl) setPreviewUrl(res.data.previewUrl);
     } catch (err) {
@@ -76,14 +79,21 @@ export default function ForgotPassword() {
               </Button>
 
               {message && (
-                <Alert color={messageType === 'error' ? 'red' : 'green'} variant="light">
+                <Alert
+                  color={messageType === 'error' ? 'red' : 'green'}
+                  variant="light"
+                >
                   {message}
                 </Alert>
               )}
 
               {previewUrl && (
                 <Text ta="center" size="sm">
-                  <Anchor href={previewUrl} target="_blank" rel="noopener noreferrer">
+                  <Anchor
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Preview Email (Dev)
                   </Anchor>
                 </Text>

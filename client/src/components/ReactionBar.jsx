@@ -47,7 +47,12 @@ export default function ReactionBar({ message, currentUserId }) {
         ) : null
       )}
 
-      <Popover opened={opened} onChange={setOpened} position="top-end" withArrow>
+      <Popover
+        opened={opened}
+        onChange={setOpened}
+        position="top-end"
+        withArrow
+      >
         <Popover.Target>
           <Tooltip label="Add reaction">
             <ActionIcon variant="subtle" onClick={() => setOpened((v) => !v)}>

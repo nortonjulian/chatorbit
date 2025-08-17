@@ -16,7 +16,9 @@ export default function StickerPicker({ opened, onClose, onPick }) {
   const search = async (term) => {
     setLoading(true);
     try {
-      const { data } = await axiosClient.get('/stickers/search', { params: { q: term } });
+      const { data } = await axiosClient.get('/stickers/search', {
+        params: { q: term },
+      });
       setResults(data?.results || []);
     } catch (e) {
       console.error(e);
@@ -27,7 +29,13 @@ export default function StickerPicker({ opened, onClose, onPick }) {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Stickers & GIFs" size="lg" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Stickers & GIFs"
+      size="lg"
+      centered
+    >
       <TextInput
         placeholder="Search GIFs (powered by Tenor)"
         value={q}

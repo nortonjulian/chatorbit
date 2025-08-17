@@ -57,7 +57,10 @@ export default function BootstrapUser() {
           await saveKeysLocal(kp);
           await axiosClient.post('/users/keys', { publicKey: kp.publicKey });
           setCurrentUser((prev) => ({ ...prev, publicKey: kp.publicKey }));
-          localStorage.setItem('user', JSON.stringify({ ...currentUser, publicKey: kp.publicKey }));
+          localStorage.setItem(
+            'user',
+            JSON.stringify({ ...currentUser, publicKey: kp.publicKey })
+          );
         } catch (e) {
           console.error('Public key upload failed', e);
           setKeyModalOpen(true);

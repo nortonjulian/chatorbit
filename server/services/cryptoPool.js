@@ -10,7 +10,8 @@ const WORKER_FILE = resolve(__dirname, '../workers/encryptKey.worker.js');
 const POOL_SIZE = Math.max(
   1,
   Number(
-    process.env.ENCRYPT_POOL_SIZE || Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2)))
+    process.env.ENCRYPT_POOL_SIZE ||
+      Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2)))
   )
 );
 

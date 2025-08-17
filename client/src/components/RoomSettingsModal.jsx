@@ -35,9 +35,15 @@ const AUTO_TRANSLATE_OPTS = [
   { value: 'all', label: 'All messages' },
 ];
 
-export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) {
+export default function RoomSettingsModal({
+  opened,
+  onClose,
+  room,
+  onUpdated,
+}) {
   const { currentUser } = useUser();
-  const canEdit = currentUser?.role === 'ADMIN' || currentUser?.id === room?.ownerId;
+  const canEdit =
+    currentUser?.role === 'ADMIN' || currentUser?.id === room?.ownerId;
   const isOwner = currentUser?.id === room?.ownerId;
 
   // Participants state
@@ -49,7 +55,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
   const [aiMode, setAiMode] = useState(room?.aiAssistantMode || 'off');
   const [savingAIMode, setSavingAIMode] = useState(false);
 
-  const [autoTranslateMode, setAutoTranslateMode] = useState(room?.autoTranslateMode || 'off');
+  const [autoTranslateMode, setAutoTranslateMode] = useState(
+    room?.autoTranslateMode || 'off'
+  );
   const [savingAutoTranslate, setSavingAutoTranslate] = useState(false);
 
   // Per-user (in this room) preference
@@ -61,13 +69,20 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
     setAiMode(room?.aiAssistantMode || 'off');
     setAutoTranslateMode(room?.autoTranslateMode || 'off');
     setAllowAIBot(room?.me?.allowAIBot ?? true);
-  }, [room?.id, room?.aiAssistantMode, room?.autoTranslateMode, room?.me?.allowAIBot]);
+  }, [
+    room?.id,
+    room?.aiAssistantMode,
+    room?.autoTranslateMode,
+    room?.me?.allowAIBot,
+  ]);
 
   const loadParticipants = async () => {
     if (!room?.id) return;
     setLoadingParticipants(true);
     try {
-      const { data } = await axiosClient.get(`/chatrooms/${room.id}/participants`);
+      const { data } = await axiosClient.get(
+        `/chatrooms/${room.id}/participants`
+      );
       setOwnerId(data.ownerId ?? null);
       setParticipants(data.participants || []);
     } catch (e) {
@@ -83,7 +98,10 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
 
   // Participants actions
   const changeRole = async (userId, role) => {
-    await axiosClient.patch(`/chatrooms/${room.id}/participants/${userId}/role`, { role });
+    await axiosClient.patch(
+      `/chatrooms/${room.id}/participants/${userId}/role`,
+      { role }
+    );
     await loadParticipants();
   };
 
@@ -97,9 +115,12 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
     if (!canEdit) return onClose();
     setSavingAIMode(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/ai-assistant`, {
-        mode: aiMode,
-      });
+      const { data } = await axiosClient.patch(
+        `/chatrooms/${room.id}/ai-assistant`,
+        {
+          mode: aiMode,
+        }
+      );
       onUpdated?.(data);
       onClose();
     } finally {
@@ -110,9 +131,12 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
   const saveAutoTranslate = async (value) => {
     setSavingAutoTranslate(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/auto-translate`, {
-        mode: value,
-      });
+      const { data } = await axiosClient.patch(
+        `/chatrooms/${room.id}/auto-translate`,
+        {
+          mode: value,
+        }
+      );
       setAutoTranslateMode(data.autoTranslateMode || value);
       onUpdated?.(data);
     } finally {
@@ -123,7 +147,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
   const toggleAllowBot = async (checked) => {
     setSavingAllow(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/ai-opt`, { allow: checked });
+      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/ai-opt`, {
+        allow: checked,
+      });
       setAllowAIBot(!!data.allowAIBot);
     } finally {
       setSavingAllow(false);
@@ -131,7 +157,13 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Room settings" centered size="lg">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Room settings"
+      centered
+      size="lg"
+    >
       <Stack gap="lg">
         {/* Participants & Roles */}
         <div>
@@ -162,7 +194,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
                           <Avatar src={user.avatarUrl} radius="xl" size="sm" />
                           <Text>{user.username}</Text>
                           {isOwnerRow && <Badge color="violet">Owner</Badge>}
-                          {!isOwnerRow && role !== 'MEMBER' && <Badge>{role}</Badge>}
+                          {!isOwnerRow && role !== 'MEMBER' && (
+                            <Badge>{role}</Badge>
+                          )}
                         </Group>
                       </Table.Td>
                       <Table.Td>

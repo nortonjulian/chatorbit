@@ -13,10 +13,16 @@ export const RoleRank = Object.freeze({
  * - Global ADMIN (site-wide) can be treated as room ADMIN (adjust to OWNER if desired).
  * - Returns one of RoleRank.* (never -1). Throws 404 if room missing, or returns null if not a participant.
  */
-export async function getEffectiveRoomRank(prisma, actorUserId, roomId, actorGlobalRole) {
+export async function getEffectiveRoomRank(
+  prisma,
+  actorUserId,
+  roomId,
+  actorGlobalRole
+) {
   const rid = Number(roomId);
   const uid = Number(actorUserId);
-  if (!Number.isFinite(rid) || !Number.isFinite(uid)) throw Boom.badRequest('Invalid ids');
+  if (!Number.isFinite(rid) || !Number.isFinite(uid))
+    throw Boom.badRequest('Invalid ids');
 
   // Global admin? Treat as room ADMIN (change to OWNER if you prefer).
   if (actorGlobalRole === 'ADMIN') return RoleRank.ADMIN;
@@ -58,7 +64,12 @@ export function requireRoomRank(prisma, minRank) {
       const roomId = Number(req.params.id ?? req.body?.chatRoomId);
       if (!Number.isFinite(roomId)) throw Boom.badRequest('Invalid room id');
 
-      const rank = await getEffectiveRoomRank(prisma, req.user.id, roomId, req.user.role);
+      const rank = await getEffectiveRoomRank(
+        prisma,
+        req.user.id,
+        roomId,
+        req.user.role
+      );
       if (rank === null) throw Boom.forbidden('Not a participant');
       if (rank < minRank) throw Boom.forbidden('Insufficient rank');
 

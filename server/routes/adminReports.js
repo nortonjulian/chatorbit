@@ -50,7 +50,11 @@ router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
     const { notes } = req.body || {};
     const updated = await prisma.report.update({
       where: { id },
-      data: { status: 'RESOLVED', notes: notes || null, resolvedAt: new Date() },
+      data: {
+        status: 'RESOLVED',
+        notes: notes || null,
+        resolvedAt: new Date(),
+      },
     });
     res.json(updated);
   } catch (e) {
@@ -60,51 +64,66 @@ router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /admin/reports/users/:userId/warn
-router.post('/users/:userId/warn', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-    const { notes } = req.body || {};
-    // (Optional) Persist a warning model or AuditLog here
-    res.json({ success: true, userId, notes: notes || 'warned' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to warn user' });
+router.post(
+  '/users/:userId/warn',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const userId = Number(req.params.userId);
+      const { notes } = req.body || {};
+      // (Optional) Persist a warning model or AuditLog here
+      res.json({ success: true, userId, notes: notes || 'warned' });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to warn user' });
+    }
   }
-});
+);
 
 // POST /admin/reports/users/:userId/ban
-router.post('/users/:userId/ban', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-    const { reason } = req.body || {};
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { isBanned: true, bannedAt: new Date() },
-    });
-    res.json({
-      success: true,
-      user: { id: updated.id, isBanned: updated.isBanned },
-      reason: reason || '',
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to ban user' });
+router.post(
+  '/users/:userId/ban',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const userId = Number(req.params.userId);
+      const { reason } = req.body || {};
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { isBanned: true, bannedAt: new Date() },
+      });
+      res.json({
+        success: true,
+        user: { id: updated.id, isBanned: updated.isBanned },
+        reason: reason || '',
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to ban user' });
+    }
   }
-});
+);
 
 // DELETE /admin/reports/messages/:messageId
-router.delete('/messages/:messageId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const messageId = Number(req.params.messageId);
-    await prisma.message.update({
-      where: { id: messageId },
-      data: { deletedBySender: true },
-    });
-    res.json({ success: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to delete message' });
+router.delete(
+  '/messages/:messageId',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const messageId = Number(req.params.messageId);
+      await prisma.message.update({
+        where: { id: messageId },
+        data: { deletedBySender: true },
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to delete message' });
+    }
   }
-});
+);
 
 export default router;

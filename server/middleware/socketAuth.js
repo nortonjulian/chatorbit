@@ -15,7 +15,11 @@ export function cookieSocketAuth(io) {
       if (!token) return next(new Error('Unauthorized'));
 
       const payload = jwt.verify(token, JWT_SECRET); // { id, username, role }
-      socket.user = { id: payload.id, username: payload.username, role: payload.role };
+      socket.user = {
+        id: payload.id,
+        username: payload.username,
+        role: payload.role,
+      };
       return next();
     } catch (e) {
       return next(new Error('Unauthorized'));

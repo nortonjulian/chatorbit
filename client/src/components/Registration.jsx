@@ -28,7 +28,8 @@ export default function Registration() {
   const [messageType, setType] = useState(''); // 'success' | 'error' | ''
   const [loading, setLoading] = useState(false);
 
-  const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
+  const validateEmail = (val) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,7 +44,11 @@ export default function Registration() {
 
     setLoading(true);
     try {
-      const res = await axiosClient.post('/auth/register', { username, email, password });
+      const res = await axiosClient.post('/auth/register', {
+        username,
+        email,
+        password,
+      });
       const { token, user } = res.data;
 
       // Persist + update global context
@@ -58,7 +63,8 @@ export default function Registration() {
       navigate('/');
     } catch (error) {
       console.error('Registration error:', error);
-      const apiErr = error?.response?.data?.error || 'Registration failed. Try again.';
+      const apiErr =
+        error?.response?.data?.error || 'Registration failed. Try again.';
       setMessage(apiErr);
       setType('error');
     } finally {
@@ -101,7 +107,10 @@ export default function Registration() {
               />
 
               {message && (
-                <Alert color={messageType === 'error' ? 'red' : 'green'} variant="light">
+                <Alert
+                  color={messageType === 'error' ? 'red' : 'green'}
+                  variant="light"
+                >
                   {message}
                 </Alert>
               )}

@@ -158,7 +158,9 @@ router.post(
     const { linkId, secret, ePub, deviceName, platform } = req.body ?? {};
     if (!linkId || !secret || !ePub) throw Boom.badRequest('Missing fields');
 
-    const link = await prisma.provisionLink.findUnique({ where: { id: linkId } });
+    const link = await prisma.provisionLink.findUnique({
+      where: { id: linkId },
+    });
     if (!link) throw Boom.notFound('Link not found');
     if (link.usedAt) throw Boom.gone('Link already used');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
@@ -192,7 +194,8 @@ router.post(
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, ciphertext, nonce, sPub } = req.body ?? {};
-    if (!linkId || !ciphertext || !nonce || !sPub) throw Boom.badRequest('Missing fields');
+    if (!linkId || !ciphertext || !nonce || !sPub)
+      throw Boom.badRequest('Missing fields');
 
     const link = await prisma.provisionLink.findFirst({
       where: { id: linkId, userId: req.user.id },
@@ -223,7 +226,9 @@ router.get(
     const { linkId } = req.query ?? {};
     if (!linkId) throw Boom.badRequest('linkId required');
 
-    const link = await prisma.provisionLink.findUnique({ where: { id: String(linkId) } });
+    const link = await prisma.provisionLink.findUnique({
+      where: { id: String(linkId) },
+    });
     if (!link) throw Boom.notFound('Link not found');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
 
@@ -250,7 +255,9 @@ router.post(
     const { linkId, publicKey, deviceName, platform } = req.body ?? {};
     if (!linkId || !publicKey) throw Boom.badRequest('Missing fields');
 
-    const link = await prisma.provisionLink.findUnique({ where: { id: linkId } });
+    const link = await prisma.provisionLink.findUnique({
+      where: { id: linkId },
+    });
     if (!link) throw Boom.notFound('Link not found');
     if (link.usedAt) throw Boom.gone('Link already used');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');

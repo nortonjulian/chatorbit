@@ -88,9 +88,13 @@ function randBytes(n) {
 
 async function deriveAesKey(passcode, saltB64, iterations = 250_000) {
   const salt = ub64(saltB64);
-  const keyMaterial = await crypto.subtle.importKey('raw', te.encode(passcode), 'PBKDF2', false, [
-    'deriveKey',
-  ]);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    te.encode(passcode),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     keyMaterial,
@@ -102,12 +106,20 @@ async function deriveAesKey(passcode, saltB64, iterations = 250_000) {
 
 async function aesGcmEncrypt(key, plaintextBytes) {
   const iv = randBytes(12);
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintextBytes);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    plaintextBytes
+  );
   return { ivB64: b64(iv), ctB64: b64(ct) };
 }
 
 async function aesGcmDecrypt(key, ivB64, ctB64) {
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ub64(ivB64) }, key, ub64(ctB64));
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: ub64(ivB64) },
+    key,
+    ub64(ctB64)
+  );
   return new Uint8Array(pt);
 }
 
@@ -241,7 +253,8 @@ export async function unlockKeyBundle(passcode) {
   const pt = await aesGcmDecrypt(key, ivB64, ctB64);
   const obj = JSON.parse(td.decode(pt));
 
-  if (!obj?.privateKey || !obj?.publicKey) throw new Error('Corrupt key bundle');
+  if (!obj?.privateKey || !obj?.publicKey)
+    throw new Error('Corrupt key bundle');
 
   _derivedKey = key;
   _saltB64 = saltB64;

@@ -8,7 +8,11 @@ const prisma = new PrismaClient();
 router.post('/', requireAuth, async (req, res) => {
   const { messages, participants } = req.body;
 
-  if (!Array.isArray(messages) || !Array.isArray(participants) || participants.length !== 2) {
+  if (
+    !Array.isArray(messages) ||
+    !Array.isArray(participants) ||
+    participants.length !== 2
+  ) {
     return res.status(400).json({ error: 'Invalid chat data' });
   }
 
@@ -74,7 +78,9 @@ router.get('/id/:id', requireAuth, async (req, res) => {
     });
 
     if (!chat || !chat.participants.some((p) => p.id === userId)) {
-      return res.status(403).json({ error: 'You do not have access to this chat.' });
+      return res
+        .status(403)
+        .json({ error: 'You do not have access to this chat.' });
     }
     res.json(chat);
   } catch (error) {

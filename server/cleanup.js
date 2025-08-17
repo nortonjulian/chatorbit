@@ -13,7 +13,8 @@ export function startCleanupJobs() {
           OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }],
         },
       });
-      if (res.count) console.log(`🧹 Deleted ${res.count} expired/used ProvisionLinks`);
+      if (res.count)
+        console.log(`🧹 Deleted ${res.count} expired/used ProvisionLinks`);
     } catch (e) {
       console.error('Cleanup error:', e);
     }

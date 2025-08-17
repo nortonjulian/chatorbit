@@ -11,7 +11,8 @@ import App from './App.jsx';
 import './i18n';
 
 const theme = {
-  fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+  fontFamily:
+    'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
   defaultRadius: 'lg',
   colors: {
     orbit: [

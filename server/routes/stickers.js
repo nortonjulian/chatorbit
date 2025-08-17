@@ -9,7 +9,8 @@ router.get('/search', requireAuth, async (req, res) => {
   if (!q) return res.json({ results: [] });
 
   const key = process.env.TENOR_API_KEY; // or GIPHY key
-  if (!key) return res.status(501).json({ error: 'No sticker search key configured' });
+  if (!key)
+    return res.status(501).json({ error: 'No sticker search key configured' });
 
   try {
     const url = new URL('https://tenor.googleapis.com/v2/search');
@@ -23,7 +24,8 @@ router.get('/search', requireAuth, async (req, res) => {
 
     const results = (data?.results || []).map((it) => {
       const tiny = it.media_formats?.tinygif?.url || it.media_formats?.gif?.url;
-      const med = it.media_formats?.mediumgif?.url || it.media_formats?.gif?.url;
+      const med =
+        it.media_formats?.mediumgif?.url || it.media_formats?.gif?.url;
       return {
         id: it.id,
         kind: 'GIF',

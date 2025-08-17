@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Group, Loader, Modal, Stack, Text } from '@mantine/core';
 import QRCode from 'react-qr-code';
-import { deriveSharedKeyBrowser, sealWithKey } from '../../utils/cryptoProvisionClient.js';
+import {
+  deriveSharedKeyBrowser,
+  sealWithKey,
+} from '../../utils/cryptoProvisionClient.js';
 // IMPORTANT: You must implement export of your local private key bundle.
 // It should return an object like: { userPrivateKey: 'base64...', metadata: {...} }
 import { exportLocalPrivateKeyBundle } from '../../utils/encryptionClient.js';
@@ -50,7 +53,10 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
     return () => interval && clearInterval(interval);
   }, [opened]);
 
-  const qrText = useMemo(() => (link?.qrPayload ? JSON.stringify(link.qrPayload) : ''), [link]);
+  const qrText = useMemo(
+    () => (link?.qrPayload ? JSON.stringify(link.qrPayload) : ''),
+    [link]
+  );
 
   const approveAndSend = async () => {
     try {
@@ -89,7 +95,13 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Link a new device" centered size="lg">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Link a new device"
+      centered
+      size="lg"
+    >
       {!link || step === 'idle' ? (
         <Group justify="center" p="xl">
           <Loader />
@@ -97,13 +109,15 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
       ) : (
         <Stack gap="md">
           <Text>
-            On your new device, open ChatOrbit → "Link to existing account" and scan this code.
+            On your new device, open ChatOrbit → "Link to existing account" and
+            scan this code.
           </Text>
           <Group justify="center">
             <QRCode value={qrText} size={220} />
           </Group>
           <Text ta="center" c="dimmed">
-            SAS code: <strong>{link.qrPayload.sas}</strong> (confirm it matches on both devices)
+            SAS code: <strong>{link.qrPayload.sas}</strong> (confirm it matches
+            on both devices)
           </Text>
 
           {error && <Text c="red">{error}</Text>}

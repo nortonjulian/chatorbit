@@ -53,7 +53,10 @@ export async function maybeAutoRespondUsers({ savedMessage, prisma, io }) {
 
   for (const u of candidates) {
     // availability window
-    if (u.autoResponderActiveUntil && now > new Date(u.autoResponderActiveUntil).getTime()) {
+    if (
+      u.autoResponderActiveUntil &&
+      now > new Date(u.autoResponderActiveUntil).getTime()
+    ) {
       continue;
     }
 
@@ -61,11 +64,16 @@ export async function maybeAutoRespondUsers({ savedMessage, prisma, io }) {
     const mode = u.autoResponderMode || 'dm';
     if (mode === 'off') continue;
     if (mode === 'dm' && !isDM) continue;
-    if (mode === 'mention' && !mentionedNames.has(String(u.username || '').toLowerCase())) continue;
+    if (
+      mode === 'mention' &&
+      !mentionedNames.has(String(u.username || '').toLowerCase())
+    )
+      continue;
     // mode === 'all' → always passes
 
     // per-user, per-room cool-down
-    const cooldownMs = Math.max(10, u.autoResponderCooldownSec || COOLDOWN_DEFAULT) * 1000;
+    const cooldownMs =
+      Math.max(10, u.autoResponderCooldownSec || COOLDOWN_DEFAULT) * 1000;
     const k = key(u.id, roomId);
     if (lastReplyAt.has(k) && now - lastReplyAt.get(k) < cooldownMs) continue;
 

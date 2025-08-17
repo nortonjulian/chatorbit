@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { Modal, Group, Textarea, FileInput, Button, Select, Text } from '@mantine/core';
+import {
+  Modal,
+  Group,
+  Textarea,
+  FileInput,
+  Button,
+  Select,
+  Text,
+} from '@mantine/core';
 import axiosClient from '../api/axiosClient';
 
 const AUDIENCE = [
@@ -49,7 +57,12 @@ export default function StatusComposer({ opened, onClose }) {
           autosize
           minRows={2}
         />
-        <Select label="Audience" data={AUDIENCE} value={audience} onChange={setAudience} />
+        <Select
+          label="Audience"
+          data={AUDIENCE}
+          value={audience}
+          onChange={setAudience}
+        />
         {audience === 'CUSTOM' && (
           <Textarea
             label="Custom user IDs (JSON)"
@@ -79,7 +92,9 @@ export default function StatusComposer({ opened, onClose }) {
           multiple={false}
           clearable
         />
-        {files.length > 0 && <Text size="sm">{files.length} item(s) attached</Text>}
+        {files.length > 0 && (
+          <Text size="sm">{files.length} item(s) attached</Text>
+        )}
       </Group>
       <Group justify="flex-end" mt="md">
         <Button variant="subtle" onClick={onClose}>

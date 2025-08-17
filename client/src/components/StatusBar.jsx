@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Group, ScrollArea, Text, Tooltip, Loader, Badge } from '@mantine/core';
+import {
+  Avatar,
+  Group,
+  ScrollArea,
+  Text,
+  Tooltip,
+  Loader,
+  Badge,
+} from '@mantine/core';
 import axiosClient from '../api/axiosClient';
 import socket from '../lib/socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient'; // we’ll reuse this
@@ -72,7 +80,10 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
   if (!authors.length) return null;
 
   return (
-    <ScrollArea type="never" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
+    <ScrollArea
+      type="never"
+      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
+    >
       <Group gap="md" p="xs" wrap="nowrap" style={{ overflowX: 'auto' }}>
         {authors.map(({ author, list }) => {
           const unseen = list.some((s) => !s.viewerSeen);
@@ -94,7 +105,11 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
                       : '2px solid transparent',
                   }}
                 >
-                  <Avatar src={author?.avatarUrl || '/default-avatar.png'} radius="xl" size="lg" />
+                  <Avatar
+                    src={author?.avatarUrl || '/default-avatar.png'}
+                    radius="xl"
+                    size="lg"
+                  />
                 </div>
                 <Text size="xs" mt={4} lineClamp={1} style={{ maxWidth: 64 }}>
                   {author?.username}

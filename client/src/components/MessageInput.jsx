@@ -46,7 +46,8 @@ export default function MessageInput({
   const [inlineAttachments, setInlineAttachments] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const nothingToSend = !content.trim() && files.length === 0 && inlineAttachments.length === 0;
+  const nothingToSend =
+    !content.trim() && files.length === 0 && inlineAttachments.length === 0;
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
@@ -123,7 +124,11 @@ export default function MessageInput({
         />
 
         {/* Sticker/GIF picker trigger */}
-        <Button variant="light" onClick={() => setPickerOpen(true)} disabled={loading}>
+        <Button
+          variant="light"
+          onClick={() => setPickerOpen(true)}
+          disabled={loading}
+        >
           😀
         </Button>
 
@@ -185,14 +190,18 @@ export default function MessageInput({
                 maxRows={2}
                 w={320}
                 value={captions[i] || ''}
-                onChange={(e) => setCaptions((s) => ({ ...s, [i]: e.currentTarget.value }))}
+                onChange={(e) =>
+                  setCaptions((s) => ({ ...s, [i]: e.currentTarget.value }))
+                }
               />
 
               <Button
                 size="xs"
                 variant="subtle"
                 color="red"
-                onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                onClick={() =>
+                  setFiles((prev) => prev.filter((_, idx) => idx !== i))
+                }
               >
                 Remove
               </Button>

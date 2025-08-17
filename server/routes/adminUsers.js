@@ -99,7 +99,10 @@ router.post('/:id/ban', async (req, res) => {
       where: { id },
       data: { isBanned: true, bannedAt: new Date() },
     });
-    res.json({ success: true, user: { id: updated.id, isBanned: updated.isBanned } });
+    res.json({
+      success: true,
+      user: { id: updated.id, isBanned: updated.isBanned },
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to ban user' });
@@ -114,7 +117,10 @@ router.post('/:id/unban', async (req, res) => {
       where: { id },
       data: { isBanned: false, bannedAt: null },
     });
-    res.json({ success: true, user: { id: updated.id, isBanned: updated.isBanned } });
+    res.json({
+      success: true,
+      user: { id: updated.id, isBanned: updated.isBanned },
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to unban user' });

@@ -13,7 +13,13 @@ import {
   TextInput,
   Tooltip,
 } from '@mantine/core';
-import { IconLink, IconLogout, IconPencil, IconRefresh, IconShield } from '@tabler/icons-react';
+import {
+  IconLink,
+  IconLogout,
+  IconPencil,
+  IconRefresh,
+  IconShield,
+} from '@tabler/icons-react';
 import LinkFlowPrimaryModal from './LinkFlowPrimaryModal.jsx';
 import { useDeviceEvents } from '../../hooks/useDeviceEvents.js';
 import { useUser } from '../../context/UserContext.js';
@@ -56,7 +62,10 @@ export default function DeviceManagement() {
   }, [refreshTick, user?.id]);
 
   const onRevoke = async (id) => {
-    await fetch(`/devices/revoke/${id}`, { method: 'POST', credentials: 'include' });
+    await fetch(`/devices/revoke/${id}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
     setRefreshTick((t) => t + 1);
   };
 
@@ -100,7 +109,9 @@ export default function DeviceManagement() {
             </Text>
           </Table.Td>
           <Table.Td>
-            <Text size="sm">{d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : '—'}</Text>
+            <Text size="sm">
+              {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : '—'}
+            </Text>
             <Text size="xs" c="dimmed">
               last seen
             </Text>
@@ -142,7 +153,10 @@ export default function DeviceManagement() {
           Your devices
         </Text>
         <Group>
-          <Button leftSection={<IconLink size={16} />} onClick={() => setLinkOpen(true)}>
+          <Button
+            leftSection={<IconLink size={16} />}
+            onClick={() => setLinkOpen(true)}
+          >
             Link new device
           </Button>
           <ActionIcon onClick={() => setRefreshTick((t) => t + 1)}>
@@ -171,7 +185,12 @@ export default function DeviceManagement() {
         </ScrollArea>
       )}
 
-      <Modal opened={!!renameId} onClose={() => setRenameId(null)} title="Rename device" centered>
+      <Modal
+        opened={!!renameId}
+        onClose={() => setRenameId(null)}
+        title="Rename device"
+        centered
+      >
         <form onSubmit={onRename}>
           <TextInput
             label="Name"

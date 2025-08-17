@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Drawer, TextInput, Stack, ScrollArea, Text, Group, Badge } from '@mantine/core';
+import {
+  Drawer,
+  TextInput,
+  Stack,
+  ScrollArea,
+  Text,
+  Group,
+  Badge,
+} from '@mantine/core';
 import { searchRoom } from '../utils/messagesStore';
 
 export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
@@ -27,7 +35,13 @@ export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
   }, [q, roomId]);
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Search in chat" position="right" size="md">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="Search in chat"
+      position="right"
+      size="md"
+    >
       <Stack gap="sm">
         <TextInput
           value={q}
@@ -43,13 +57,22 @@ export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
                 style={{ cursor: 'pointer' }}
                 align="start"
               >
-                <Badge variant="light">{new Date(m.createdAt).toLocaleString()}</Badge>
+                <Badge variant="light">
+                  {new Date(m.createdAt).toLocaleString()}
+                </Badge>
                 <Text size="sm">
-                  {(m.decryptedContent || m.translatedForMe || m.rawContent || '').slice(0, 240)}
+                  {(
+                    m.decryptedContent ||
+                    m.translatedForMe ||
+                    m.rawContent ||
+                    ''
+                  ).slice(0, 240)}
                 </Text>
               </Group>
             ))}
-            {!results.length && q && <Text c="dimmed">No matches (in local cache)</Text>}
+            {!results.length && q && (
+              <Text c="dimmed">No matches (in local cache)</Text>
+            )}
           </Stack>
         </ScrollArea>
       </Stack>

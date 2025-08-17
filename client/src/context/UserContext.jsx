@@ -21,7 +21,8 @@ export function UserProvider({ children }) {
       } catch (err) {
         if (!cancelled) {
           // 401 = not logged in; treat as null user, not an error
-          if (err?.response?.status !== 401) setAuthError('Failed to verify session');
+          if (err?.response?.status !== 401)
+            setAuthError('Failed to verify session');
           setCurrentUser(null);
         }
       } finally {

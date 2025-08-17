@@ -29,14 +29,26 @@ module.exports = {
     'import/order': [
       'warn',
       {
-        groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'object', 'type'],
+        groups: [
+          'builtin',
+          'external',
+          'internal',
+          'parent',
+          'sibling',
+          'index',
+          'object',
+          'type',
+        ],
         'newlines-between': 'always',
         alphabetize: { order: 'asc', caseInsensitive: true },
       },
     ],
 
     // Friendly unused warnings (allow _prefixed)
-    'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    'no-unused-vars': [
+      'warn',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
   },
   overrides: [
     // Server-side files

@@ -61,7 +61,12 @@ export default function LoginForm({ onLoginSuccess }) {
       <Container size="xs" px="md" style={{ width: '100%', maxWidth: 400 }}>
         <Paper withBorder shadow="sm" radius="xl" p="lg" w="100%">
           <Stack gap="sm" mb="sm" align="center">
-            <Image src="/ChatOrbit (possible).png" alt="ChatOrbit Logo" h={64} fit="contain" />
+            <Image
+              src="/ChatOrbit (possible).png"
+              alt="ChatOrbit Logo"
+              h={64}
+              fit="contain"
+            />
             <Title order={3} c="orbit.6">
               ChatOrbit
             </Title>

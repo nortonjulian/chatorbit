@@ -28,7 +28,8 @@ router.get(
       select: { id: true, username: true, avatarUrl: true },
     });
 
-    const nextCursor = items.length === limit ? items[items.length - 1].id : null;
+    const nextCursor =
+      items.length === limit ? items[items.length - 1].id : null;
     res.json({ items, nextCursor, count: items.length });
   })
 );
@@ -96,7 +97,12 @@ router.patch('/', requireAuth, async (req, res) => {
 
     const where = userId
       ? { ownerId_userId: { ownerId, userId: Number(userId) } }
-      : { ownerId_externalPhone: { ownerId, externalPhone: normalizePhone(externalPhone) } };
+      : {
+          ownerId_externalPhone: {
+            ownerId,
+            externalPhone: normalizePhone(externalPhone),
+          },
+        };
 
     const updated = await prisma.contact.update({
       where,
@@ -127,7 +133,12 @@ router.delete('/', requireAuth, async (req, res) => {
 
     const where = userId
       ? { ownerId_userId: { ownerId, userId: Number(userId) } }
-      : { ownerId_externalPhone: { ownerId, externalPhone: normalizePhone(externalPhone) } };
+      : {
+          ownerId_externalPhone: {
+            ownerId,
+            externalPhone: normalizePhone(externalPhone),
+          },
+        };
 
     await prisma.contact.delete({ where });
     res.json({ success: true });

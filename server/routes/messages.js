@@ -19,7 +19,11 @@ import { signDownloadToken } from '../utils/downloadTokens.js';
 const router = express.Router();
 
 // Replace old multer with hardened uploader
-const uploadMedia = makeUploader({ maxFiles: 10, maxBytes: 15 * 1024 * 1024, kind: 'media' });
+const uploadMedia = makeUploader({
+  maxFiles: 10,
+  maxBytes: 15 * 1024 * 1024,
+  kind: 'media',
+});
 
 // Per-endpoint rate limit for POST creates
 const postMessageLimiter = rateLimit({
@@ -56,13 +60,20 @@ router.post(
     const senderId = req.user?.id;
     if (!senderId) throw Boom.unauthorized();
 
-    const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } =
-      req.body || {};
+    const {
+      content,
+      chatRoomId,
+      expireSeconds,
+      attachmentsMeta,
+      attachmentsInline,
+    } = req.body || {};
     if (!chatRoomId) throw Boom.badRequest('chatRoomId is required');
 
     // Clamp optional per-message TTL (5s .. 7d)
     let secs = Number(expireSeconds);
-    secs = Number.isFinite(secs) ? Math.max(5, Math.min(7 * 24 * 60 * 60, secs)) : undefined;
+    secs = Number.isFinite(secs)
+      ? Math.max(5, Math.min(7 * 24 * 60 * 60, secs))
+      : undefined;
 
     // Parse meta
     let meta = [];
@@ -154,8 +165,12 @@ router.post(
       chatRoomId,
       content,
       expireSeconds: secs,
-      imageUrl: firstImage ? path.join('media', path.basename(firstImage.path)) : null,
-      audioUrl: firstAudio ? path.join('media', path.basename(firstAudio.path)) : null,
+      imageUrl: firstImage
+        ? path.join('media', path.basename(firstImage.path))
+        : null,
+      audioUrl: firstAudio
+        ? path.join('media', path.basename(firstAudio.path))
+        : null,
       audioDurationSec: firstAudioMeta?.durationSec ?? null,
       attachments,
     });
@@ -171,7 +186,10 @@ router.post(
       attachments: saved.attachments.map((a, idx) => {
         const src = attachments[idx]; // same order as createMany
         const out = { ...a };
-        out.url = a.url && !/^https?:\/\//i.test(a.url) ? toSigned(a.url, senderId) : a.url;
+        out.url =
+          a.url && !/^https?:\/\//i.test(a.url)
+            ? toSigned(a.url, senderId)
+            : a.url;
         if (src?._thumb) out.thumbUrl = toSigned(src._thumb, senderId);
         return out;
       }),
@@ -304,7 +322,10 @@ router.get('/:chatRoomId', requireAuth, async (req, res) => {
           m.translations && typeof m.translations === 'object'
             ? (m.translations[myLang] ?? null)
             : null;
-        const legacy = m.translatedTo && m.translatedTo === myLang ? m.translatedContent : null;
+        const legacy =
+          m.translatedTo && m.translatedTo === myLang
+            ? m.translatedContent
+            : null;
         const translatedForMe = fromMap || legacy || null;
 
         const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
@@ -312,7 +333,8 @@ router.get('/:chatRoomId', requireAuth, async (req, res) => {
         const reactionSummary = reactionSummaryByMessage[m.id] || {};
         const myReactions = Array.from(myReactionsByMessage[m.id] || []);
 
-        const { translations, translatedContent, translatedTo, keys, ...rest } = m;
+        const { translations, translatedContent, translatedTo, keys, ...rest } =
+          m;
 
         const base = {
           ...rest,
@@ -327,7 +349,8 @@ router.get('/:chatRoomId', requireAuth, async (req, res) => {
         return restNoRaw;
       });
 
-    const nextCursor = shaped.length === limit ? shaped[shaped.length - 1].id : null;
+    const nextCursor =
+      shaped.length === limit ? shaped[shaped.length - 1].id : null;
 
     return res.json({ items: shaped, nextCursor, count: shaped.length });
   } catch (error) {
@@ -400,7 +423,9 @@ router.post(
       select: { chatRoomId: true },
     });
     const allowedSet = new Set(allowed.map((a) => a.chatRoomId));
-    const allowedIds = msgs.filter((m) => allowedSet.has(m.chatRoomId)).map((m) => m.id);
+    const allowedIds = msgs
+      .filter((m) => allowedSet.has(m.chatRoomId))
+      .map((m) => m.id);
 
     if (!allowedIds.length) return res.json({ ok: true });
 
@@ -437,7 +462,8 @@ router.post(
     const userId = req.user?.id;
     const { emoji } = req.body || {};
 
-    if (!emoji || typeof emoji !== 'string') throw Boom.badRequest('emoji is required');
+    if (!emoji || typeof emoji !== 'string')
+      throw Boom.badRequest('emoji is required');
     if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
 
     const msg = await prisma.message.findUnique({
@@ -459,7 +485,9 @@ router.post(
       await prisma.messageReaction.delete({
         where: { messageId_userId_emoji: { messageId, userId, emoji } },
       });
-      const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
+      const count = await prisma.messageReaction.count({
+        where: { messageId, emoji },
+      });
       req.app
         .get('io')
         ?.to(String(msg.chatRoomId))
@@ -474,7 +502,9 @@ router.post(
     }
 
     await prisma.messageReaction.create({ data: { messageId, userId, emoji } });
-    const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
+    const count = await prisma.messageReaction.count({
+      where: { messageId, emoji },
+    });
     req.app
       .get('io')
       ?.to(String(msg.chatRoomId))
@@ -500,7 +530,9 @@ router.delete(
     const emoji = decodeURIComponent(req.params.emoji || '');
 
     await prisma.messageReaction
-      .delete({ where: { messageId_userId_emoji: { messageId, userId, emoji } } })
+      .delete({
+        where: { messageId_userId_emoji: { messageId, userId, emoji } },
+      })
       .catch(() => {});
 
     const msg = await prisma.message.findUnique({
@@ -509,7 +541,9 @@ router.delete(
     });
 
     if (msg) {
-      const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
+      const count = await prisma.messageReaction.count({
+        where: { messageId, emoji },
+      });
       req.app
         .get('io')
         ?.to(String(msg.chatRoomId))
@@ -550,12 +584,19 @@ router.patch(
     });
 
     if (!message) throw Boom.notFound('Message not found');
-    if (message.sender.id !== requesterId || (message.readBy?.length ?? 0) > 0) {
+    if (
+      message.sender.id !== requesterId ||
+      (message.readBy?.length ?? 0) > 0
+    ) {
       throw Boom.forbidden('Unauthorized or already read');
     }
 
-    const { encryptMessageForParticipants } = await import('../utils/encryption.js');
-    const { translateMessageIfNeeded } = await import('../utils/translateMessageIfNeeded.js');
+    const { encryptMessageForParticipants } = await import(
+      '../utils/encryption.js'
+    );
+    const { translateMessageIfNeeded } = await import(
+      '../utils/translateMessageIfNeeded.js'
+    );
 
     const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
       newContent,
@@ -671,8 +712,12 @@ router.post(
 
     // Must be a participant in BOTH rooms
     const [inSrc, inDst] = await Promise.all([
-      prisma.participant.findFirst({ where: { chatRoomId: src.chatRoomId, userId } }),
-      prisma.participant.findFirst({ where: { chatRoomId: Number(toRoomId), userId } }),
+      prisma.participant.findFirst({
+        where: { chatRoomId: src.chatRoomId, userId },
+      }),
+      prisma.participant.findFirst({
+        where: { chatRoomId: Number(toRoomId), userId },
+      }),
     ]);
     if (!inSrc || !inDst) throw Boom.forbidden('Forbidden');
 

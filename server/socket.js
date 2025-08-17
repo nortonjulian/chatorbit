@@ -13,22 +13,13 @@ function parseOrigins() {
 }
 
 function getTokenFromHandshake(handshake) {
-  // 1) Explicit token from Socket.IO auth payload
-  const authToken = handshake.auth?.token;
-
-  // 2) Authorization header: "Bearer <jwt>"
-  const header = handshake.headers?.authorization || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-
-  // 3) Cookie header (HTTP-only cookie works here)
-  let cookieToken = null;
+  // ✅ Cookie-only authentication
   if (handshake.headers?.cookie) {
     const cookies = cookie.parse(handshake.headers.cookie || '');
     const name = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
-    cookieToken = cookies[name] || null;
+    return cookies[name] || null;
   }
-
-  return authToken || bearer || cookieToken || null;
+  return null;
 }
 
 export function initSocket(httpServer) {
@@ -46,7 +37,8 @@ export function initSocket(httpServer) {
       if (!token) return next(new Error('Unauthorized'));
 
       const secret = process.env.JWT_SECRET;
-      if (!secret) return next(new Error('Server misconfiguration: JWT secret missing'));
+      if (!secret)
+        return next(new Error('Server misconfiguration: JWT secret missing'));
 
       const decoded = jwt.verify(token, secret); // { id, username, role, ... }
 

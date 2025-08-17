@@ -88,10 +88,13 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const isOwnerOrAdmin = currentUser?.role === 'ADMIN' || currentUser?.id === chatroom?.ownerId;
+  const isOwnerOrAdmin =
+    currentUser?.role === 'ADMIN' || currentUser?.id === chatroom?.ownerId;
 
   // ✅ Smart Replies toggle: init from user pref, fallback to IDB cache
-  const [smartEnabled, setSmartEnabled] = useState(() => currentUser?.enableSmartReplies ?? false);
+  const [smartEnabled, setSmartEnabled] = useState(
+    () => currentUser?.enableSmartReplies ?? false
+  );
 
   useEffect(() => {
     (async () => {
@@ -127,7 +130,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       if (!res.ok) throw new Error('Failed to edit');
       const updated = await res.json();
       setMessages((prev) =>
-        prev.map((m) => (m.id === updated.id ? { ...m, rawContent: newText, content: newText } : m))
+        prev.map((m) =>
+          m.id === updated.id
+            ? { ...m, rawContent: newText, content: newText }
+            : m
+        )
       );
     } catch (error) {
       alert('Message edit failed');
@@ -149,10 +156,15 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       params.set('limit', initial ? '50' : '30');
       if (!initial && cursor) params.set('cursor', String(cursor));
 
-      const { data } = await axiosClient.get(`/messages/${chatroom.id}?${params.toString()}`);
+      const { data } = await axiosClient.get(
+        `/messages/${chatroom.id}?${params.toString()}`
+      );
 
       // data: { items, nextCursor, count }
-      const decrypted = await decryptFetchedMessages(data.items || [], currentUserId);
+      const decrypted = await decryptFetchedMessages(
+        data.items || [],
+        currentUserId
+      );
 
       // Server returns newest → oldest; we render oldest → newest
       const chronological = decrypted.slice().reverse();
@@ -223,7 +235,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     const handleReceiveMessage = async (data) => {
       if (data.chatRoomId !== chatroom.id) return;
       try {
-        const decryptedArr = await decryptFetchedMessages([data], currentUserId);
+        const decryptedArr = await decryptFetchedMessages(
+          [data],
+          currentUserId
+        );
         const decrypted = decryptedArr[0];
 
         setMessages((prev) => [...prev, decrypted]);
@@ -315,7 +330,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             if (op === 'added') my.add(emoji);
             else my.delete(emoji);
           }
-          return { ...m, reactionSummary: summary, myReactions: Array.from(my) };
+          return {
+            ...m,
+            reactionSummary: summary,
+            myReactions: Array.from(my),
+          };
         })
       );
     };
@@ -379,7 +398,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       h="100%"
       display="flex"
       style={{ flexDirection: 'column' }}
-      className={clsx(privacyActive && !reveal && 'privacy-blur', reveal && 'privacy-revealed')}
+      className={clsx(
+        privacyActive && !reveal && 'privacy-blur',
+        reveal && 'privacy-revealed'
+      )}
       onMouseDown={holdToReveal ? () => setReveal(true) : undefined}
       onMouseUp={holdToReveal ? () => setReveal(false) : undefined}
       onMouseLeave={holdToReveal ? () => setReveal(false) : undefined}
@@ -428,7 +450,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           {/* Settings button (owner/admin only) */}
           {isOwnerOrAdmin && (
             <Tooltip label="Room settings">
-              <ActionIcon variant="subtle" onClick={() => setSettingsOpen(true)}>
+              <ActionIcon
+                variant="subtle"
+                onClick={() => setSettingsOpen(true)}
+              >
                 <IconSettings size={18} />
               </ActionIcon>
             </Tooltip>
@@ -436,11 +461,17 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         </Group>
       </Group>
 
-      <ScrollArea style={{ flex: 1 }} viewportRef={scrollViewportRef} type="auto">
+      <ScrollArea
+        style={{ flex: 1 }}
+        viewportRef={scrollViewportRef}
+        type="auto"
+      >
         <Stack gap="xs" p="xs">
           {messages.map((msg) => {
             const isCurrentUser = msg.sender?.id === currentUserId;
-            const expMs = msg.expiresAt ? new Date(msg.expiresAt).getTime() - now : null;
+            const expMs = msg.expiresAt
+              ? new Date(msg.expiresAt).getTime() - now
+              : null;
             const fading = msg.expiresAt && expMs <= 5000;
 
             const bubbleProps = isCurrentUser
@@ -456,7 +487,8 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                 onPointerDown={(e) => {
                   const target = e.target;
                   const timeout = setTimeout(() => {
-                    if (isCurrentUser && (msg.readBy?.length || 0) === 0) handleEditMessage(msg);
+                    if (isCurrentUser && (msg.readBy?.length || 0) === 0)
+                      handleEditMessage(msg);
                   }, 600);
                   target.onpointerup = () => clearTimeout(timeout);
                   target.onpointerleave = () => clearTimeout(timeout);
@@ -481,7 +513,13 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                   {...bubbleProps}
                 >
                   {!isCurrentUser && (
-                    <Text size="xs" fw={600} c="dark.6" mb={4} className="sender-name">
+                    <Text
+                      size="xs"
+                      fw={600}
+                      c="dark.6"
+                      mb={4}
+                      className="sender-name"
+                    >
                       {msg.sender?.username}
                     </Text>
                   )}
@@ -637,11 +675,18 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           Enable Smart Replies (sends last message to server for AI)
         </label>
 
-        <SmartReplyBar suggestions={suggestions} onPick={(t) => sendSmartReply(t)} />
+        <SmartReplyBar
+          suggestions={suggestions}
+          onPick={(t) => sendSmartReply(t)}
+        />
       </div>
 
       {/* 📅 Calendar suggestion bar (detect dates in recent messages) */}
-      <EventSuggestionBar messages={messages} currentUser={currentUser} chatroom={chatroom} />
+      <EventSuggestionBar
+        messages={messages}
+        currentUser={currentUser}
+        chatroom={chatroom}
+      />
 
       {chatroom && (
         <Box mt="sm">
@@ -653,7 +698,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                 .slice()
                 .reverse()
                 .find((m) => m.sender?.id !== currentUserId);
-              return lastInbound?.decryptedContent || lastInbound?.content || '';
+              return (
+                lastInbound?.decryptedContent || lastInbound?.content || ''
+              );
             }}
             onMessageSent={(msg) => {
               setMessages((prev) => [...prev, msg]); // append at bottom

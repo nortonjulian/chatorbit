@@ -251,17 +251,26 @@ io.on('connection', (socket) => {
 
         await savePair(roomId, me, partner);
 
-        io.to(socket.id).emit('pair_found', { roomId, partner: partner.username });
-        io.to(partner.socketId).emit('pair_found', { roomId, partner: username });
+        io.to(socket.id).emit('pair_found', {
+          roomId,
+          partner: partner.username,
+        });
+        io.to(partner.socketId).emit('pair_found', {
+          roomId,
+          partner: username,
+        });
       } else {
         await enqueueWaiting(me);
         socket.emit('no_partner', {
-          message: 'No one is online right now. Want to chat with OrbitBot instead?',
+          message:
+            'No one is online right now. Want to chat with OrbitBot instead?',
         });
       }
     } catch (err) {
       console.error('find_random_chat failed:', err);
-      socket.emit('no_partner', { message: 'Matchmaking temporarily unavailable.' });
+      socket.emit('no_partner', {
+        message: 'Matchmaking temporarily unavailable.',
+      });
     }
   });
 
@@ -275,13 +284,20 @@ io.on('connection', (socket) => {
       const { a, b } = pair;
       const other = a.socketId === socket.id ? b : a;
 
-      io.to(other.socketId).emit('chat_skipped', 'Partner skipped. Returning to lobby.');
+      io.to(other.socketId).emit(
+        'chat_skipped',
+        'Partner skipped. Returning to lobby.'
+      );
 
       io.in(roomId).socketsLeave(roomId);
 
       await deletePair(roomId);
 
-      await enqueueWaiting({ socketId: socket.id, username: a.username, userId: a.userId });
+      await enqueueWaiting({
+        socketId: socket.id,
+        username: a.username,
+        userId: a.userId,
+      });
       await enqueueWaiting({
         socketId: other.socketId,
         username: other.username,
@@ -366,12 +382,23 @@ io.on('connection', (socket) => {
       });
       io.to(String(chatRoomId)).emit('receive_message', saved);
 
-      const { maybeInvokeOrbitBot } = await import('./services/botAssistant.js');
-      const { maybeAutoRespondUsers } = await import('./services/autoResponder.js');
+      const { maybeInvokeOrbitBot } = await import(
+        './services/botAssistant.js'
+      );
+      const { maybeAutoRespondUsers } = await import(
+        './services/autoResponder.js'
+      );
 
       maybeAutoTranslate({ savedMessage: saved, io, prisma }).catch(() => {});
-      maybeInvokeOrbitBot({ text: content, savedMessage: saved, io, prisma }).catch(() => {});
-      maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(() => {});
+      maybeInvokeOrbitBot({
+        text: content,
+        savedMessage: saved,
+        io,
+        prisma,
+      }).catch(() => {});
+      maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(
+        () => {}
+      );
     } catch (e) {
       console.error('Message save failed:', e);
     }

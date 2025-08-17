@@ -2,7 +2,6 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
-
 const prisma = new PrismaClient();
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
@@ -25,7 +24,9 @@ router.get('/', async (req, res) => {
         take,
         skip,
         orderBy: { createdAt: 'desc' },
-        include: { actor: { select: { id: true, username: true, role: true } } },
+        include: {
+          actor: { select: { id: true, username: true, role: true } },
+        },
       }),
       prisma.auditLog.count({ where }),
     ]);

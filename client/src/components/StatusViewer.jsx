@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Modal, Group, Text, ActionIcon, Progress, Badge } from '@mantine/core';
-import { IconX, IconChevronLeft, IconChevronRight, IconMoodSmile } from '@tabler/icons-react';
+import {
+  IconX,
+  IconChevronLeft,
+  IconChevronRight,
+  IconMoodSmile,
+} from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
 
 export default function StatusViewer({ opened, onClose, author, stories }) {
@@ -22,7 +27,9 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
 
   const react = async (emoji) => {
     if (!s) return;
-    await axiosClient.post(`/status/${s.id}/reactions`, { emoji }).catch(() => {});
+    await axiosClient
+      .post(`/status/${s.id}/reactions`, { emoji })
+      .catch(() => {});
   };
 
   return (
@@ -47,7 +54,11 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
       </Group>
 
       {/* progress */}
-      <Progress value={((idx + 1) / (stories?.length || 1)) * 100} size="xs" mb="sm" />
+      <Progress
+        value={((idx + 1) / (stories?.length || 1)) * 100}
+        size="xs"
+        mb="sm"
+      />
 
       {/* media */}
       {!s ? null : s.assets?.length ? (
@@ -55,13 +66,23 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
           <img
             src={s.assets[0].url}
             alt=""
-            style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }}
+            style={{
+              width: '100%',
+              maxHeight: '70vh',
+              objectFit: 'contain',
+              borderRadius: 8,
+            }}
           />
         ) : s.assets[0].kind === 'VIDEO' ? (
           <video
             src={s.assets[0].url}
             controls
-            style={{ width: '100%', maxHeight: '70vh', display: 'block', borderRadius: 8 }}
+            style={{
+              width: '100%',
+              maxHeight: '70vh',
+              display: 'block',
+              borderRadius: 8,
+            }}
           />
         ) : s.assets[0].kind === 'AUDIO' ? (
           <audio src={s.assets[0].url} controls style={{ width: '100%' }} />
@@ -94,7 +115,12 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
         <Group>
           {/* quick reactions */}
           {['👍', '❤️', '😂', '🔥', '👏'].map((e) => (
-            <ActionIcon key={e} variant="light" onClick={() => react(e)} title={`React ${e}`}>
+            <ActionIcon
+              key={e}
+              variant="light"
+              onClick={() => react(e)}
+              title={`React ${e}`}
+            >
               <IconMoodSmile size={16} />
               <span style={{ marginLeft: 4 }}>{e}</span>
             </ActionIcon>
@@ -102,7 +128,9 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
         </Group>
         <ActionIcon
           variant="light"
-          onClick={() => setIdx((i) => Math.min((stories?.length || 1) - 1, i + 1))}
+          onClick={() =>
+            setIdx((i) => Math.min((stories?.length || 1) - 1, i + 1))
+          }
           disabled={idx >= (stories?.length || 1) - 1}
         >
           <IconChevronRight size={18} />

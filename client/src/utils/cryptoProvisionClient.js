@@ -1,7 +1,8 @@
 import nacl from 'tweetnacl';
 import * as util from 'tweetnacl-util';
 
-export const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+export const b64ToBytes = (b64) =>
+  Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 export const bytesToB64 = (bytes) => btoa(String.fromCharCode(...bytes));
 
 // NOTE: For MVP we model the shared key as HKDF(secret || sPub || ePub) to avoid curve ops in browser for now.

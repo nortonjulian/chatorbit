@@ -11,11 +11,21 @@ export function registerStatusExpiryJob(io, { everyMs = 60_000 } = {}) {
     if (!expired.length) return;
 
     await prisma.$transaction([
-      prisma.statusReaction.deleteMany({ where: { statusId: { in: expired.map((s) => s.id) } } }),
-      prisma.statusView.deleteMany({ where: { statusId: { in: expired.map((s) => s.id) } } }),
-      prisma.statusAsset.deleteMany({ where: { statusId: { in: expired.map((s) => s.id) } } }),
-      prisma.statusKey.deleteMany({ where: { statusId: { in: expired.map((s) => s.id) } } }),
-      prisma.status.deleteMany({ where: { id: { in: expired.map((s) => s.id) } } }),
+      prisma.statusReaction.deleteMany({
+        where: { statusId: { in: expired.map((s) => s.id) } },
+      }),
+      prisma.statusView.deleteMany({
+        where: { statusId: { in: expired.map((s) => s.id) } },
+      }),
+      prisma.statusAsset.deleteMany({
+        where: { statusId: { in: expired.map((s) => s.id) } },
+      }),
+      prisma.statusKey.deleteMany({
+        where: { statusId: { in: expired.map((s) => s.id) } },
+      }),
+      prisma.status.deleteMany({
+        where: { id: { in: expired.map((s) => s.id) } },
+      }),
     ]);
 
     // notify author devices (optional)

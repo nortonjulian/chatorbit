@@ -19,7 +19,13 @@ function requireAdmin(req, res, next) {
  * Body: { name, url, secret, ownerId?, createServiceUser? }
  */
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
-  const { name, url, secret, ownerId, createServiceUser = true } = req.body || {};
+  const {
+    name,
+    url,
+    secret,
+    ownerId,
+    createServiceUser = true,
+  } = req.body || {};
   if (!name || !url || !secret)
     return res.status(400).json({ error: 'name, url, secret required' });
 
@@ -56,7 +62,8 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 router.post('/:id/install', requireAuth, requireAdmin, async (req, res) => {
   const botId = Number(req.params.id);
   const { chatRoomId, contentScope = 'COMMANDS' } = req.body || {};
-  if (!botId || !chatRoomId) return res.status(400).json({ error: 'botId & chatRoomId required' });
+  if (!botId || !chatRoomId)
+    return res.status(400).json({ error: 'botId & chatRoomId required' });
 
   const inst = await prisma.botInstall.create({
     data: { botId, chatRoomId: Number(chatRoomId), contentScope },
@@ -69,18 +76,23 @@ router.post('/:id/install', requireAuth, requireAdmin, async (req, res) => {
  * PATCH /bots/installs/:installId
  * Body: { isEnabled?, contentScope? }
  */
-router.patch('/installs/:installId', requireAuth, requireAdmin, async (req, res) => {
-  const id = Number(req.params.installId);
-  const { isEnabled, contentScope } = req.body || {};
-  const inst = await prisma.botInstall.update({
-    where: { id },
-    data: {
-      ...(typeof isEnabled === 'boolean' ? { isEnabled } : {}),
-      ...(contentScope ? { contentScope } : {}),
-    },
-  });
-  res.json(inst);
-});
+router.patch(
+  '/installs/:installId',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const id = Number(req.params.installId);
+    const { isEnabled, contentScope } = req.body || {};
+    const inst = await prisma.botInstall.update({
+      where: { id },
+      data: {
+        ...(typeof isEnabled === 'boolean' ? { isEnabled } : {}),
+        ...(contentScope ? { contentScope } : {}),
+      },
+    });
+    res.json(inst);
+  }
+);
 
 /**
  * POST /bots/:installId/reply
@@ -100,7 +112,8 @@ router.post('/:installId/reply', async (req, res) => {
       include: { bot: true, chatRoom: { select: { id: true } } },
     });
     if (!inst?.bot) return res.status(404).json({ error: 'install not found' });
-    if (!inst.isEnabled) return res.status(403).json({ error: 'install disabled' });
+    if (!inst.isEnabled)
+      return res.status(403).json({ error: 'install disabled' });
 
     const bodyString = JSON.stringify(req.body || {});
     const ok = verifySignature(
@@ -112,8 +125,10 @@ router.post('/:installId/reply', async (req, res) => {
     );
     if (!ok) return res.status(401).json({ error: 'invalid signature' });
 
-    const senderId = inst.bot.serviceUserId || Number(process.env.ORBIT_BOT_USER_ID || 0);
-    if (!senderId) return res.status(400).json({ error: 'bot service user not configured' });
+    const senderId =
+      inst.bot.serviceUserId || Number(process.env.ORBIT_BOT_USER_ID || 0);
+    if (!senderId)
+      return res.status(400).json({ error: 'bot service user not configured' });
 
     const { content, attachments = [] } = req.body || {};
     if (!content && !attachments.length) {

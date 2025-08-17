@@ -31,14 +31,20 @@ export function requireAuth(req, res, next) {
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      return res.status(500).json({ error: 'Server misconfiguration (JWT secret missing)' });
+      return res
+        .status(500)
+        .json({ error: 'Server misconfiguration (JWT secret missing)' });
     }
 
     const decoded = jwt.verify(token, secret);
     // Expecting payload like: { id, username, role }
     if (!decoded?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+    req.user = {
+      id: decoded.id,
+      username: decoded.username,
+      role: decoded.role,
+    };
     next();
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -54,7 +60,11 @@ export function verifyTokenOptional(req, _res, next) {
 
     const decoded = jwt.verify(token, secret);
     if (decoded?.id) {
-      req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+      req.user = {
+        id: decoded.id,
+        username: decoded.username,
+        role: decoded.role,
+      };
     }
   } catch {
     // ignore invalid/expired tokens

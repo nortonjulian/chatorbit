@@ -9,7 +9,10 @@ export async function generateAIResponse(userMessage) {
     const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'I am OrbitBot, a friendly chat companion.' },
+        {
+          role: 'system',
+          content: 'I am OrbitBot, a friendly chat companion.',
+        },
         { role: 'user', content: userMessage },
       ],
       max_tokens: 100,

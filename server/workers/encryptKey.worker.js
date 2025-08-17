@@ -22,7 +22,9 @@ function sealKey({ msgKeyB64, recipientPubB64 }) {
   const boxed = nacl.box(msgKey, nonce, recipientPub, eph.secretKey);
 
   // Package: ephPub || nonce || boxed
-  const payload = new Uint8Array(eph.publicKey.length + nonce.length + boxed.length);
+  const payload = new Uint8Array(
+    eph.publicKey.length + nonce.length + boxed.length
+  );
   payload.set(eph.publicKey, 0);
   payload.set(nonce, eph.publicKey.length);
   payload.set(boxed, eph.publicKey.length + nonce.length);

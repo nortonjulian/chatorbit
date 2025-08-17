@@ -10,7 +10,10 @@ export default function LanguageSelector({ currentLanguage = 'en', onChange }) {
   useEffect(() => setSelected(currentLanguage), [currentLanguage]);
 
   // simple const instead of useMemo (avoids the React hook call entirely)
-  const options = LANGUAGES.map(({ code, name }) => ({ value: code, label: name }));
+  const options = LANGUAGES.map(({ code, name }) => ({
+    value: code,
+    label: name,
+  }));
 
   useEffect(() => {
     if (!selected) return;

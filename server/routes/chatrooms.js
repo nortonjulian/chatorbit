@@ -30,7 +30,8 @@ const requireRoomOwner = async (req, _res, next) => {
   });
 
   if (!room) throw Boom.notFound('Room not found');
-  if (room.ownerId !== userId) throw Boom.forbidden('Only the owner can perform this action');
+  if (room.ownerId !== userId)
+    throw Boom.forbidden('Only the owner can perform this action');
 
   return next();
 };
@@ -44,7 +45,9 @@ router.get(
 
     // optional membership filter: only rooms containing userId
     const qUserId = req.query.userId ? Number(req.query.userId) : null;
-    const whereBase = qUserId ? { participants: { some: { userId: qUserId } } } : {};
+    const whereBase = qUserId
+      ? { participants: { some: { userId: qUserId } } }
+      : {};
 
     // composite cursor: updatedAt + id
     const curIdRaw = req.query.cursorId;
@@ -66,7 +69,10 @@ router.get(
       cursorId && cursorAt
         ? {
             ...whereBase,
-            OR: [{ updatedAt: { lt: cursorAt } }, { updatedAt: cursorAt, id: { lt: cursorId } }],
+            OR: [
+              { updatedAt: { lt: cursorAt } },
+              { updatedAt: cursorAt, id: { lt: cursorId } },
+            ],
           }
         : whereBase;
 
@@ -99,7 +105,11 @@ router.post(
     const userId1 = Number(req.user.id);
     const userId2 = Number(req.params.targetUserId);
 
-    if (!Number.isFinite(userId1) || !Number.isFinite(userId2) || userId1 === userId2) {
+    if (
+      !Number.isFinite(userId1) ||
+      !Number.isFinite(userId2) ||
+      userId1 === userId2
+    ) {
       throw Boom.badRequest('Invalid or duplicate user IDs');
     }
 
@@ -120,7 +130,10 @@ router.post(
       data: {
         isGroup: false,
         participants: {
-          create: [{ user: { connect: { id: userId1 } } }, { user: { connect: { id: userId2 } } }],
+          create: [
+            { user: { connect: { id: userId1 } } },
+            { user: { connect: { id: userId2 } } },
+          ],
         },
       },
       include: { participants: true },
@@ -291,7 +304,9 @@ router.post(
     if (!userId) throw Boom.badRequest('userId required');
 
     const existing = await prisma.participant.findUnique({
-      where: { userId_chatRoomId: { userId: Number(userId), chatRoomId: roomId } },
+      where: {
+        userId_chatRoomId: { userId: Number(userId), chatRoomId: roomId },
+      },
     });
     if (existing) return res.json({ ok: true });
 
@@ -315,7 +330,12 @@ router.delete(
       throw Boom.badRequest('Invalid id');
     }
 
-    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId, req.user.role);
+    const actorRank = await getEffectiveRoomRank(
+      prisma,
+      req.user.id,
+      roomId,
+      req.user.role
+    );
     if (actorRank === null || actorRank < RoleRank.MODERATOR) {
       throw Boom.forbidden('Forbidden');
     }
@@ -369,7 +389,12 @@ router.patch(
     });
     if (!room) throw Boom.notFound('Room not found');
 
-    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId, req.user.role);
+    const actorRank = await getEffectiveRoomRank(
+      prisma,
+      req.user.id,
+      roomId,
+      req.user.role
+    );
     if (actorRank < RoleRank.ADMIN) throw Boom.forbidden('Forbidden');
 
     if (role === 'ADMIN' && actorRank < RoleRank.OWNER) {

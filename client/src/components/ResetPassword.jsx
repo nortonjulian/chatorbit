@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
-import { Container, Paper, Title, PasswordInput, Button, Alert, Text, Stack } from '@mantine/core';
+import {
+  Container,
+  Paper,
+  Title,
+  PasswordInput,
+  Button,
+  Alert,
+  Text,
+  Stack,
+} from '@mantine/core';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -45,7 +54,9 @@ export default function ResetPassword() {
       setConfirmPassword('');
     } catch (error) {
       console.error(error);
-      setMessage(error.response?.data?.error || 'Error: Unable to reset password.');
+      setMessage(
+        error.response?.data?.error || 'Error: Unable to reset password.'
+      );
       setType('error');
     } finally {
       setLoading(false);
@@ -82,7 +93,10 @@ export default function ResetPassword() {
               />
 
               {message && (
-                <Alert color={messageType === 'error' ? 'red' : 'green'} variant="light">
+                <Alert
+                  color={messageType === 'error' ? 'red' : 'green'}
+                  variant="light"
+                >
                   {message}
                 </Alert>
               )}

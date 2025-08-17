@@ -9,8 +9,11 @@ media.get('/chatrooms/:id/media', requireAuth, async (req, res) => {
   const userId = req.user.id;
 
   // membership gate
-  const member = await prisma.participant.findFirst({ where: { chatRoomId, userId } });
-  if (!member && req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden' });
+  const member = await prisma.participant.findFirst({
+    where: { chatRoomId, userId },
+  });
+  if (!member && req.user.role !== 'ADMIN')
+    return res.status(403).json({ error: 'Forbidden' });
 
   const rows = await prisma.messageAttachment.findMany({
     where: { message: { chatRoomId } },

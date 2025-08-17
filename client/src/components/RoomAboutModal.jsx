@@ -5,12 +5,16 @@ import { useUser } from '../context/UserContext';
 
 export default function RoomAboutModal({ opened, onClose, room, onSaved }) {
   const { currentUser } = useUser();
-  const canEdit = currentUser?.role === 'ADMIN' || currentUser?.id === room?.ownerId;
+  const canEdit =
+    currentUser?.role === 'ADMIN' || currentUser?.id === room?.ownerId;
 
   const [value, setValue] = useState(room?.description || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => setValue(room?.description || ''), [room?.id, room?.description]);
+  useEffect(
+    () => setValue(room?.description || ''),
+    [room?.id, room?.description]
+  );
 
   const save = async () => {
     if (!canEdit) return onClose();

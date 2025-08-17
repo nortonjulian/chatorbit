@@ -5,7 +5,6 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { translateText } from '../utils/translateText.js';
 import { requireAuth } from '../middleware/auth.js';
 
-
 const router = express.Router();
 
 // e.g., 20 requests per minute per IP for all AI endpoints
@@ -58,7 +57,10 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
   const userContent = [
     locale ? `Locale hint: ${locale}` : '',
     'Conversation (latest last):',
-    ...safe.map((s) => `${s.role?.toUpperCase?.() || 'USER'}(${s.author || 'user'}): ${s.text}`),
+    ...safe.map(
+      (s) =>
+        `${s.role?.toUpperCase?.() || 'USER'}(${s.author || 'user'}): ${s.text}`
+    ),
   ]
     .filter(Boolean)
     .join('\n');

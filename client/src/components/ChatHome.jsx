@@ -15,7 +15,10 @@ export default function ChatHome({ currentUser, children }) {
         p="xs"
         style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
       >
-        <StatusBar currentUserId={currentUser?.id} onOpenViewer={(payload) => setViewer(payload)} />
+        <StatusBar
+          currentUserId={currentUser?.id}
+          onOpenViewer={(payload) => setViewer(payload)}
+        />
         <Button size="xs" variant="light" onClick={() => setComposerOpen(true)}>
           New Status
         </Button>
@@ -24,7 +27,10 @@ export default function ChatHome({ currentUser, children }) {
       {/* your chat layout below */}
       {children}
 
-      <StatusComposer opened={composerOpen} onClose={() => setComposerOpen(false)} />
+      <StatusComposer
+        opened={composerOpen}
+        onClose={() => setComposerOpen(false)}
+      />
       <StatusViewer
         opened={!!viewer}
         onClose={() => setViewer(null)}

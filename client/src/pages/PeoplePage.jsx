@@ -21,7 +21,12 @@ export default function PeoplePage() {
         <ContactList currentUserId={currentUser.id} />
       </Paper>
 
-      {open && <StartChatModal currentUserId={currentUser.id} onClose={() => setOpen(false)} />}
+      {open && (
+        <StartChatModal
+          currentUserId={currentUser.id}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }

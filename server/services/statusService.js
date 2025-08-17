@@ -4,8 +4,13 @@ import { isExplicit, cleanText } from '../utils/filter.js';
 import { translateForTargets } from '../utils/translate.js';
 import { encryptMessageForParticipants } from '../utils/encryption.js';
 
-export async function getAudienceUserIds({ authorId, mode = 'MUTUALS', customIds = [] }) {
-  if (mode === 'CUSTOM') return [...new Set(customIds.map(Number))].filter(Boolean);
+export async function getAudienceUserIds({
+  authorId,
+  mode = 'MUTUALS',
+  customIds = [],
+}) {
+  if (mode === 'CUSTOM')
+    return [...new Set(customIds.map(Number))].filter(Boolean);
 
   // Minimal mutuals example: adjust to your contact/friends model
   const mutuals = await prisma.contact.findMany({
@@ -25,7 +30,12 @@ export async function createStatusService({
 }) {
   const author = await prisma.user.findUnique({
     where: { id: Number(authorId) },
-    select: { id: true, preferredLanguage: true, allowExplicitContent: true, publicKey: true },
+    select: {
+      id: true,
+      preferredLanguage: true,
+      allowExplicitContent: true,
+      publicKey: true,
+    },
   });
   if (!author) throw new Error('Author not found');
 
@@ -48,7 +58,9 @@ export async function createStatusService({
   });
 
   const explicit = caption ? isExplicit(caption) : false;
-  const anyDisallow = users.some((u) => u.id !== author.id && !u.allowExplicitContent);
+  const anyDisallow = users.some(
+    (u) => u.id !== author.id && !u.allowExplicitContent
+  );
   const cap = caption
     ? anyDisallow || !author.allowExplicitContent
       ? cleanText(caption)
@@ -72,7 +84,10 @@ export async function createStatusService({
     users
   );
 
-  const secs = Math.max(5, Math.min(24 * 3600, Number(expireSeconds) || 24 * 3600));
+  const secs = Math.max(
+    5,
+    Math.min(24 * 3600, Number(expireSeconds) || 24 * 3600)
+  );
   const expiresAt = new Date(Date.now() + secs * 1000);
 
   const saved = await prisma.status.create({
@@ -110,9 +125,15 @@ export async function createStatusService({
     await prisma.$transaction(
       entries.map(([userIdStr, encKey]) =>
         prisma.statusKey.upsert({
-          where: { statusId_userId: { statusId: saved.id, userId: Number(userIdStr) } },
+          where: {
+            statusId_userId: { statusId: saved.id, userId: Number(userIdStr) },
+          },
           update: { encryptedKey: encKey },
-          create: { statusId: saved.id, userId: Number(userIdStr), encryptedKey: encKey },
+          create: {
+            statusId: saved.id,
+            userId: Number(userIdStr),
+            encryptedKey: encKey,
+          },
         })
       )
     );

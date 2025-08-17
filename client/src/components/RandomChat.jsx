@@ -143,7 +143,13 @@ export default function RandomChat({ currentUser }) {
       </Text>
 
       {offerAI && (
-        <Button onClick={handleStartAI} variant="filled" color="violet" mt="xs" maw={220}>
+        <Button
+          onClick={handleStartAI}
+          variant="filled"
+          color="violet"
+          mt="xs"
+          maw={220}
+        >
           Chat with OrbitBot
         </Button>
       )}
@@ -153,14 +159,25 @@ export default function RandomChat({ currentUser }) {
         <Stack gap="xs" p="xs">
           {messages.map((m, i) => {
             const isMe = m.senderId === currentUser.id;
-            const bubbleProps = isMe ? { bg: 'orbit.6', c: 'white' } : { bg: 'gray.2', c: 'black' };
+            const bubbleProps = isMe
+              ? { bg: 'orbit.6', c: 'white' }
+              : { bg: 'gray.2', c: 'black' };
 
             return (
               <Box
                 key={i}
-                style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}
+                style={{
+                  display: 'flex',
+                  justifyContent: isMe ? 'flex-end' : 'flex-start',
+                }}
               >
-                <Box px="md" py="xs" radius="lg" style={{ maxWidth: 360 }} {...bubbleProps}>
+                <Box
+                  px="md"
+                  py="xs"
+                  radius="lg"
+                  style={{ maxWidth: 360 }}
+                  {...bubbleProps}
+                >
                   <Text size="xs" fw={600} c={isMe ? 'white' : 'dark.6'} mb={4}>
                     {isMe ? 'You' : m.sender?.username || partner || 'OrbitBot'}
                   </Text>

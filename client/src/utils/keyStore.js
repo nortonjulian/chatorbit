@@ -53,7 +53,10 @@ export async function saveKeysIDB({ publicKey, privateKey }) {
 }
 
 export async function loadKeysIDB() {
-  const [publicKey, privateKey] = await Promise.all([get('co_pub'), get('co_priv')]);
+  const [publicKey, privateKey] = await Promise.all([
+    get('co_pub'),
+    get('co_priv'),
+  ]);
   return { publicKey, privateKey };
 }
 
@@ -67,7 +70,10 @@ export async function migrateLocalToIDBIfNeeded() {
   const lsPriv = localStorage.getItem('co_priv');
   if (!lsPub && !lsPriv) return false;
 
-  await saveKeysIDB({ publicKey: lsPub || undefined, privateKey: lsPriv || undefined });
+  await saveKeysIDB({
+    publicKey: lsPub || undefined,
+    privateKey: lsPriv || undefined,
+  });
   localStorage.removeItem('co_pub');
   localStorage.removeItem('co_priv');
   return true;

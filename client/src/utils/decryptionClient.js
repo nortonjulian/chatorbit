@@ -23,7 +23,12 @@ export async function decryptMessageForUserBrowser(
   const nonce = encryptedSessionKeyUint8.slice(0, 24);
   const box = encryptedSessionKeyUint8.slice(24);
 
-  const sessionKey = nacl.box.open(box, nonce, senderPublicKeyUint8, userPrivateKeyUint8);
+  const sessionKey = nacl.box.open(
+    box,
+    nonce,
+    senderPublicKeyUint8,
+    userPrivateKeyUint8
+  );
 
   if (!sessionKey) {
     throw new Error('Failed to decrypt session key');
@@ -34,7 +39,13 @@ export async function decryptMessageForUserBrowser(
   const tag = decoded.subarray(12, 28);
   const encrypted = decoded.subarray(28);
 
-  const cryptoKey = await crypto.subtle.importKey('raw', sessionKey, 'AES-GCM', false, ['decrypt']);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    sessionKey,
+    'AES-GCM',
+    false,
+    ['decrypt']
+  );
 
   const decryptedBuffer = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv, tagLength: 128 },

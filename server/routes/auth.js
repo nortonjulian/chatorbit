@@ -72,7 +72,9 @@ const loginLimiter = rateLimit({
 const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 3,
-  message: { error: 'Too many password reset attempts, please try again later.' },
+  message: {
+    error: 'Too many password reset attempts, please try again later.',
+  },
 });
 
 /* =========================
@@ -109,7 +111,8 @@ router.post('/register', registerLimiter, async (req, res) => {
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) return res.status(409).json({ error: 'Email already in use' });
+    if (existingUser)
+      return res.status(409).json({ error: 'Email already in use' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -144,14 +147,18 @@ router.post('/register', registerLimiter, async (req, res) => {
 router.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
-    return res.status(400).json({ error: 'Username and password are required' });
+    return res
+      .status(400)
+      .json({ error: 'Username and password are required' });
 
   try {
     const user = await prisma.user.findUnique({ where: { username } });
-    if (!user) return res.status(401).json({ error: 'Invalid username or password' });
+    if (!user)
+      return res.status(401).json({ error: 'Invalid username or password' });
 
     const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) return res.status(401).json({ error: 'Invalid username or password' });
+    if (!validPassword)
+      return res.status(401).json({ error: 'Invalid username or password' });
 
     const payload = { id: user.id, username: user.username, role: user.role };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });

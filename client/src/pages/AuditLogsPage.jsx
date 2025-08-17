@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
-import { Stack, Group, Title, TextInput, Button, Table, Alert } from '@mantine/core';
+import {
+  Stack,
+  Group,
+  Title,
+  TextInput,
+  Button,
+  Table,
+  Alert,
+} from '@mantine/core';
 
 export default function AuditLogsPage() {
   const [items, setItems] = useState([]);
@@ -71,7 +79,9 @@ export default function AuditLogsPage() {
                 {i.resourceType}#{i.resourceId ?? ''}
               </Table.Td>
               <Table.Td>
-                <code style={{ fontSize: 12 }}>{i.meta && JSON.stringify(i.meta)}</code>
+                <code style={{ fontSize: 12 }}>
+                  {i.meta && JSON.stringify(i.meta)}
+                </code>
               </Table.Td>
             </Table.Tr>
           ))}

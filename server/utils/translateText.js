@@ -7,7 +7,9 @@ const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const DEEPL_KEY = process.env.DEEPL_API_KEY;
 
 // Cache up to ~2k unique translations; default TTL 10 minutes
-const CACHE_TTL_MS = Number(process.env.TRANSLATE_CACHE_TTL_MS ?? 10 * 60 * 1000);
+const CACHE_TTL_MS = Number(
+  process.env.TRANSLATE_CACHE_TTL_MS ?? 10 * 60 * 1000
+);
 const cache = new LRU(Number(process.env.TRANSLATE_CACHE_SIZE ?? 2000));
 
 /** Provider: DeepL (preferred when key present) */
@@ -33,7 +35,8 @@ async function deeplTranslate({ text, targetLang, sourceLang }) {
   const json = await resp.json();
   const translatedText = json?.translations?.[0]?.text ?? '';
   const detectedSourceLang =
-    json?.translations?.[0]?.detected_source_language ?? (sourceLang?.trim() || null);
+    json?.translations?.[0]?.detected_source_language ??
+    (sourceLang?.trim() || null);
 
   return { translatedText, detectedSourceLang, provider: 'deepl' };
 }
@@ -52,7 +55,9 @@ async function openaiTranslate({ text, targetLang, sourceLang }) {
       temperature: 0,
       messages: [
         { role: 'system', content: system },
-        ...(sourceLang ? [{ role: 'system', content: `Source language hint: ${sourceLang}` }] : []),
+        ...(sourceLang
+          ? [{ role: 'system', content: `Source language hint: ${sourceLang}` }]
+          : []),
         { role: 'user', content: text },
       ],
       max_tokens: 400,
@@ -104,8 +109,14 @@ async function translateOnce({ text, targetLang, sourceLang }) {
  * - Optionally warms cache for extraTargets in parallel (limited concurrency)
  * - Return shape keeps backward-compat `translated` and adds richer fields
  */
-export async function translateText({ text, targetLang, sourceLang, extraTargets = [] }) {
-  if (!text || !targetLang) throw Boom.badRequest('text and targetLang required');
+export async function translateText({
+  text,
+  targetLang,
+  sourceLang,
+  extraTargets = [],
+}) {
+  if (!text || !targetLang)
+    throw Boom.badRequest('text and targetLang required');
 
   const norm = (s) => (s ?? '').toString().trim();
   const t = norm(text);

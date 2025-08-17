@@ -9,7 +9,10 @@ import {
   TextInput,
   PasswordInput,
 } from '@mantine/core';
-import { deriveSharedKeyBrowser, openWithKey } from '../utils/cryptoProvisionClient.js';
+import {
+  deriveSharedKeyBrowser,
+  openWithKey,
+} from '../utils/cryptoProvisionClient.js';
 import { installLocalPrivateKeyBundle } from '../utils/encryptionClient.js';
 
 export default function LinkOnNewDevice() {

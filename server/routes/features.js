@@ -22,7 +22,8 @@ router.patch(
     if (!Number.isFinite(chatRoomId)) throw Boom.badRequest('Invalid room id');
 
     const v = String(req.body.mode || '').toLowerCase();
-    if (!['off', 'tagged', 'all'].includes(v)) throw Boom.badRequest('Invalid mode');
+    if (!['off', 'tagged', 'all'].includes(v))
+      throw Boom.badRequest('Invalid mode');
 
     const updated = await prisma.chatRoom.update({
       where: { id: chatRoomId },

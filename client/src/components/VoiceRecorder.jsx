@@ -21,7 +21,9 @@ export default function VoiceRecorder({ onRecorded, disabled }) {
 
     mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
     mr.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+      const blob = new Blob(chunksRef.current, {
+        type: mr.mimeType || 'audio/webm',
+      });
       const durationMs = Date.now() - startedAtRef.current;
       onRecorded?.(blob, Math.round(durationMs / 1000));
       stream.getTracks().forEach((t) => t.stop());
@@ -47,7 +49,11 @@ export default function VoiceRecorder({ onRecorded, disabled }) {
         disabled={disabled}
         aria-label="Record voice"
       >
-        {recording ? <IconPlayerStop size={18} /> : <IconMicrophone size={18} />}
+        {recording ? (
+          <IconPlayerStop size={18} />
+        ) : (
+          <IconMicrophone size={18} />
+        )}
       </ActionIcon>
     </Tooltip>
   );

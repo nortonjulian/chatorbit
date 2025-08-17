@@ -31,13 +31,17 @@ export function useDeviceEvents({
 
   useEffect(() => {
     if (!externalSocket) {
-      const serverURL = url || (import.meta?.env?.VITE_SOCKET_URL ?? window.location.origin);
+      const serverURL =
+        url || (import.meta?.env?.VITE_SOCKET_URL ?? window.location.origin);
 
       // resolve auth payload
       let authPayload = typeof auth === 'function' ? auth() : auth;
       if (!authPayload) {
         // fallback: JWT from storage or userId room auth
-        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+        const token =
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem('token')
+            : null;
         authPayload = token ? { token } : userId ? { userId } : {};
       }
 

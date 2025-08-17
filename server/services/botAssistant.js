@@ -25,7 +25,9 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
   if (!process.env.OPENAI_API_KEY) return;
 
   const roomId = Number(savedMessage.chatRoomId);
-  const senderId = Number(savedMessage.sender?.id || savedMessage.senderId || 0);
+  const senderId = Number(
+    savedMessage.sender?.id || savedMessage.senderId || 0
+  );
   if (!roomId || !senderId) return;
   if (senderId === BOT_ID) return; // avoid replying to self
 
@@ -67,7 +69,9 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
   // Mode enforcement: mention-only requires explicit mention/command
   const body = String(text || '');
   const mentioned =
-    /(^|\s)@orbitbot\b/i.test(body) || /^\/ask(\s|$)/i.test(body) || /^\/orbit(\s|$)/i.test(body);
+    /(^|\s)@orbitbot\b/i.test(body) ||
+    /^\/ask(\s|$)/i.test(body) ||
+    /^\/orbit(\s|$)/i.test(body);
   if (room.aiAssistantMode === 'mention' && !mentioned) return;
 
   // Build compact context using only lines from opted-in users (+ the sender)
@@ -110,12 +114,15 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
     roomKey,
     dropIfBusy: true, // shed load under burst without piling up
     fn: async () => {
-      const reply = await generateAIResponse(userPrompt || body.slice(0, MAX_CHARS), {
-        system,
-        context,
-        maxTokens: 220,
-        temperature: 0.4,
-      });
+      const reply = await generateAIResponse(
+        userPrompt || body.slice(0, MAX_CHARS),
+        {
+          system,
+          context,
+          maxTokens: 220,
+          temperature: 0.4,
+        }
+      );
       if (!reply) return;
 
       // Persist via the normal pipeline (encryption/keys etc.)

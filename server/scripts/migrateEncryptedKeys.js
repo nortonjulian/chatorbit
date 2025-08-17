@@ -5,7 +5,8 @@ const prisma = new PrismaClient();
 
 function detectDb() {
   const url = process.env.DATABASE_URL || '';
-  if (url.startsWith('postgresql://') || url.startsWith('postgres://')) return 'postgres';
+  if (url.startsWith('postgresql://') || url.startsWith('postgres://'))
+    return 'postgres';
   if (url.startsWith('file:') || url.includes('sqlite')) return 'sqlite';
   if (url.startsWith('mysql://')) return 'mysql';
   return 'unknown';
@@ -87,7 +88,9 @@ async function main() {
       try {
         map = JSON.parse(map);
       } catch {
-        console.warn(`Message ${id}: could not parse encryptedKeys as JSON, skipping`);
+        console.warn(
+          `Message ${id}: could not parse encryptedKeys as JSON, skipping`
+        );
         continue;
       }
     }
@@ -99,7 +102,11 @@ async function main() {
 
     for (const [userIdStr, encryptedKey] of Object.entries(map)) {
       const userId = Number(userIdStr);
-      if (!Number.isFinite(userId) || typeof encryptedKey !== 'string' || !encryptedKey.length) {
+      if (
+        !Number.isFinite(userId) ||
+        typeof encryptedKey !== 'string' ||
+        !encryptedKey.length
+      ) {
         console.warn(`Message ${id}: bad entry (${userIdStr}), skipping`);
         continue;
       }

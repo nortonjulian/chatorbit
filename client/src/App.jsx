@@ -150,7 +150,9 @@ export default function App() {
                     </Card>
                   ) : (
                     <Center mih="70vh">
-                      <Text c="dimmed">Select a text or chatroom to begin chatting</Text>
+                      <Text c="dimmed">
+                        Select a text or chatroom to begin chatting
+                      </Text>
                     </Center>
                   )}
                 </ChatHome>
@@ -162,7 +164,9 @@ export default function App() {
             <Route path="/join/:code" element={<JoinInvitePage />} />
 
             {/* ✅ Feature-flagged Status route: only register when enabled */}
-            {features.status && <Route path="status" element={<StatusFeed />} />}
+            {features.status && (
+              <Route path="status" element={<StatusFeed />} />
+            )}
 
             <Route
               path="admin"

@@ -17,7 +17,8 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 
 function StatusBadge({ status }) {
-  const color = status === 'OPEN' ? 'yellow' : status === 'RESOLVED' ? 'green' : 'blue';
+  const color =
+    status === 'OPEN' ? 'yellow' : status === 'RESOLVED' ? 'green' : 'blue';
   return (
     <Badge color={color} variant="light">
       {status}
@@ -78,7 +79,9 @@ export default function AdminReportsPage() {
   const banUser = async (userId) => {
     if (!confirm('Ban this user?')) return;
     try {
-      await axiosClient.post(`/admin/reports/users/${userId}/ban`, { reason: 'Abusive content' });
+      await axiosClient.post(`/admin/reports/users/${userId}/ban`, {
+        reason: 'Abusive content',
+      });
       fetchReports();
     } catch (e) {
       setErr(e.response?.data?.error || 'Failed to ban user');
@@ -197,7 +200,13 @@ export default function AdminReportsPage() {
         </Table>
       )}
 
-      <Modal opened={opened} onClose={close} title="Resolve report" centered radius="lg">
+      <Modal
+        opened={opened}
+        onClose={close}
+        title="Resolve report"
+        centered
+        radius="lg"
+      >
         <Stack>
           <Textarea
             label="Notes (optional)"

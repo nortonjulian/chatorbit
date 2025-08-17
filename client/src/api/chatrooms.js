@@ -5,7 +5,12 @@ const API_BASE = import.meta.env.VITE_API_BASE || '';
  * Pass { userId } to filter rooms the user belongs to.
  * Returns { items, nextCursor, count }
  */
-export async function getChatrooms({ limit = 30, userId, cursorId, cursorUpdatedAt } = {}) {
+export async function getChatrooms({
+  limit = 30,
+  userId,
+  cursorId,
+  cursorUpdatedAt,
+} = {}) {
   const qs = new URLSearchParams();
   qs.set('limit', String(limit));
   if (userId) qs.set('userId', String(userId));

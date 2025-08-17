@@ -66,7 +66,11 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: query.trim() },
       });
-      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      const arr = Array.isArray(res.data)
+        ? res.data
+        : res.data
+          ? [res.data]
+          : [];
       // don’t show yourself
       setResults(arr.filter((u) => u.id !== currentUserId));
       // seed aliasEdits from saved contacts
@@ -163,7 +167,11 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: raw },
       });
-      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      const arr = Array.isArray(res.data)
+        ? res.data
+        : res.data
+          ? [res.data]
+          : [];
       const u = arr.find((x) => x.id !== currentUserId);
 
       if (u) {
@@ -183,7 +191,9 @@ export default function StartChatModal({ currentUserId, onClose }) {
         });
 
         // fire-and-forget invite (don’t block UI if it fails)
-        axiosClient.post('/invites', { phone: raw, name: addAlias }).catch(() => {});
+        axiosClient
+          .post('/invites', { phone: raw, name: addAlias })
+          .catch(() => {});
       }
 
       // 3) Refresh contacts
@@ -195,7 +205,9 @@ export default function StartChatModal({ currentUserId, onClose }) {
       setAddAlias('');
       setAddOpen(false);
     } catch (e) {
-      setError(e?.response?.data?.message || e.message || 'Failed to add contact.');
+      setError(
+        e?.response?.data?.message || e.message || 'Failed to add contact.'
+      );
     } finally {
       setAdding(false);
     }

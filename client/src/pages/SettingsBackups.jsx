@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Card, Stack, Title, PasswordInput, Group, Button, Text } from '@mantine/core';
+import {
+  Card,
+  Stack,
+  Title,
+  PasswordInput,
+  Group,
+  Button,
+  Text,
+} from '@mantine/core';
 import BackupManager from '../components/settings/BackupManager.jsx';
 import ChatBackupManager from '../components/ChatBackupManager.jsx';
 import { unlockKeyBundle } from '../utils/encryptionClient.js';
@@ -23,7 +31,9 @@ export default function SettingsBackups() {
   // Example fetcher — replace with your real endpoint(s)
   const fetchAllMessages = useMemo(
     () => async () => {
-      const res = await fetch('/messages/all?limit=5000', { credentials: 'include' });
+      const res = await fetch('/messages/all?limit=5000', {
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Failed to fetch messages');
       return res.json(); // expects the same shape your app already uses
     },
@@ -52,11 +62,18 @@ export default function SettingsBackups() {
             onChange={(e) => setUnlockPass(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button onClick={onUnlock} disabled={!unlockPass || unlockPass.length < 6}>
+            <Button
+              onClick={onUnlock}
+              disabled={!unlockPass || unlockPass.length < 6}
+            >
               Unlock
             </Button>
           </Group>
-          {status && <Text c={status.startsWith('Error') ? 'red' : 'green'}>{status}</Text>}
+          {status && (
+            <Text c={status.startsWith('Error') ? 'red' : 'green'}>
+              {status}
+            </Text>
+          )}
         </Stack>
       </Card>
 

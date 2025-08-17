@@ -16,7 +16,9 @@ export default function AdminLayout() {
             <NavLink
               to="/admin/users"
               className={({ isActive }) =>
-                isActive || pathname.startsWith('/admin/users') ? 'active' : undefined
+                isActive || pathname.startsWith('/admin/users')
+                  ? 'active'
+                  : undefined
               }
             >
               Users
@@ -24,7 +26,9 @@ export default function AdminLayout() {
             <NavLink
               to="/admin/reports"
               className={({ isActive }) =>
-                isActive || pathname.startsWith('/admin/reports') ? 'active' : undefined
+                isActive || pathname.startsWith('/admin/reports')
+                  ? 'active'
+                  : undefined
               }
             >
               Reports
@@ -32,7 +36,9 @@ export default function AdminLayout() {
             <NavLink
               to="/admin/audit"
               className={({ isActive }) =>
-                isActive || pathname.startsWith('/admin/audit') ? 'active' : undefined
+                isActive || pathname.startsWith('/admin/audit')
+                  ? 'active'
+                  : undefined
               }
             >
               Audit Logs

@@ -59,7 +59,14 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
 
   return (
     <>
-      <Modal opened={opened} onClose={onClose} title="Shared media" size="lg" centered padding="md">
+      <Modal
+        opened={opened}
+        onClose={onClose}
+        title="Shared media"
+        size="lg"
+        centered
+        padding="md"
+      >
         {items.length === 0 ? (
           <Text c="dimmed">No media cached locally yet.</Text>
         ) : (
@@ -77,7 +84,11 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
               ) : m.kind === 'VIDEO' ? (
                 <div
                   key={m.id ?? `${m.url}-${i}`}
-                  style={{ borderRadius: 8, overflow: 'hidden', cursor: 'pointer' }}
+                  style={{
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                  }}
                   onClick={() => setViewerIndex(i)}
                 >
                   <video
@@ -89,7 +100,12 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
                 </div>
               ) : m.kind === 'AUDIO' ? (
                 <div key={m.id ?? `${m.url}-${i}`} style={{ paddingTop: 6 }}>
-                  <audio src={m.url} style={{ width: '100%' }} controls preload="metadata" />
+                  <audio
+                    src={m.url}
+                    style={{ width: '100%' }}
+                    controls
+                    preload="metadata"
+                  />
                 </div>
               ) : null
             )}
@@ -105,7 +121,10 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
         centered
         size="lg"
         padding="md"
-        title={selected?.caption || (selected?.kind ? selected.kind.toLowerCase() : 'preview')}
+        title={
+          selected?.caption ||
+          (selected?.kind ? selected.kind.toLowerCase() : 'preview')
+        }
       >
         {!selected ? null : selected.kind === 'IMAGE' ? (
           <>
@@ -126,7 +145,12 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
           <>
             <video
               src={selected.url}
-              style={{ width: '100%', maxHeight: '70vh', display: 'block', borderRadius: 8 }}
+              style={{
+                width: '100%',
+                maxHeight: '70vh',
+                display: 'block',
+                borderRadius: 8,
+              }}
               controls
               preload="metadata"
             />
@@ -138,7 +162,12 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
           </>
         ) : selected.kind === 'AUDIO' ? (
           <>
-            <audio src={selected.url} style={{ width: '100%' }} controls preload="metadata" />
+            <audio
+              src={selected.url}
+              style={{ width: '100%' }}
+              controls
+              preload="metadata"
+            />
             {selected.caption && (
               <Text size="sm" mt="sm" c="dimmed">
                 {selected.caption}

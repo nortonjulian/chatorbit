@@ -10,7 +10,10 @@ import {
   Divider,
   Tooltip,
 } from '@mantine/core';
-import { createEncryptedKeyBackup, restoreEncryptedKeyBackup } from '../../utils/backupClient.js';
+import {
+  createEncryptedKeyBackup,
+  restoreEncryptedKeyBackup,
+} from '../../utils/backupClient.js';
 
 export default function BackupManager() {
   // Export state
@@ -30,7 +33,10 @@ export default function BackupManager() {
     setBusyExport(true);
     setExportMsg('');
     try {
-      const { blob, filename } = await createEncryptedKeyBackup({ unlockPasscode, backupPassword });
+      const { blob, filename } = await createEncryptedKeyBackup({
+        unlockPasscode,
+        backupPassword,
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -63,7 +69,10 @@ export default function BackupManager() {
   };
 
   const exportDisabled =
-    !unlockPasscode || unlockPasscode.length < 6 || !backupPassword || backupPassword.length < 6;
+    !unlockPasscode ||
+    unlockPasscode.length < 6 ||
+    !backupPassword ||
+    backupPassword.length < 6;
   const importDisabled =
     !file ||
     !importPassword ||
@@ -76,8 +85,8 @@ export default function BackupManager() {
       <Stack gap="md">
         <Text fw={700}>Encrypted Backups</Text>
         <Text c="dimmed">
-          Export your key bundle encrypted with a password only you know. Restore on a new device
-          without server assistance.
+          Export your key bundle encrypted with a password only you know.
+          Restore on a new device without server assistance.
         </Text>
 
         <Divider label="Create backup" />
@@ -94,11 +103,19 @@ export default function BackupManager() {
           description="Used to encrypt the backup file"
         />
         <Group justify="flex-end">
-          <Button onClick={onExport} loading={busyExport} disabled={exportDisabled}>
+          <Button
+            onClick={onExport}
+            loading={busyExport}
+            disabled={exportDisabled}
+          >
             Download encrypted backup
           </Button>
         </Group>
-        {exportMsg && <Text c={exportMsg.startsWith('Error') ? 'red' : 'green'}>{exportMsg}</Text>}
+        {exportMsg && (
+          <Text c={exportMsg.startsWith('Error') ? 'red' : 'green'}>
+            {exportMsg}
+          </Text>
+        )}
 
         <Divider label="Restore backup" />
         <FileInput
@@ -120,11 +137,19 @@ export default function BackupManager() {
           description="Protect keys at rest on this device"
         />
         <Group justify="flex-end">
-          <Button onClick={onImport} loading={busyImport} disabled={importDisabled}>
+          <Button
+            onClick={onImport}
+            loading={busyImport}
+            disabled={importDisabled}
+          >
             Restore backup
           </Button>
         </Group>
-        {importMsg && <Text c={importMsg.startsWith('Error') ? 'red' : 'green'}>{importMsg}</Text>}
+        {importMsg && (
+          <Text c={importMsg.startsWith('Error') ? 'red' : 'green'}>
+            {importMsg}
+          </Text>
+        )}
       </Stack>
     </Card>
   );

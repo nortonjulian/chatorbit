@@ -56,7 +56,9 @@ async function translateWithCache(text, lang, ttlSec = 60 * 60 * 24 * 30) {
  * Translate to multiple target languages (skips senderLang and dups).
  */
 export async function translateForTargets(content, senderLang, targetLangs) {
-  const unique = [...new Set((targetLangs || []).filter((l) => l && l !== senderLang))];
+  const unique = [
+    ...new Set((targetLangs || []).filter((l) => l && l !== senderLang)),
+  ];
   if (!content || unique.length === 0) return { map: {}, from: senderLang };
 
   const out = {};

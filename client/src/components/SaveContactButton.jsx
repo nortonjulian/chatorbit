@@ -60,7 +60,13 @@ function SaveContactButton({ currentUserId, otherUserId }) {
             size="xs"
             radius="md"
           />
-          <Button size="xs" radius="md" variant="filled" color="blue" onClick={saveContact}>
+          <Button
+            size="xs"
+            radius="md"
+            variant="filled"
+            color="blue"
+            onClick={saveContact}
+          >
             Save
           </Button>
         </Group>

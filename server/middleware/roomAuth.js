@@ -12,7 +12,12 @@ export async function getRoomRole(user, chatRoomId) {
   if (user.role === 'ADMIN') return { role: 'ADMIN' };
 
   const member = await prisma.participant.findUnique({
-    where: { userId_chatRoomId: { userId: Number(user.id), chatRoomId: Number(chatRoomId) } },
+    where: {
+      userId_chatRoomId: {
+        userId: Number(user.id),
+        chatRoomId: Number(chatRoomId),
+      },
+    },
     select: { role: true },
   });
 
@@ -21,7 +26,8 @@ export async function getRoomRole(user, chatRoomId) {
 
 function ensureRoleOrThrow(actual, allowed) {
   if (!actual) throw Boom.forbidden('Not a member of this room');
-  if (!allowed.includes(actual)) throw Boom.forbidden('Insufficient room permissions');
+  if (!allowed.includes(actual))
+    throw Boom.forbidden('Insufficient room permissions');
 }
 
 /**

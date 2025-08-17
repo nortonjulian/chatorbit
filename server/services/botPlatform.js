@@ -1,6 +1,7 @@
 import prisma from '../utils/prismaClient.js';
 
-const enabled = (process.env.BOT_WEBHOOKS_ENABLED || 'false').toLowerCase() === 'true';
+const enabled =
+  (process.env.BOT_WEBHOOKS_ENABLED || 'false').toLowerCase() === 'true';
 
 export function parseAllowedHosts() {
   const raw = process.env.BOT_ALLOWED_HOSTS || '';
@@ -36,7 +37,10 @@ export function shouldDispatchForContentScope({ scope, botName, rawContent }) {
     case 'MENTIONS':
       // basic mention: @BotName (case-insensitive)
       if (!botName) return false;
-      const re = new RegExp(`@${botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+      const re = new RegExp(
+        `@${botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+        'i'
+      );
       return re.test(text);
     default:
       return false;
@@ -115,7 +119,11 @@ export async function enqueueBotEventsForMessage(savedMessage) {
     });
     if (!ok) continue;
 
-    const payload = buildMessagePayload({ install: inst, bot: inst.bot, message: savedMessage });
+    const payload = buildMessagePayload({
+      install: inst,
+      bot: inst.bot,
+      message: savedMessage,
+    });
 
     const log = await prisma.botEventLog.create({
       data: {

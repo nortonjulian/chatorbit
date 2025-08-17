@@ -22,7 +22,11 @@ function fmtLocalRange(startISO, endISO, isAllDay) {
   return `${s.toLocaleString(DateTime.DATETIME_MED)} → ${e.toLocaleString(DateTime.DATETIME_MED)}`;
 }
 
-export default function EventSuggestionBar({ messages, currentUser, chatroom }) {
+export default function EventSuggestionBar({
+  messages,
+  currentUser,
+  chatroom,
+}) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -32,7 +36,8 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
   const candidate = useMemo(() => {
     const last = (messages || []).slice(-5).reverse();
     for (const m of last) {
-      const text = m.decryptedContent || m.translatedForMe || m.rawContent || '';
+      const text =
+        m.decryptedContent || m.translatedForMe || m.rawContent || '';
       if (!text) continue;
 
       // Use chrono-node to parse with forwardDate (future-bias)
@@ -40,7 +45,8 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
       if (res?.start) {
         const start = res.start.date();
         const end =
-          (res.end && res.end.date()) || DateTime.fromJSDate(start).plus({ hours: 1 }).toJSDate();
+          (res.end && res.end.date()) ||
+          DateTime.fromJSDate(start).plus({ hours: 1 }).toJSDate();
 
         return {
           messageId: m.id,
@@ -89,7 +95,11 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
 
   async function postEventToast(extraLines = []) {
     // Build the message text that will be posted into the room
-    const whenLine = fmtLocalRange(candidate.startISO, candidate.endISO, candidate.isAllDay);
+    const whenLine = fmtLocalRange(
+      candidate.startISO,
+      candidate.endISO,
+      candidate.isAllDay
+    );
     const lines = [
       `📅 ${title || 'Event'}`,
       location ? `📍 ${location}` : null,
@@ -186,7 +196,12 @@ export default function EventSuggestionBar({ messages, currentUser, chatroom }) 
         </Button>
       </Group>
 
-      <Modal opened={open} onClose={() => setOpen(false)} title="Create calendar event" centered>
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title="Create calendar event"
+        centered
+      >
         <TextInput
           label="Title"
           value={title}

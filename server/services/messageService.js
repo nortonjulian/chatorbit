@@ -6,7 +6,9 @@ import { translateText } from '../utils/translateText.js';
 import { allow } from '../utils/tokenBucket.js';
 
 const ORBIT_BOT_USER_ID = Number(process.env.ORBIT_BOT_USER_ID ?? 0);
-const MAX_TRANSLATE_CHARS = Number(process.env.TRANSLATE_MAX_INPUT_CHARS || 1200);
+const MAX_TRANSLATE_CHARS = Number(
+  process.env.TRANSLATE_MAX_INPUT_CHARS || 1200
+);
 
 /**
  * Creates a message with full pipeline:
@@ -42,7 +44,11 @@ export async function createMessageService({
   const roomIdNum = Number(chatRoomId);
 
   // 0) Validate presence (allow content OR any media/attachments)
-  if (!senderId || !roomIdNum || (!content && !imageUrl && !audioUrl && !attachments?.length)) {
+  if (
+    !senderId ||
+    !roomIdNum ||
+    (!content && !imageUrl && !audioUrl && !attachments?.length)
+  ) {
     throw new Error('Missing required fields');
   }
 
@@ -82,21 +88,32 @@ export async function createMessageService({
   });
 
   const recipientUsers = participants.map((p) => p.user); // includes sender
-  const recipientsExceptSender = recipientUsers.filter((u) => u.id !== sender.id);
+  const recipientsExceptSender = recipientUsers.filter(
+    (u) => u.id !== sender.id
+  );
 
   // 3) Profanity filtering (respect sender & recipients)
   const isMsgExplicit = content ? isExplicit(content) : false;
-  const anyRecipientDisallows = recipientsExceptSender.some((u) => !u.allowExplicitContent);
+  const anyRecipientDisallows = recipientsExceptSender.some(
+    (u) => !u.allowExplicitContent
+  );
   const senderDisallows = !sender.allowExplicitContent;
-  const mustClean = Boolean(content) && (anyRecipientDisallows || senderDisallows);
+  const mustClean =
+    Boolean(content) && (anyRecipientDisallows || senderDisallows);
   const cleanContent = mustClean ? cleanText(content) : content;
 
   // 4) Per-language translations (store a map)
   let translationsMap = null;
   let translatedFrom = sender.preferredLanguage || 'en';
   if (cleanContent) {
-    const targetLangs = recipientsExceptSender.map((u) => u.preferredLanguage || 'en');
-    const res = await translateForTargets(cleanContent, translatedFrom, targetLangs);
+    const targetLangs = recipientsExceptSender.map(
+      (u) => u.preferredLanguage || 'en'
+    );
+    const res = await translateForTargets(
+      cleanContent,
+      translatedFrom,
+      targetLangs
+    );
     translationsMap = Object.keys(res.map || {}).length ? res.map : null;
     translatedFrom = res.from || translatedFrom;
   }
@@ -160,7 +177,9 @@ export async function createMessageService({
       expiresAt: true,
       createdAt: true,
       senderId: true,
-      sender: { select: { id: true, username: true, publicKey: true, avatarUrl: true } },
+      sender: {
+        select: { id: true, username: true, publicKey: true, avatarUrl: true },
+      },
       chatRoomId: true,
       rawContent: true,
       attachments: {
@@ -227,17 +246,24 @@ export async function createMessageService({
  *   message.translations = { "en": "...", "es": "...", ... }
  * Triggers only when a provider key/endpoint exists and based on room mode.
  */
-export async function maybeAutoTranslate({ savedMessage, io, prisma: prismaArg }) {
+export async function maybeAutoTranslate({
+  savedMessage,
+  io,
+  prisma: prismaArg,
+}) {
   try {
     const db = prismaArg || prisma;
 
     // Provider available?
-    const hasProvider = !!process.env.DEEPL_API_KEY || !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
+    const hasProvider =
+      !!process.env.DEEPL_API_KEY || !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
     if (!hasProvider) return;
 
     const roomId = Number(savedMessage.chatRoomId);
     const senderId = Number(savedMessage.senderId ?? savedMessage.sender?.id);
-    const raw = String(savedMessage.rawContent || savedMessage.content || '').trim();
+    const raw = String(
+      savedMessage.rawContent || savedMessage.content || ''
+    ).trim();
     if (!roomId || !raw) return;
 
     // Avoid loops for bot/system messages

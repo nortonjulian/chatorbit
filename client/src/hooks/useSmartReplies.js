@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 
-export function useSmartReplies({ messages, currentUserId, enabled = false, locale }) {
+export function useSmartReplies({
+  messages,
+  currentUserId,
+  enabled = false,
+  locale,
+}) {
   const [suggestions, setSuggestions] = useState([]);
   const lastSeenMsgId = useRef(null);
   const inflight = useRef(false);

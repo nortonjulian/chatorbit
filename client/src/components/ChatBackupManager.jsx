@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Button, Card, Group, PasswordInput, Stack, Text } from '@mantine/core';
-import { createEncryptedChatBackup, restoreEncryptedChatBackup } from '../utils/backupClient.js';
+import {
+  createEncryptedChatBackup,
+  restoreEncryptedChatBackup,
+} from '../utils/backupClient.js';
 import { unlockKeyBundle } from '../utils/encryptionClient.js';
 
 /**
@@ -39,7 +42,9 @@ export default function ChatBackupManager({
 
       // 3) Decrypt for export, using your existing decrypt pipeline
       // Reuse your decryptFetchedMessages() from encryptionClient.js if you want:
-      const { decryptFetchedMessages } = await import('../utils/encryptionClient.js');
+      const { decryptFetchedMessages } = await import(
+        '../utils/encryptionClient.js'
+      );
       const decrypted = await decryptFetchedMessages(
         encryptedMessages,
         privateKey,
@@ -87,7 +92,10 @@ export default function ChatBackupManager({
       if (!restorePassword || restorePassword.length < 6) {
         throw new Error('Backup password must be at least 6 characters');
       }
-      await restoreEncryptedChatBackup({ file, backupPassword: restorePassword });
+      await restoreEncryptedChatBackup({
+        file,
+        backupPassword: restorePassword,
+      });
       setStatus('Archive restored locally ✓ (read-only)');
     } catch (e) {
       setStatus(`Error: ${e.message}`);
@@ -99,8 +107,9 @@ export default function ChatBackupManager({
       <Stack gap="md">
         <Text fw={700}>Chat Backups (encrypted)</Text>
         <Text c="dimmed">
-          Export your decrypted messages into an encrypted file (password-protected). Restore loads
-          an archive locally for read-only viewing.
+          Export your decrypted messages into an encrypted file
+          (password-protected). Restore loads an archive locally for read-only
+          viewing.
         </Text>
 
         {/* Export section */}
@@ -120,7 +129,10 @@ export default function ChatBackupManager({
           <Button
             onClick={onExport}
             disabled={
-              !unlockPass || unlockPass.length < 6 || !backupPassword || backupPassword.length < 6
+              !unlockPass ||
+              unlockPass.length < 6 ||
+              !backupPassword ||
+              backupPassword.length < 6
             }
           >
             Download chat backup
@@ -148,7 +160,9 @@ export default function ChatBackupManager({
           </Button>
         </Group>
 
-        {status && <Text c={status.startsWith('Error') ? 'red' : 'green'}>{status}</Text>}
+        {status && (
+          <Text c={status.startsWith('Error') ? 'red' : 'green'}>{status}</Text>
+        )}
       </Stack>
     </Card>
   );

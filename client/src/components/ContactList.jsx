@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, TextInput, Stack, NavLink, Text, Button, Group } from '@mantine/core';
+import {
+  Box,
+  Title,
+  TextInput,
+  Stack,
+  NavLink,
+  Text,
+  Button,
+  Group,
+} from '@mantine/core';
 
 export default function ContactList({ currentUserId, onChanged }) {
   const [contacts, setContacts] = useState([]);
@@ -23,7 +32,9 @@ export default function ContactList({ currentUserId, onChanged }) {
   }, [currentUserId]);
 
   const filtered = contacts.filter((c) =>
-    (c.alias || c.user?.username || '').toLowerCase().includes(search.toLowerCase())
+    (c.alias || c.user?.username || '')
+      .toLowerCase()
+      .includes(search.toLowerCase())
   );
 
   const startChat = async (userId) => {

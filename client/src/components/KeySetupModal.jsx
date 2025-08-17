@@ -1,5 +1,14 @@
 import { useRef, useState } from 'react';
-import { Modal, Stack, Text, Group, Button, FileInput, PasswordInput, Alert } from '@mantine/core';
+import {
+  Modal,
+  Stack,
+  Text,
+  Group,
+  Button,
+  FileInput,
+  PasswordInput,
+  Alert,
+} from '@mantine/core';
 import axiosClient from '../api/axiosClient';
 import { generateKeypair, saveKeysLocal } from '../utils/keys';
 import { importEncryptedPrivateKey } from '../utils/keyBackup';
@@ -33,7 +42,9 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
       // We keep the existing publicKey locally (if any); private key unlocks old messages
       saveKeysLocal({ privateKey: privateKeyB64 });
 
-      setMsg('Private key imported to this device. You can read old messages now.');
+      setMsg(
+        'Private key imported to this device. You can read old messages now.'
+      );
       setTimeout(finish, 800);
     } catch (e) {
       console.error(e);
@@ -52,7 +63,9 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
       saveKeysLocal(kp);
       // publish public key (server never sees the private)
       await axiosClient.post('/users/keys', { publicKey: kp.publicKey });
-      setMsg('New keypair generated. You can read new messages on this device.');
+      setMsg(
+        'New keypair generated. You can read new messages on this device.'
+      );
       setTimeout(finish, 800);
     } catch (e) {
       console.error(e);
@@ -63,17 +76,24 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
   };
 
   return (
-    <Modal opened={opened} onClose={finish} title="Set up your device keys" radius="lg" centered>
+    <Modal
+      opened={opened}
+      onClose={finish}
+      title="Set up your device keys"
+      radius="lg"
+      centered
+    >
       <Stack gap="sm">
         <Text size="sm">
-          This device doesn’t have your private key yet. Import a password-protected backup, or
-          generate a new keypair (you’ll be able to read new messages from now on).
+          This device doesn’t have your private key yet. Import a
+          password-protected backup, or generate a new keypair (you’ll be able
+          to read new messages from now on).
         </Text>
 
         {haveServerPubKey ? (
           <Alert variant="light">
-            We found a public key on your account. To read past messages on this device, import your
-            backup.
+            We found a public key on your account. To read past messages on this
+            device, import your backup.
           </Alert>
         ) : (
           <Alert variant="light" color="blue">
@@ -82,19 +102,31 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
         )}
 
         <Group gap="sm" align="flex-end">
-          <FileInput ref={fileRef} accept="application/json" placeholder="Select backup file" />
+          <FileInput
+            ref={fileRef}
+            accept="application/json"
+            placeholder="Select backup file"
+          />
           <PasswordInput
             placeholder="Backup password"
             value={pwd}
             onChange={(e) => setPwd(e.currentTarget.value)}
           />
-          <Button loading={busy} onClick={() => handleImport(fileRef.current?.files?.[0])}>
+          <Button
+            loading={busy}
+            onClick={() => handleImport(fileRef.current?.files?.[0])}
+          >
             Import
           </Button>
         </Group>
 
         <Group justify="space-between" mt="xs">
-          <Button variant="light" color="orange" loading={busy} onClick={handleGenerate}>
+          <Button
+            variant="light"
+            color="orange"
+            loading={busy}
+            onClick={handleGenerate}
+          >
             Generate new keypair
           </Button>
           <Button variant="subtle" onClick={finish}>

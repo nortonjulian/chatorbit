@@ -55,7 +55,9 @@ async function sendViaTelnyx({ to, text }) {
   if (!tx) throw Boom.preconditionFailed('Telnyx not configured');
   const from = TELNYX_FROM_NUMBER || TELNYX_MESSAGING_PROFILE_ID;
   if (!from)
-    throw Boom.preconditionFailed('Missing TELNYX_MESSAGING_PROFILE_ID or TELNYX_FROM_NUMBER');
+    throw Boom.preconditionFailed(
+      'Missing TELNYX_MESSAGING_PROFILE_ID or TELNYX_FROM_NUMBER'
+    );
 
   try {
     await tx.messages.create({
@@ -64,17 +66,24 @@ async function sendViaTelnyx({ to, text }) {
       text,
     });
   } catch (err) {
-    throw Boom.badGateway(`Telnyx send failed: ${err?.message || 'unknown error'}`, {
-      provider: 'telnyx',
-      cause: err,
-    });
+    throw Boom.badGateway(
+      `Telnyx send failed: ${err?.message || 'unknown error'}`,
+      {
+        provider: 'telnyx',
+        cause: err,
+      }
+    );
   }
 }
 
 // --- Send via Bandwidth ---
 async function sendViaBandwidth({ to, text }) {
   if (!bwClient) throw Boom.preconditionFailed('Bandwidth not configured');
-  if (!BANDWIDTH_ACCOUNT_ID || !BANDWIDTH_MESSAGING_APPLICATION_ID || !BANDWIDTH_FROM_NUMBER) {
+  if (
+    !BANDWIDTH_ACCOUNT_ID ||
+    !BANDWIDTH_MESSAGING_APPLICATION_ID ||
+    !BANDWIDTH_FROM_NUMBER
+  ) {
     throw Boom.preconditionFailed('Missing Bandwidth messaging configuration');
   }
 
@@ -87,10 +96,13 @@ async function sendViaBandwidth({ to, text }) {
       text,
     });
   } catch (err) {
-    throw Boom.badGateway(`Bandwidth send failed: ${err?.message || 'unknown error'}`, {
-      provider: 'bandwidth',
-      cause: err,
-    });
+    throw Boom.badGateway(
+      `Bandwidth send failed: ${err?.message || 'unknown error'}`,
+      {
+        provider: 'bandwidth',
+        cause: err,
+      }
+    );
   }
 }
 
@@ -151,7 +163,8 @@ router.post(
   '/email',
   verifyToken,
   asyncHandler(async (req, res) => {
-    if (!transporter) throw Boom.preconditionFailed('Email transporter not configured');
+    if (!transporter)
+      throw Boom.preconditionFailed('Email transporter not configured');
 
     const { to, roomId, subject, html, text } = req.body || {};
 
@@ -160,8 +173,13 @@ router.post(
     if (!recipients.length) throw Boom.badRequest('to is required');
 
     // Build a join URL if a roomId is provided
-    const joinUrlBase = (APP_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '');
-    const joinUrl = roomId ? `${joinUrlBase}/join/${encodeURIComponent(String(roomId))}` : null;
+    const joinUrlBase = (APP_ORIGIN || 'http://localhost:5173').replace(
+      /\/+$/,
+      ''
+    );
+    const joinUrl = roomId
+      ? `${joinUrlBase}/join/${encodeURIComponent(String(roomId))}`
+      : null;
 
     const inviter = req.user?.username || 'A friend';
 
@@ -172,7 +190,8 @@ router.post(
 
     // If caller supplies subject/html/text, we honor them; otherwise we render a tidy default
     const outSubject =
-      subject || (joinUrl ? 'Join me on ChatOrbit' : 'You’ve been invited to ChatOrbit');
+      subject ||
+      (joinUrl ? 'Join me on ChatOrbit' : 'You’ve been invited to ChatOrbit');
 
     const outHtml =
       html ||
@@ -203,7 +222,9 @@ router.post(
       text: outText,
     });
 
-    return res.status(202).json({ ok: true, sent: recipients.length, messageId: info?.messageId });
+    return res
+      .status(202)
+      .json({ ok: true, sent: recipients.length, messageId: info?.messageId });
   })
 );
 

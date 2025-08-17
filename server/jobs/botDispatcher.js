@@ -1,7 +1,8 @@
 import prisma from '../utils/prismaClient.js';
 import { signBody } from '../utils/botSign.js';
 
-const enabled = (process.env.BOT_WEBHOOKS_ENABLED || 'false').toLowerCase() === 'true';
+const enabled =
+  (process.env.BOT_WEBHOOKS_ENABLED || 'false').toLowerCase() === 'true';
 const MAX_RETRIES = Number(process.env.BOT_MAX_RETRIES || 5);
 const TOLERANCE = Number(process.env.BOT_TOLERANCE_SECONDS || 300);
 
@@ -44,7 +45,10 @@ export function startBotDispatcher(io) {
         if (!bot?.url || !bot.secret || ev.attempts >= MAX_RETRIES) {
           await prisma.botEventLog.update({
             where: { id: ev.id },
-            data: { status: 'failed', lastError: 'invalid_config_or_retries_exhausted' },
+            data: {
+              status: 'failed',
+              lastError: 'invalid_config_or_retries_exhausted',
+            },
           });
           continue;
         }
@@ -83,7 +87,9 @@ export function startBotDispatcher(io) {
         } else {
           const attempts = ev.attempts + 1;
           const next =
-            attempts >= MAX_RETRIES ? null : new Date(Date.now() + backoffMs(attempts - 1));
+            attempts >= MAX_RETRIES
+              ? null
+              : new Date(Date.now() + backoffMs(attempts - 1));
           await prisma.botEventLog.update({
             where: { id: ev.id },
             data: {

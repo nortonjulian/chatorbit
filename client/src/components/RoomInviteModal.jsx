@@ -29,7 +29,9 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
         maxUses: Number(maxUses) || 0,
       });
       setInvite(data);
-      const png = await QRCode.toDataURL(data.url, { errorCorrectionLevel: 'M' });
+      const png = await QRCode.toDataURL(data.url, {
+        errorCorrectionLevel: 'M',
+      });
       setQr(png);
     } finally {
       setLoading(false);
@@ -83,7 +85,10 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
                   </Tooltip>
                 )}
               </CopyButton>
-              <Button variant="light" onClick={() => window.open(invite.url, '_blank')}>
+              <Button
+                variant="light"
+                onClick={() => window.open(invite.url, '_blank')}
+              >
                 Open
               </Button>
             </Group>
