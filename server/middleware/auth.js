@@ -5,7 +5,10 @@ function getCookieName() {
   return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
 }
 
-/** Returns the JWT string from (1) cookie [preferred], or (2) Authorization: Bearer ... if you allow it */
+/**
+ * Returns the JWT string from (1) cookie [preferred],
+ * or (2) Authorization: Bearer ... if you explicitly allow it.
+ */
 function getTokenFromReq(req, { allowBearer = false } = {}) {
   // 1) Cookie (preferred)
   const cookieToken = req.cookies?.[getCookieName()] || null;

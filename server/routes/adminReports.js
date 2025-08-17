@@ -1,12 +1,12 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
 const prisma = new PrismaClient();
 const router = express.Router();
 
 // GET /admin/reports?status=OPEN&take=50&skip=0
-router.get('/', verifyToken, requireAdmin, async (req, res) => {
+router.get('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const take = Math.min(parseInt(req.query.take ?? '50', 10), 200);
     const skip = parseInt(req.query.skip ?? '0', 10);
@@ -44,7 +44,7 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
 });
 
 // PATCH /admin/reports/:id/resolve
-router.patch('/:id/resolve', verifyToken, requireAdmin, async (req, res) => {
+router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { notes } = req.body || {};
@@ -60,7 +60,7 @@ router.patch('/:id/resolve', verifyToken, requireAdmin, async (req, res) => {
 });
 
 // POST /admin/reports/users/:userId/warn
-router.post('/users/:userId/warn', verifyToken, requireAdmin, async (req, res) => {
+router.post('/users/:userId/warn', requireAuth, requireAdmin, async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     const { notes } = req.body || {};
@@ -73,7 +73,7 @@ router.post('/users/:userId/warn', verifyToken, requireAdmin, async (req, res) =
 });
 
 // POST /admin/reports/users/:userId/ban
-router.post('/users/:userId/ban', verifyToken, requireAdmin, async (req, res) => {
+router.post('/users/:userId/ban', requireAuth, requireAdmin, async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     const { reason } = req.body || {};
@@ -93,7 +93,7 @@ router.post('/users/:userId/ban', verifyToken, requireAdmin, async (req, res) =>
 });
 
 // DELETE /admin/reports/messages/:messageId
-router.delete('/messages/:messageId', verifyToken, requireAdmin, async (req, res) => {
+router.delete('/messages/:messageId', requireAuth, requireAdmin, async (req, res) => {
   try {
     const messageId = Number(req.params.messageId);
     await prisma.message.update({

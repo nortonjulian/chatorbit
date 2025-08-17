@@ -1,10 +1,11 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
+
 
 const prisma = new PrismaClient();
 const router = express.Router();
-router.use(verifyToken, requireAdmin);
+router.use(requireAuth, requireAdmin);
 
 // GET /admin/audit?actorId=&action=&take=&skip=
 router.get('/', async (req, res) => {

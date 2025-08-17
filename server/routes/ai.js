@@ -3,7 +3,8 @@ import Boom from '@hapi/boom';
 import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { translateText } from '../utils/translateText.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
+
 
 const router = express.Router();
 
@@ -96,7 +97,7 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
 // POST /ai/suggest-replies
 router.post(
   '/suggest-replies',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const { snippets, locale } = req.body || {};
     if (!Array.isArray(snippets) || snippets.length === 0) {
@@ -110,7 +111,7 @@ router.post(
 // POST /ai/translate
 router.post(
   '/translate',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const { text, targetLang, sourceLang } = req.body ?? {};
     if (!text || !targetLang) {

@@ -1,6 +1,6 @@
 import express from 'express';
 import prisma from '../utils/prismaClient.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { verifySignature } from '../utils/botSign.js';
 import { createMessageService } from '../services/messageService.js';
 
@@ -18,7 +18,7 @@ function requireAdmin(req, res, next) {
  * POST /bots
  * Body: { name, url, secret, ownerId?, createServiceUser? }
  */
-router.post('/', verifyToken, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, requireAdmin, async (req, res) => {
   const { name, url, secret, ownerId, createServiceUser = true } = req.body || {};
   if (!name || !url || !secret)
     return res.status(400).json({ error: 'name, url, secret required' });
@@ -53,7 +53,7 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
  * POST /bots/:id/install
  * Body: { chatRoomId, contentScope }  // COMMANDS|MENTIONS|ALL
  */
-router.post('/:id/install', verifyToken, requireAdmin, async (req, res) => {
+router.post('/:id/install', requireAuth, requireAdmin, async (req, res) => {
   const botId = Number(req.params.id);
   const { chatRoomId, contentScope = 'COMMANDS' } = req.body || {};
   if (!botId || !chatRoomId) return res.status(400).json({ error: 'botId & chatRoomId required' });
@@ -69,7 +69,7 @@ router.post('/:id/install', verifyToken, requireAdmin, async (req, res) => {
  * PATCH /bots/installs/:installId
  * Body: { isEnabled?, contentScope? }
  */
-router.patch('/installs/:installId', verifyToken, requireAdmin, async (req, res) => {
+router.patch('/installs/:installId', requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.installId);
   const { isEnabled, contentScope } = req.body || {};
   const inst = await prisma.botInstall.update({

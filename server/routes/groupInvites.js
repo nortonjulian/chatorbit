@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -31,7 +31,7 @@ function makeCode(len = 10) {
 }
 
 // Create invite
-router.post('/chatrooms/:roomId/invites', verifyToken, async (req, res) => {
+router.post('/chatrooms/:roomId/invites', requireAuth, async (req, res) => {
   try {
     const { roomId } = req.params;
     await assertCanManageRoom(roomId, req.user.id);
@@ -61,7 +61,7 @@ router.post('/chatrooms/:roomId/invites', verifyToken, async (req, res) => {
 });
 
 // List invites
-router.get('/chatrooms/:roomId/invites', verifyToken, async (req, res) => {
+router.get('/chatrooms/:roomId/invites', requireAuth, async (req, res) => {
   try {
     const { roomId } = req.params;
     await assertCanManageRoom(roomId, req.user.id);
@@ -85,7 +85,7 @@ router.get('/chatrooms/:roomId/invites', verifyToken, async (req, res) => {
 });
 
 // Revoke invite
-router.delete('/chatrooms/:roomId/invites/:code', verifyToken, async (req, res) => {
+router.delete('/chatrooms/:roomId/invites/:code', requireAuth, async (req, res) => {
   try {
     const { roomId, code } = req.params;
     await assertCanManageRoom(roomId, req.user.id);
@@ -128,7 +128,7 @@ router.get('/invites/:code', async (req, res) => {
 });
 
 // Accept invite (join room)
-router.post('/invites/:code/accept', verifyToken, async (req, res) => {
+router.post('/invites/:code/accept', requireAuth, async (req, res) => {
   const { code } = req.params;
   const inv = await prisma.chatRoomInvite.findUnique({
     where: { code },

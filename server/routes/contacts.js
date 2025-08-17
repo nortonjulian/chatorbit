@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 
 const router = express.Router();
@@ -12,7 +12,7 @@ const normalizePhone = (s) => (s || '').toString().replace(/[^\d+]/g, '');
 // server/routes/contacts.js (example)
 router.get(
   '/',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const limitRaw = Number(req.query.limit ?? 50);
     const limit = Math.min(Math.max(1, limitRaw), 100);
@@ -35,7 +35,7 @@ router.get(
 
 // POST /contacts  -> create or update (upsert) a contact
 // Accepts either { userId } OR { externalPhone }, with optional { alias, externalName, favorite }
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const ownerId = req.user.id;
     let { userId, alias, externalPhone, externalName, favorite } = req.body;
@@ -85,7 +85,7 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 // PATCH /contacts  -> update by composite key (userId or externalPhone)
-router.patch('/', verifyToken, async (req, res) => {
+router.patch('/', requireAuth, async (req, res) => {
   try {
     const ownerId = req.user.id;
     let { userId, externalPhone, alias, externalName, favorite } = req.body;
@@ -116,7 +116,7 @@ router.patch('/', verifyToken, async (req, res) => {
 });
 
 // DELETE /contacts  -> delete by composite key (userId or externalPhone)
-router.delete('/', verifyToken, async (req, res) => {
+router.delete('/', requireAuth, async (req, res) => {
   try {
     const ownerId = req.user.id;
     let { userId, externalPhone } = req.body;
@@ -138,7 +138,7 @@ router.delete('/', verifyToken, async (req, res) => {
 });
 
 // (Optional legacy) DELETE /contacts/:id by numeric contact id
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     await prisma.contact.delete({ where: { id: Number(req.params.id) } });
     res.json({ success: true });

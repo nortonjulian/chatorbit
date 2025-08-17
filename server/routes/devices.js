@@ -1,7 +1,7 @@
 import express from 'express';
 import Boom from '@hapi/boom';
 import prisma from '../utils/prismaClient.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { provisionLimiter, deviceOpsLimiter } from '../rateLimit.js';
 import { randomBytes, toB64 } from '../utils/cryptoProvision.js';
@@ -15,7 +15,7 @@ const nowPlusMinutes = (m) => new Date(Date.now() + m * 60 * 1000);
 --------------------------------*/
 router.get(
   '/devices',
-  verifyToken,
+  requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const devices = await prisma.device.findMany({
@@ -37,7 +37,7 @@ router.get(
 
 router.post(
   '/devices/rename/:deviceId',
-  verifyToken,
+  requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const { deviceId } = req.params;
@@ -62,7 +62,7 @@ router.post(
 
 router.post(
   '/devices/revoke/:deviceId',
-  verifyToken,
+  requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const { deviceId } = req.params;
@@ -85,7 +85,7 @@ router.post(
 
 router.post(
   '/devices/heartbeat',
-  verifyToken,
+  requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
     const { deviceId } = req.body ?? {};
@@ -118,7 +118,7 @@ router.post(
 // 1) PRIMARY: create link + QR payload
 router.post(
   '/devices/provision/start',
-  verifyToken,
+  requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const secret = toB64(randomBytes(32));
@@ -188,7 +188,7 @@ router.post(
 // 3) PRIMARY: approve + relay ciphertext
 router.post(
   '/devices/provision/approve',
-  verifyToken,
+  requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, ciphertext, nonce, sPub } = req.body ?? {};
@@ -244,7 +244,7 @@ router.get(
 // 5) NEW DEVICE: register device
 router.post(
   '/devices/register',
-  verifyToken,
+  requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, publicKey, deviceName, platform } = req.body ?? {};

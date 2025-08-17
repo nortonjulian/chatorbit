@@ -1,11 +1,11 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { messages, participants } = req.body;
 
   if (!Array.isArray(messages) || !Array.isArray(participants) || participants.length !== 2) {
@@ -38,7 +38,7 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const chats = await prisma.randomChatRoom.findMany({
       where: {
@@ -57,7 +57,7 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-router.get('/id/:id', verifyToken, async (req, res) => {
+router.get('/id/:id', requireAuth, async (req, res) => {
   const chatId = Number(req.params.id);
   const userId = req.user.id;
 

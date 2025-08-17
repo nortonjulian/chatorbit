@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
-import { verifyToken, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { audit } from '../middleware/audit.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
@@ -20,7 +20,7 @@ const prisma = new PrismaClient();
 // Mounted under /admin/users in index.js via app.use('/admin/users', adminUsersRouter)
 router.get(
   '/',
-  verifyToken,
+  requireAuth,
   requireAdmin,
   audit('users.list', {
     resource: 'user',
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
 });
 
 // ---------------------- USER SEARCH ----------------------
-router.get('/search', verifyToken, async (req, res) => {
+router.get('/search', requireAuth, async (req, res) => {
   try {
     const qRaw = String(req.query.query || '').trim();
     if (!qRaw) return res.json([]);
@@ -122,7 +122,7 @@ router.get('/search', verifyToken, async (req, res) => {
 });
 
 // ---------------------- UPDATE (self or admin) ----------------------
-router.patch('/:id', verifyToken, async (req, res) => {
+router.patch('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { preferredLanguage, allowExplicitContent, showOriginalWithTranslation } = req.body;
 
@@ -151,7 +151,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
 // Use the avatar bucket and stricter limits
 const uploadAvatar = makeUploader({ maxFiles: 1, maxBytes: 5 * 1024 * 1024, kind: 'avatar' });
 
-router.post('/avatar', verifyToken, uploadAvatar.single('avatar'), async (req, res) => {
+router.post('/avatar', requireAuth, uploadAvatar.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -187,7 +187,7 @@ router.post('/avatar', verifyToken, uploadAvatar.single('avatar'), async (req, r
 });
 
 // ---------------------- PUBLIC KEY UPLOAD ----------------------
-router.post('/keys', verifyToken, async (req, res) => {
+router.post('/keys', requireAuth, async (req, res) => {
   const { publicKey } = req.body;
   if (!publicKey) return res.status(400).json({ error: 'Missing publicKey' });
 
@@ -205,7 +205,7 @@ router.post('/keys', verifyToken, async (req, res) => {
 });
 
 // ---------------------- EMOJI TAG ----------------------
-router.patch('/emoji', verifyToken, async (req, res) => {
+router.patch('/emoji', requireAuth, async (req, res) => {
   const { emoji } = req.body;
   const userId = req.user.id;
 
@@ -223,7 +223,7 @@ router.patch('/emoji', verifyToken, async (req, res) => {
 });
 
 // ---------------------- PROFILE (me) ----------------------
-router.get('/me', verifyToken, async (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
   try {
     const me = await prisma.user.findUnique({
       where: { id: Number(req.user.id) },
@@ -247,7 +247,7 @@ router.get('/me', verifyToken, async (req, res) => {
 });
 
 // ---------------------- UPDATE (me) ----------------------
-router.patch('/me', verifyToken, async (req, res) => {
+router.patch('/me', requireAuth, async (req, res) => {
   try {
     const { enableSmartReplies } = req.body ?? {};
     const data = {};

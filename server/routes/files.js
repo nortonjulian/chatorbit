@@ -3,13 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import Boom from '@hapi/boom';
 import mime from 'mime-types';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { verifyDownloadToken } from '../utils/downloadTokens.js';
 
 const router = express.Router();
 
 // GET /files?token=...
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) throw Boom.badRequest('token required');

@@ -1,10 +1,10 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/search', verifyToken, async (req, res) => {
+router.get('/search', requireAuth, async (req, res) => {
   const q = (req.query.q || '').toString().trim();
   if (!q) return res.json({ results: [] });
 

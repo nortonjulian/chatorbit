@@ -2,7 +2,7 @@ import express from 'express';
 import asyncHandler from 'express-async-handler';
 import Boom from '@hapi/boom';
 
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../utils/prismaClient.js';
 
 // Rank-based helpers (assumes you created these in utils/roomAuth.js)
@@ -38,7 +38,7 @@ const requireRoomOwner = async (req, _res, next) => {
 // GET /chatrooms  (cursor by updatedAt,id; optional membership filter)
 router.get(
   '/',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const limit = Math.min(Math.max(1, Number(req.query.limit ?? 30)), 100);
 
@@ -94,7 +94,7 @@ router.get(
 // POST /chatrooms/direct/:targetUserId
 router.post(
   '/direct/:targetUserId',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const userId1 = Number(req.user.id);
     const userId2 = Number(req.params.targetUserId);
@@ -133,7 +133,7 @@ router.post(
 // POST /chatrooms/group  (exact participant-set match check, else create)
 router.post(
   '/group',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const { userIds, name } = req.body || {};
     if (!Array.isArray(userIds) || userIds.length < 2) {
@@ -172,7 +172,7 @@ router.post(
 // GET /chatrooms/:id/public-keys
 router.get(
   '/:id/public-keys',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
@@ -191,7 +191,7 @@ router.get(
 // PATCH /chatrooms/:id/auto-translate  (room admin+)
 router.patch(
   '/:id/auto-translate',
-  verifyToken,
+  requireAuth,
   requireRoomRank(prisma, RoleRank.ADMIN),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -214,7 +214,7 @@ router.patch(
 // PATCH /chatrooms/:id/ai-assistant  (owner or global admin)
 router.patch(
   '/:id/ai-assistant',
-  verifyToken,
+  requireAuth,
   asyncHandler(requireRoomOwner),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -236,7 +236,7 @@ router.patch(
 // PATCH /chatrooms/:id/ai-opt (per-user setting in room)
 router.patch(
   '/:id/ai-opt',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const roomId = Number(req.params.id);
     const { allow } = req.body || {};
@@ -254,7 +254,7 @@ router.patch(
 // GET /chatrooms/:id/participants
 router.get(
   '/:id/participants',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
@@ -282,7 +282,7 @@ router.get(
 // POST /chatrooms/:id/participants  (admin+)
 router.post(
   '/:id/participants',
-  verifyToken,
+  requireAuth,
   requireRoomRank(prisma, RoleRank.ADMIN),
   asyncHandler(async (req, res) => {
     const roomId = Number(req.params.id);
@@ -307,7 +307,7 @@ router.post(
 // DELETE /chatrooms/:id/participants/:userId (rank ladder)
 router.delete(
   '/:id/participants/:userId',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const roomId = Number(req.params.id);
     const targetId = Number(req.params.userId);
@@ -350,7 +350,7 @@ router.delete(
 // (only owner can grant ADMIN; admins can set MODERATOR/MEMBER)
 router.patch(
   '/:id/participants/:userId/role',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const roomId = Number(req.params.id);
     const targetId = Number(req.params.userId);
@@ -392,7 +392,7 @@ router.patch(
 // GET /chatrooms/:id/meta
 router.get(
   '/:id/meta',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
@@ -410,7 +410,7 @@ router.get(
 // PATCH /chatrooms/:id/meta (owner or global admin)
 router.patch(
   '/:id/meta',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');

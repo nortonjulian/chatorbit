@@ -5,7 +5,7 @@ import fs from 'fs';
 import rateLimit from 'express-rate-limit';
 
 import prisma from '../utils/prismaClient.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { audit } from '../middleware/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
@@ -50,7 +50,7 @@ const postMessageLimiter = rateLimit({
 router.post(
   '/',
   postMessageLimiter,
-  verifyToken,
+  requireAuth,
   uploadMedia.array('files', 10),
   asyncHandler(async (req, res) => {
     const senderId = req.user?.id;
@@ -190,7 +190,7 @@ router.post(
  * - Includes attachments array
  * - Includes reactions summary + viewer's own reactions
  */
-router.get('/:chatRoomId', verifyToken, async (req, res) => {
+router.get('/:chatRoomId', requireAuth, async (req, res) => {
   const chatRoomId = Number(req.params.chatRoomId);
   const requesterId = req.user.id;
   const isAdmin = req.user.role === 'ADMIN';
@@ -342,7 +342,7 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
  */
 router.patch(
   '/:id/read',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const userId = req.user?.id;
@@ -382,7 +382,7 @@ router.patch(
  */
 router.post(
   '/read-bulk',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const userId = req.user?.id;
     const ids = (req.body?.ids || []).map(Number).filter(Number.isFinite);
@@ -431,7 +431,7 @@ router.post(
  */
 router.post(
   '/:id/reactions',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const messageId = Number(req.params.id);
     const userId = req.user?.id;
@@ -491,7 +491,7 @@ router.post(
 
 router.delete(
   '/:id/reactions/:emoji',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const messageId = Number(req.params.id);
     if (!Number.isFinite(messageId)) throw Boom.badRequest('Invalid id');
@@ -531,7 +531,7 @@ router.delete(
  */
 router.patch(
   '/:id/edit',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const messageId = Number(req.params.id);
     const requesterId = req.user?.id;
@@ -592,7 +592,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  verifyToken,
+  requireAuth,
   audit('messages.delete', {
     resource: 'message',
     resourceId: (req) => req.params.id,
@@ -628,7 +628,7 @@ router.delete(
  */
 router.post(
   '/report',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const { messageId, decryptedContent } = req.body || {};
     const reporterId = req.user?.id;
@@ -654,7 +654,7 @@ router.post(
  */
 router.post(
   '/:id/forward',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const srcId = Number(req.params.id);
     const { toRoomId, note } = req.body || {};

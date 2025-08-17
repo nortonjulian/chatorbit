@@ -1,7 +1,7 @@
 import express from 'express';
 import Boom from '@hapi/boom';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { requireRoomAdmin } from '../middleware/roomAuth.js';
 import prisma from '../utils/prismaClient.js';
 
@@ -15,7 +15,7 @@ router.get('/', (_req, res) => {
 // Toggle room auto-translate mode: 'off' | 'tagged' | 'all'
 router.patch(
   '/rooms/:id/auto-translate',
-  verifyToken,
+  requireAuth,
   requireRoomAdmin('id'), // ensures the caller is an admin of :id
   asyncHandler(async (req, res) => {
     const chatRoomId = Number(req.params.id);

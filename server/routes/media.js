@@ -1,10 +1,10 @@
 import express from 'express';
 import prisma from '../utils/prismaClient.js';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const media = express.Router();
 
-media.get('/chatrooms/:id/media', verifyToken, async (req, res) => {
+media.get('/chatrooms/:id/media', requireAuth, async (req, res) => {
   const chatRoomId = Number(req.params.id);
   const userId = req.user.id;
 

@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import Boom from '@hapi/boom';
-import { verifyToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../utils/prismaClient.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createStatusService } from '../services/statusService.js';
@@ -21,7 +21,7 @@ const upload = multer({ dest: 'uploads/' });
  */
 router.post(
   '/',
-  verifyToken,
+  requireAuth,
   upload.array('files', 5),
   asyncHandler(async (req, res) => {
     const authorId = req.user.id;
@@ -92,7 +92,7 @@ router.post(
  */
 router.get(
   '/:id',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const statusId = Number(req.params.id);
     if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
@@ -126,7 +126,7 @@ router.get(
  */
 router.get(
   '/feed',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const limit = Math.min(Math.max(1, Number(req.query.limit ?? 20)), 50);
@@ -194,7 +194,7 @@ router.get(
  */
 router.patch(
   '/:id/view',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const statusId = Number(req.params.id);
     if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
@@ -228,7 +228,7 @@ router.patch(
  */
 router.post(
   '/:id/reactions',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const statusId = Number(req.params.id);
     const userId = req.user.id;
@@ -266,7 +266,7 @@ router.post(
  */
 router.delete(
   '/:id',
-  verifyToken,
+  requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
