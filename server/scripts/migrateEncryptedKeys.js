@@ -14,11 +14,17 @@ function detectDb() {
 async function nullOutEncryptedKeys(db) {
   // Optional: set the old column to NULL after migrating
   if (db === 'postgres') {
-    await prisma.$executeRawUnsafe(`UPDATE "Message" SET "encryptedKeys" = NULL WHERE "encryptedKeys" IS NOT NULL`);
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Message" SET "encryptedKeys" = NULL WHERE "encryptedKeys" IS NOT NULL`
+    );
   } else if (db === 'sqlite') {
-    await prisma.$executeRawUnsafe(`UPDATE Message SET encryptedKeys = NULL WHERE encryptedKeys IS NOT NULL`);
+    await prisma.$executeRawUnsafe(
+      `UPDATE Message SET encryptedKeys = NULL WHERE encryptedKeys IS NOT NULL`
+    );
   } else if (db === 'mysql') {
-    await prisma.$executeRawUnsafe(`UPDATE Message SET encryptedKeys = NULL WHERE encryptedKeys IS NOT NULL`);
+    await prisma.$executeRawUnsafe(
+      `UPDATE Message SET encryptedKeys = NULL WHERE encryptedKeys IS NOT NULL`
+    );
   }
 }
 
@@ -54,8 +60,14 @@ async function main() {
       process.exit(0);
     }
     // SQLite/MySQL might throw different shapes. If it looks like "no such column", exit gracefully.
-    if (String(e?.message || '').toLowerCase().includes('no such column')
-        || String(e?.message || '').toLowerCase().includes('unknown column')) {
+    if (
+      String(e?.message || '')
+        .toLowerCase()
+        .includes('no such column') ||
+      String(e?.message || '')
+        .toLowerCase()
+        .includes('unknown column')
+    ) {
       console.log('No legacy encryptedKeys column found. Nothing to migrate.');
       process.exit(0);
     }

@@ -48,7 +48,9 @@ export function useSmartReplies({ messages, currentUserId, enabled = false, loca
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [messages, currentUserId, enabled, locale]);
 
   return { suggestions, clear: () => setSuggestions([]) };

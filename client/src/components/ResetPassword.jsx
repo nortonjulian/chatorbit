@@ -1,27 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
-import {
-  Container,
-  Paper,
-  Title,
-  PasswordInput,
-  Button,
-  Alert,
-  Text,
-  Stack,
-} from '@mantine/core';
+import { Container, Paper, Title, PasswordInput, Button, Alert, Text, Stack } from '@mantine/core';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
-  const [password, setPassword]               = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage]                 = useState('');
-  const [messageType, setType]                = useState(''); 
-  const [loading, setLoading]                 = useState(false);
-  const [isTokenMissing, setIsTokenMissing]   = useState(false);
+  const [message, setMessage] = useState('');
+  const [messageType, setType] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isTokenMissing, setIsTokenMissing] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -64,7 +55,9 @@ export default function ResetPassword() {
   return (
     <Container size="xs" px="md" py="lg">
       <Paper withBorder shadow="sm" radius="xl" p="lg">
-        <Title order={3} mb="md">Reset Password</Title>
+        <Title order={3} mb="md">
+          Reset Password
+        </Title>
 
         {isTokenMissing ? (
           <Alert color="red" variant="light">

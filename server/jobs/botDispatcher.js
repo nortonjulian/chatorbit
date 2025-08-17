@@ -53,7 +53,9 @@ export function startBotDispatcher(io) {
         const ts = Date.now().toString();
         const sig = signBody(bot.secret, ts, body);
 
-        let ok = false, status = 0, text = '';
+        let ok = false,
+          status = 0,
+          text = '';
         try {
           const res = await fetch(bot.url, {
             method: 'POST',
@@ -80,7 +82,8 @@ export function startBotDispatcher(io) {
           });
         } else {
           const attempts = ev.attempts + 1;
-          const next = attempts >= MAX_RETRIES ? null : new Date(Date.now() + backoffMs(attempts - 1));
+          const next =
+            attempts >= MAX_RETRIES ? null : new Date(Date.now() + backoffMs(attempts - 1));
           await prisma.botEventLog.update({
             where: { id: ev.id },
             data: {

@@ -12,7 +12,10 @@ function openDB() {
         const os = db.createObjectStore(STORE, { keyPath: 'key' }); // key: `${roomId}`
       }
     };
-    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onsuccess = () => {
+      _db = req.result;
+      resolve(_db);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -26,7 +29,7 @@ export async function addMessages(roomId, msgs) {
   const os = await _getConn('readwrite');
   const key = String(roomId);
   const existing = await getRoomMessages(roomId);
-  const map = new Map((existing || []).map(m => [m.id, m]));
+  const map = new Map((existing || []).map((m) => [m.id, m]));
   for (const m of msgs) map.set(m.id, m);
   return new Promise((resolve, reject) => {
     const req = os.put({ key, messages: Array.from(map.values()) });
@@ -49,7 +52,7 @@ export async function searchRoom(roomId, query) {
   const q = (query || '').trim().toLowerCase();
   if (!q) return [];
   const all = await getRoomMessages(roomId);
-  return all.filter(m => {
+  return all.filter((m) => {
     const t1 = (m.decryptedContent || m.translatedForMe || '').toLowerCase();
     const t2 = (m.rawContent || '').toLowerCase();
     return t1.includes(q) || t2.includes(q);
@@ -58,5 +61,5 @@ export async function searchRoom(roomId, query) {
 
 export async function getMediaInRoom(roomId) {
   const all = await getRoomMessages(roomId);
-  return all.filter(m => !!m.imageUrl); // adapt if you store videos/files differently
+  return all.filter((m) => !!m.imageUrl); // adapt if you store videos/files differently
 }

@@ -26,7 +26,14 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} size="lg" centered withCloseButton={false} padding="md">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      size="lg"
+      centered
+      withCloseButton={false}
+      padding="md"
+    >
       <Group justify="space-between" align="center" mb="xs">
         <Group gap="xs" align="center">
           <Badge variant="light">{author?.username}</Badge>
@@ -34,7 +41,9 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
             {idx + 1}/{stories?.length || 0}
           </Text>
         </Group>
-        <ActionIcon onClick={onClose}><IconX size={18} /></ActionIcon>
+        <ActionIcon onClick={onClose}>
+          <IconX size={18} />
+        </ActionIcon>
       </Group>
 
       {/* progress */}
@@ -43,13 +52,28 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
       {/* media */}
       {!s ? null : s.assets?.length ? (
         s.assets[0].kind === 'IMAGE' ? (
-          <img src={s.assets[0].url} alt="" style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} />
+          <img
+            src={s.assets[0].url}
+            alt=""
+            style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }}
+          />
         ) : s.assets[0].kind === 'VIDEO' ? (
-          <video src={s.assets[0].url} controls style={{ width: '100%', maxHeight: '70vh', display: 'block', borderRadius: 8 }} />
+          <video
+            src={s.assets[0].url}
+            controls
+            style={{ width: '100%', maxHeight: '70vh', display: 'block', borderRadius: 8 }}
+          />
         ) : s.assets[0].kind === 'AUDIO' ? (
           <audio src={s.assets[0].url} controls style={{ width: '100%' }} />
         ) : s.assets[0].kind === 'GIF' ? (
-          <video src={s.assets[0].url} autoPlay muted loop playsInline style={{ width: '100%', borderRadius: 8 }} />
+          <video
+            src={s.assets[0].url}
+            autoPlay
+            muted
+            loop
+            playsInline
+            style={{ width: '100%', borderRadius: 8 }}
+          />
         ) : null
       ) : null}
 
@@ -60,7 +84,11 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
       )}
 
       <Group justify="space-between" mt="md">
-        <ActionIcon variant="light" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}>
+        <ActionIcon
+          variant="light"
+          onClick={() => setIdx((i) => Math.max(0, i - 1))}
+          disabled={idx === 0}
+        >
           <IconChevronLeft size={18} />
         </ActionIcon>
         <Group>

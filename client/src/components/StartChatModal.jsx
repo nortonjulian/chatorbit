@@ -66,7 +66,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: query.trim() },
       });
-      const arr = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
       // don’t show yourself
       setResults(arr.filter((u) => u.id !== currentUserId));
       // seed aliasEdits from saved contacts
@@ -163,7 +163,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: raw },
       });
-      const arr = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
       const u = arr.find((x) => x.id !== currentUserId);
 
       if (u) {

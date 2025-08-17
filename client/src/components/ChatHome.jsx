@@ -10,11 +10,12 @@ export default function ChatHome({ currentUser, children }) {
 
   return (
     <>
-      <Group justify="space-between" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
-        <StatusBar
-          currentUserId={currentUser?.id}
-          onOpenViewer={(payload) => setViewer(payload)}
-        />
+      <Group
+        justify="space-between"
+        p="xs"
+        style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
+      >
+        <StatusBar currentUserId={currentUser?.id} onOpenViewer={(payload) => setViewer(payload)} />
         <Button size="xs" variant="light" onClick={() => setComposerOpen(true)}>
           New Status
         </Button>

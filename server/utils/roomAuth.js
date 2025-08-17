@@ -37,10 +37,13 @@ export async function getEffectiveRoomRank(prisma, actorUserId, roomId, actorGlo
   if (!participant) return null; // not a participant
 
   switch (participant.role) {
-    case 'ADMIN': return RoleRank.ADMIN;        // room admin (not global)
-    case 'MODERATOR': return RoleRank.MODERATOR;
+    case 'ADMIN':
+      return RoleRank.ADMIN; // room admin (not global)
+    case 'MODERATOR':
+      return RoleRank.MODERATOR;
     case 'MEMBER':
-    default: return RoleRank.MEMBER;
+    default:
+      return RoleRank.MEMBER;
   }
 }
 

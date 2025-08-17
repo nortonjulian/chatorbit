@@ -3,6 +3,5 @@ export async function fetchFeatures() {
     credentials: 'include',
   });
   if (!res.ok) return { status: false };
-  return res.json(); 
+  return res.json();
 }
-

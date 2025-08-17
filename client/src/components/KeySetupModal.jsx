@@ -21,8 +21,13 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
 
   const handleImport = async (file) => {
     try {
-      setErr(''); setMsg(''); setBusy(true);
-      if (!file || !pwd) { setErr('Choose a file and enter the password.'); return; }
+      setErr('');
+      setMsg('');
+      setBusy(true);
+      if (!file || !pwd) {
+        setErr('Choose a file and enter the password.');
+        return;
+      }
 
       const privateKeyB64 = await importEncryptedPrivateKey(file, pwd);
       // We keep the existing publicKey locally (if any); private key unlocks old messages
@@ -40,7 +45,9 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
 
   const handleGenerate = async () => {
     try {
-      setErr(''); setMsg(''); setBusy(true);
+      setErr('');
+      setMsg('');
+      setBusy(true);
       const kp = generateKeypair();
       saveKeysLocal(kp);
       // publish public key (server never sees the private)
@@ -65,7 +72,8 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
 
         {haveServerPubKey ? (
           <Alert variant="light">
-            We found a public key on your account. To read past messages on this device, import your backup.
+            We found a public key on your account. To read past messages on this device, import your
+            backup.
           </Alert>
         ) : (
           <Alert variant="light" color="blue">
@@ -75,7 +83,11 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
 
         <Group gap="sm" align="flex-end">
           <FileInput ref={fileRef} accept="application/json" placeholder="Select backup file" />
-          <PasswordInput placeholder="Backup password" value={pwd} onChange={(e) => setPwd(e.currentTarget.value)} />
+          <PasswordInput
+            placeholder="Backup password"
+            value={pwd}
+            onChange={(e) => setPwd(e.currentTarget.value)}
+          />
           <Button loading={busy} onClick={() => handleImport(fileRef.current?.files?.[0])}>
             Import
           </Button>
@@ -85,11 +97,21 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
           <Button variant="light" color="orange" loading={busy} onClick={handleGenerate}>
             Generate new keypair
           </Button>
-          <Button variant="subtle" onClick={finish}>Not now</Button>
+          <Button variant="subtle" onClick={finish}>
+            Not now
+          </Button>
         </Group>
 
-        {msg && <Alert color="green" variant="light">{msg}</Alert>}
-        {err && <Alert color="red" variant="light">{err}</Alert>}
+        {msg && (
+          <Alert color="green" variant="light">
+            {msg}
+          </Alert>
+        )}
+        {err && (
+          <Alert color="red" variant="light">
+            {err}
+          </Alert>
+        )}
       </Stack>
     </Modal>
   );

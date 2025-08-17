@@ -6,29 +6,34 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
 
   return (
-    <AppShell
-      navbar={{ width: 220, breakpoint: 'sm' }}
-      padding="md"
-    >
+    <AppShell navbar={{ width: 220, breakpoint: 'sm' }} padding="md">
       <AppShell.Navbar p="md">
-        <Title order={4} mb="md">Admin</Title>
+        <Title order={4} mb="md">
+          Admin
+        </Title>
         <ScrollArea.Autosize mah="calc(100vh - 140px)">
           <Stack gap="xs">
             <NavLink
               to="/admin/users"
-              className={({ isActive }) => isActive || pathname.startsWith('/admin/users') ? 'active' : undefined}
+              className={({ isActive }) =>
+                isActive || pathname.startsWith('/admin/users') ? 'active' : undefined
+              }
             >
               Users
             </NavLink>
             <NavLink
               to="/admin/reports"
-              className={({ isActive }) => isActive || pathname.startsWith('/admin/reports') ? 'active' : undefined}
+              className={({ isActive }) =>
+                isActive || pathname.startsWith('/admin/reports') ? 'active' : undefined
+              }
             >
               Reports
             </NavLink>
             <NavLink
               to="/admin/audit"
-              className={({ isActive }) => isActive || pathname.startsWith('/admin/audit') ? 'active' : undefined}
+              className={({ isActive }) =>
+                isActive || pathname.startsWith('/admin/audit') ? 'active' : undefined
+              }
             >
               Audit Logs
             </NavLink>

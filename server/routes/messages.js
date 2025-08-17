@@ -56,7 +56,8 @@ router.post(
     const senderId = req.user?.id;
     if (!senderId) throw Boom.unauthorized();
 
-    const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } = req.body || {};
+    const { content, chatRoomId, expireSeconds, attachmentsMeta, attachmentsInline } =
+      req.body || {};
     if (!chatRoomId) throw Boom.badRequest('chatRoomId is required');
 
     // Clamp optional per-message TTL (5s .. 7d)
@@ -65,7 +66,12 @@ router.post(
 
     // Parse meta
     let meta = [];
-    try { meta = JSON.parse(attachmentsMeta || '[]'); if (!Array.isArray(meta)) meta = []; } catch { meta = []; }
+    try {
+      meta = JSON.parse(attachmentsMeta || '[]');
+      if (!Array.isArray(meta)) meta = [];
+    } catch {
+      meta = [];
+    }
 
     const files = Array.isArray(req.files) ? req.files : [];
 
@@ -83,7 +89,7 @@ router.post(
         continue;
       }
 
-      const relName = path.basename(f.path);     // e.g. "1712345678_abcd_file.jpg"
+      const relName = path.basename(f.path); // e.g. "1712345678_abcd_file.jpg"
       const relPath = path.join('media', relName); // private ref
 
       // Generate thumbnail for images
@@ -102,23 +108,28 @@ router.post(
         kind: isImage
           ? 'IMAGE'
           : mime.startsWith('video/')
-          ? 'VIDEO'
-          : mime.startsWith('audio/')
-          ? 'AUDIO'
-          : 'FILE',
-        url: relPath,              // store PRIVATE path in DB
+            ? 'VIDEO'
+            : mime.startsWith('audio/')
+              ? 'AUDIO'
+              : 'FILE',
+        url: relPath, // store PRIVATE path in DB
         mimeType: mime,
         width: m.width ?? null,
         height: m.height ?? null,
         durationSec: m.durationSec ?? null,
         caption: m.caption ?? null,
-        _thumb: thumbRel,          // temp helper for shaping response
+        _thumb: thumbRel, // temp helper for shaping response
       });
     }
 
     // Inline attachments (stickers/GIFs by URL, no upload)
     let inline = [];
-    try { inline = JSON.parse(attachmentsInline || '[]'); if (!Array.isArray(inline)) inline = []; } catch { inline = []; }
+    try {
+      inline = JSON.parse(attachmentsInline || '[]');
+      if (!Array.isArray(inline)) inline = [];
+    } catch {
+      inline = [];
+    }
     inline = inline
       .filter((a) => a && a.url && a.kind)
       .map((a) => ({
@@ -222,11 +233,17 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
       rawContent: true,
       deletedBySender: true,
       sender: { select: { id: true, username: true } },
-      readBy: { select: { id: true, username: true, avatarUrl: true} },
+      readBy: { select: { id: true, username: true, avatarUrl: true } },
       attachments: {
         select: {
-          id: true, kind: true, url: true, mimeType: true,
-          width: true, height: true, durationSec: true, caption: true,
+          id: true,
+          kind: true,
+          url: true,
+          mimeType: true,
+          width: true,
+          height: true,
+          durationSec: true,
+          caption: true,
           createdAt: true,
         },
       },
@@ -285,12 +302,9 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
 
         const fromMap =
           m.translations && typeof m.translations === 'object'
-            ? m.translations[myLang] ?? null
+            ? (m.translations[myLang] ?? null)
             : null;
-        const legacy =
-          m.translatedTo && m.translatedTo === myLang
-            ? m.translatedContent
-            : null;
+        const legacy = m.translatedTo && m.translatedTo === myLang ? m.translatedContent : null;
         const translatedForMe = fromMap || legacy || null;
 
         const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
@@ -298,13 +312,7 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
         const reactionSummary = reactionSummaryByMessage[m.id] || {};
         const myReactions = Array.from(myReactionsByMessage[m.id] || []);
 
-        const {
-          translations,
-          translatedContent,
-          translatedTo,
-          keys,
-          ...rest
-        } = m;
+        const { translations, translatedContent, translatedTo, keys, ...rest } = m;
 
         const base = {
           ...rest,
@@ -319,8 +327,7 @@ router.get('/:chatRoomId', verifyToken, async (req, res) => {
         return restNoRaw;
       });
 
-    const nextCursor =
-      shaped.length === limit ? shaped[shaped.length - 1].id : null;
+    const nextCursor = shaped.length === limit ? shaped[shaped.length - 1].id : null;
 
     return res.json({ items: shaped, nextCursor, count: shaped.length });
   } catch (error) {
@@ -453,25 +460,31 @@ router.post(
         where: { messageId_userId_emoji: { messageId, userId, emoji } },
       });
       const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
-      req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
-        messageId,
-        emoji,
-        op: 'removed',
-        user: { id: userId, username: req.user.username },
-        count,
-      });
+      req.app
+        .get('io')
+        ?.to(String(msg.chatRoomId))
+        .emit('reaction_updated', {
+          messageId,
+          emoji,
+          op: 'removed',
+          user: { id: userId, username: req.user.username },
+          count,
+        });
       return res.json({ ok: true, op: 'removed', emoji, count });
     }
 
     await prisma.messageReaction.create({ data: { messageId, userId, emoji } });
     const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
-    req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
-      messageId,
-      emoji,
-      op: 'added',
-      user: { id: userId, username: req.user.username },
-      count,
-    });
+    req.app
+      .get('io')
+      ?.to(String(msg.chatRoomId))
+      .emit('reaction_updated', {
+        messageId,
+        emoji,
+        op: 'added',
+        user: { id: userId, username: req.user.username },
+        count,
+      });
     return res.json({ ok: true, op: 'added', emoji, count });
   })
 );
@@ -497,13 +510,16 @@ router.delete(
 
     if (msg) {
       const count = await prisma.messageReaction.count({ where: { messageId, emoji } });
-      req.app.get('io')?.to(String(msg.chatRoomId)).emit('reaction_updated', {
-        messageId,
-        emoji,
-        op: 'removed',
-        user: { id: userId, username: req.user.username },
-        count,
-      });
+      req.app
+        .get('io')
+        ?.to(String(msg.chatRoomId))
+        .emit('reaction_updated', {
+          messageId,
+          emoji,
+          op: 'removed',
+          user: { id: userId, username: req.user.username },
+          count,
+        });
     }
 
     return res.json({ ok: true, op: 'removed', emoji });

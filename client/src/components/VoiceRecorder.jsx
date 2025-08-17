@@ -10,7 +10,7 @@ export default function VoiceRecorder({ onRecorded, disabled }) {
   const startedAtRef = useRef(0);
 
   useEffect(() => {
-    return () => rec?.stream?.getTracks()?.forEach(t => t.stop());
+    return () => rec?.stream?.getTracks()?.forEach((t) => t.stop());
   }, [rec]);
 
   const start = async () => {
@@ -24,7 +24,7 @@ export default function VoiceRecorder({ onRecorded, disabled }) {
       const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
       const durationMs = Date.now() - startedAtRef.current;
       onRecorded?.(blob, Math.round(durationMs / 1000));
-      stream.getTracks().forEach(t => t.stop());
+      stream.getTracks().forEach((t) => t.stop());
       setRec(null);
       setRecording(false);
     };

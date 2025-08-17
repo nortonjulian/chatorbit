@@ -6,16 +6,24 @@ export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
 
-  useEffect(() => { setQ(''); setResults([]); }, [opened, roomId]);
+  useEffect(() => {
+    setQ('');
+    setResults([]);
+  }, [opened, roomId]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!q.trim()) { setResults([]); return; }
+      if (!q.trim()) {
+        setResults([]);
+        return;
+      }
       const res = await searchRoom(roomId, q);
       if (alive) setResults(res.slice(-200)); // cap to avoid UI overload
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [q, roomId]);
 
   return (

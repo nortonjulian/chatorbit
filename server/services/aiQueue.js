@@ -6,7 +6,9 @@ const queue = [];
 let active = 0;
 const lastByRoom = new Map();
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 async function runNext() {
   if (active >= QUEUE_CONCURRENCY) return;

@@ -5,13 +5,14 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
-import jwt from 'jsonwebtoken';
+import helmet from 'helmet';
+import compression from 'compression';
 
 import { initDeleteExpired } from './cron/deleteExpiredMessages.js';
 
 import adminReportsRouter from './routes/adminReports.js';
 import adminUsersRouter from './routes/users.js';
-import adminAuditRouter   from './routes/adminAudit.js';
+import adminAuditRouter from './routes/adminAudit.js';
 import chatroomsRouter from './routes/chatrooms.js';
 import messagesRouter from './routes/messages.js';
 import authRouter from './routes/auth.js';
@@ -26,13 +27,9 @@ import statusRoutes from './routes/status.js';
 import devicesRouter from './routes/devices.js';
 import featuresRouter from './routes/features.js';
 
-import helmet from 'helmet';
-import compression from 'compression';
-
 import filesRouter from './routes/files.js';
 
 import { registerStatusExpiryJob } from './jobs/statusExpiry.js';
-
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 // ✅ NEW: Private bots
@@ -41,6 +38,8 @@ import { startBotDispatcher } from './jobs/botDispatcher.js';
 
 // ✅ Socket.IO bootstrap (returns { io, emitToUser })
 import { initSocket } from './socket.js';
+// ✅ Cookie-based Socket.IO auth
+import { cookieSocketAuth } from './middleware/socketAuth.js';
 
 import { startCleanupJobs } from './cleanup.js';
 
@@ -69,36 +68,65 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+// === Origins & security config ===
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const CDN_ORIGIN = process.env.CDN_ORIGIN || '';
+const IMG_ORIGINS = ["'self'", 'data:', 'blob:'];
+if (CDN_ORIGIN) IMG_ORIGINS.push(CDN_ORIGIN);
+
 // Remove X-Powered-By header
 app.disable('x-powered-by');
 
-// Security headers
+// --- Security headers (tightened CSP, HSTS in prod, etc.) ---
 app.use(
   helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        "default-src": ["'self'"],
-        "script-src": ["'self'", "'unsafe-inline'"], // tighten later
-        "style-src": ["'self'", "'unsafe-inline'"],
-        "img-src": ["'self'", "data:", "blob:"],
-        // Add your allowed API/web origins here
-        "connect-src": [
+        'default-src': ["'self'"],
+        // No inline scripts — React/Vite shouldn't need them
+        'script-src': ["'self'"],
+        // Keep 'unsafe-inline' for styles; Mantine/Emotion may inject inline CSS
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'img-src': IMG_ORIGINS,
+        // Allow API/ws to backend + configured frontend origin(s)
+        'connect-src': [
           "'self'",
+          FRONTEND_ORIGIN,
           ...(process.env.CORS_ORIGINS || '').split(',').filter(Boolean),
-          "ws:", "wss:", // needed for Socket.IO/websockets
+          'ws:',
+          'wss:',
         ],
-        "frame-ancestors": ["'none'"],
+        'font-src': ["'self'", 'data:', ...(CDN_ORIGIN ? [CDN_ORIGIN] : [])],
+        'frame-ancestors': ["'none'"],
+        'object-src': ["'none'"],
+        'base-uri': ["'self'"],
+        'form-action': ["'self'"],
       },
     },
+    // HSTS only when HTTPS in production
+    hsts:
+      process.env.NODE_ENV === 'production'
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : false,
+    noSniff: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    frameguard: { action: 'deny' },
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
 
-// (optionally CORS next)
-app.use(cors({ /* your allowlist config */ }));
+// --- CORS (cookie-based auth) ---
+app.use(
+  cors({
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With'],
+  })
+);
 
 // gzip responses
 app.use(compression());
@@ -113,21 +141,19 @@ const server = http.createServer(app);
 const { io, emitToUser } = initSocket(server);
 app.set('emitToUser', emitToUser); // routes can emit to user rooms
 
-// --- (Optional) extra auth layer for Socket.IO events ---
-io.use((socket, next) => {
-  try {
-    const token =
-      socket.handshake.auth?.token ||
-      (socket.handshake.headers.authorization || '').split(' ')[1];
+// --- Socket.IO CORS (allow cookies over WS) ---
+io.engine.opts.maxHttpBufferSize = 1e7;
+io.opts = {
+  ...io.opts,
+  cors: {
+    origin: FRONTEND_ORIGIN,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+};
 
-    if (!token) return next(new Error('Unauthorized'));
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.user = decoded; // { id, username, role, ... }
-    next();
-  } catch {
-    next(new Error('Unauthorized'));
-  }
-});
+// ✅ Single source of truth: cookie-only auth for sockets
+cookieSocketAuth(io);
 
 // --- Rate limiter for auth-sensitive routes ---
 const authLimiter = rateLimit({
@@ -135,22 +161,6 @@ const authLimiter = rateLimit({
   max: 5,
   message: { error: 'Too many requests, please try again later.' },
 });
-
-// --- CORS (allow-list) + cookies ---
-const ORIGINS = (process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-app.use(cors({
-  origin(origin, cb) {
-    // allow tools like curl / server-side with no Origin header
-    if (!origin) return cb(null, true);
-    if (ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error('CORS: Origin not allowed'), false);
-  },
-  credentials: true, // allow cookie auth
-}));
 
 // --- Parsers ---
 app.use(cookieParser());
@@ -272,7 +282,11 @@ io.on('connection', (socket) => {
       await deletePair(roomId);
 
       await enqueueWaiting({ socketId: socket.id, username: a.username, userId: a.userId });
-      await enqueueWaiting({ socketId: other.socketId, username: other.username, userId: other.userId });
+      await enqueueWaiting({
+        socketId: other.socketId,
+        username: other.username,
+        userId: other.userId,
+      });
     } catch (err) {
       console.error('skip_random_chat failed:', err);
     }
@@ -341,7 +355,9 @@ io.on('connection', (socket) => {
       const { content, chatRoomId, expireSeconds } = messageData || {};
       if (!content || !senderId || !chatRoomId) return;
 
-      const { createMessageService, maybeAutoTranslate } = await import('./services/messageService.js');
+      const { createMessageService, maybeAutoTranslate } = await import(
+        './services/messageService.js'
+      );
       const saved = await createMessageService({
         senderId,
         chatRoomId,
@@ -393,7 +409,7 @@ const { stop: stopBotDispatcher } = startBotDispatcher(io);
 // --- Bootstrap with Redis adapter attached first ---
 async function start() {
   try {
-    await ensureRedis();                       // connect redis clients
+    await ensureRedis(); // connect redis clients
     io.adapter(createAdapter(redisPub, redisSub)); // attach adapter
 
     server.listen(PORT, () => {

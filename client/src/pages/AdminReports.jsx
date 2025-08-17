@@ -1,13 +1,28 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import {
-  Table, Button, Group, Title, Badge, Text, Stack, Loader, Select, Textarea, Modal, Alert
+  Table,
+  Button,
+  Group,
+  Title,
+  Badge,
+  Text,
+  Stack,
+  Loader,
+  Select,
+  Textarea,
+  Modal,
+  Alert,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 
 function StatusBadge({ status }) {
   const color = status === 'OPEN' ? 'yellow' : status === 'RESOLVED' ? 'green' : 'blue';
-  return <Badge color={color} variant="light">{status}</Badge>;
+  return (
+    <Badge color={color} variant="light">
+      {status}
+    </Badge>
+  );
 }
 
 export default function AdminReportsPage() {
@@ -23,7 +38,7 @@ export default function AdminReportsPage() {
     setLoading(true);
     try {
       const res = await axiosClient.get('/admin/reports', {
-        params: { status: statusFilter, take: 50, skip: 0 }
+        params: { status: statusFilter, take: 50, skip: 0 },
       });
       setItems(res.data.items || []);
     } catch (e) {
@@ -33,7 +48,9 @@ export default function AdminReportsPage() {
     }
   };
 
-  useEffect(() => { fetchReports(); }, [statusFilter]);
+  useEffect(() => {
+    fetchReports();
+  }, [statusFilter]);
 
   const resolveReport = async () => {
     try {
@@ -49,7 +66,9 @@ export default function AdminReportsPage() {
 
   const warnUser = async (userId) => {
     try {
-      await axiosClient.post(`/admin/reports/users/${userId}/warn`, { notes: 'Please follow community guidelines.' });
+      await axiosClient.post(`/admin/reports/users/${userId}/warn`, {
+        notes: 'Please follow community guidelines.',
+      });
       fetchReports();
     } catch (e) {
       setErr(e.response?.data?.error || 'Failed to warn user');
@@ -86,16 +105,24 @@ export default function AdminReportsPage() {
             onChange={setStatusFilter}
             data={[
               { value: 'OPEN', label: 'Open' },
-              { value: 'RESOLVED', label: 'Resolved' }
+              { value: 'RESOLVED', label: 'Resolved' },
             ]}
           />
-          <Button variant="light" onClick={fetchReports}>Refresh</Button>
+          <Button variant="light" onClick={fetchReports}>
+            Refresh
+          </Button>
         </Group>
       </Group>
 
-      {err && <Alert color="red" variant="light">{err}</Alert>}
+      {err && (
+        <Alert color="red" variant="light">
+          {err}
+        </Alert>
+      )}
 
-      {loading ? <Loader /> : (
+      {loading ? (
+        <Loader />
+      ) : (
         <Table striped highlightOnHover withTableBorder>
           <Table.Thead>
             <Table.Tr>
@@ -110,26 +137,56 @@ export default function AdminReportsPage() {
           <Table.Tbody>
             {items.map((r) => (
               <Table.Tr key={r.id}>
-                <Table.Td><StatusBadge status={r.status} /></Table.Td>
+                <Table.Td>
+                  <StatusBadge status={r.status} />
+                </Table.Td>
                 <Table.Td>{new Date(r.createdAt).toLocaleString()}</Table.Td>
-                <Table.Td>{r.reporter?.username} ({r.reporter?.email || 'no email'})</Table.Td>
+                <Table.Td>
+                  {r.reporter?.username} ({r.reporter?.email || 'no email'})
+                </Table.Td>
                 <Table.Td>
                   {r.message?.sender?.username}
                   {r.message?.sender?.isBanned ? ' • banned' : ''}
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm" lineClamp={3}>{r.decryptedContent}</Text>
+                  <Text size="sm" lineClamp={3}>
+                    {r.decryptedContent}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs">
                     {r.status === 'OPEN' && (
-                      <Button size="xs" onClick={() => { setResolveId(r.id); open(); }}>
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          setResolveId(r.id);
+                          open();
+                        }}
+                      >
                         Resolve
                       </Button>
                     )}
-                    <Button size="xs" variant="light" onClick={() => warnUser(r.message?.sender?.id)}>Warn</Button>
-                    <Button size="xs" color="red" variant="light" onClick={() => banUser(r.message?.sender?.id)}>Ban</Button>
-                    <Button size="xs" color="orange" variant="light" onClick={() => adminDeleteMessage(r.message?.id)}>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => warnUser(r.message?.sender?.id)}
+                    >
+                      Warn
+                    </Button>
+                    <Button
+                      size="xs"
+                      color="red"
+                      variant="light"
+                      onClick={() => banUser(r.message?.sender?.id)}
+                    >
+                      Ban
+                    </Button>
+                    <Button
+                      size="xs"
+                      color="orange"
+                      variant="light"
+                      onClick={() => adminDeleteMessage(r.message?.id)}
+                    >
                       Delete Msg
                     </Button>
                   </Group>
@@ -151,7 +208,9 @@ export default function AdminReportsPage() {
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="light" onClick={close}>Cancel</Button>
+            <Button variant="light" onClick={close}>
+              Cancel
+            </Button>
             <Button onClick={resolveReport}>Resolve</Button>
           </Group>
         </Stack>

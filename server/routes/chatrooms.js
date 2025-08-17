@@ -44,9 +44,7 @@ router.get(
 
     // optional membership filter: only rooms containing userId
     const qUserId = req.query.userId ? Number(req.query.userId) : null;
-    const whereBase = qUserId
-      ? { participants: { some: { userId: qUserId } } }
-      : {};
+    const whereBase = qUserId ? { participants: { some: { userId: qUserId } } } : {};
 
     // composite cursor: updatedAt + id
     const curIdRaw = req.query.cursorId;
@@ -68,10 +66,7 @@ router.get(
       cursorId && cursorAt
         ? {
             ...whereBase,
-            OR: [
-              { updatedAt: { lt: cursorAt } },
-              { updatedAt: cursorAt, id: { lt: cursorId } },
-            ],
+            OR: [{ updatedAt: { lt: cursorAt } }, { updatedAt: cursorAt, id: { lt: cursorId } }],
           }
         : whereBase;
 
@@ -125,10 +120,7 @@ router.post(
       data: {
         isGroup: false,
         participants: {
-          create: [
-            { user: { connect: { id: userId1 } } },
-            { user: { connect: { id: userId2 } } },
-          ],
+          create: [{ user: { connect: { id: userId1 } } }, { user: { connect: { id: userId2 } } }],
         },
       },
       include: { participants: true },
@@ -323,12 +315,7 @@ router.delete(
       throw Boom.badRequest('Invalid id');
     }
 
-    const actorRank = await getEffectiveRoomRank(
-      prisma,
-      req.user.id,
-      roomId,
-      req.user.role
-    );
+    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId, req.user.role);
     if (actorRank === null || actorRank < RoleRank.MODERATOR) {
       throw Boom.forbidden('Forbidden');
     }
@@ -382,12 +369,7 @@ router.patch(
     });
     if (!room) throw Boom.notFound('Room not found');
 
-    const actorRank = await getEffectiveRoomRank(
-      prisma,
-      req.user.id,
-      roomId,
-      req.user.role
-    );
+    const actorRank = await getEffectiveRoomRank(prisma, req.user.id, roomId, req.user.role);
     if (actorRank < RoleRank.ADMIN) throw Boom.forbidden('Forbidden');
 
     if (role === 'ADMIN' && actorRank < RoleRank.OWNER) {

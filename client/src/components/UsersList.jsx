@@ -1,19 +1,11 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
-import {
-  Stack,
-  Group,
-  Text,
-  Loader,
-  Alert,
-  Title,
-  Divider,
-} from '@mantine/core';
+import { Stack, Group, Text, Loader, Alert, Title, Divider } from '@mantine/core';
 
 export default function UsersList({ currentUser }) {
-  const [users, setUsers]     = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -27,9 +19,9 @@ export default function UsersList({ currentUser }) {
           localStorage.removeItem('user');
           window.location.reload();
         } else if (err.response?.status === 403) {
-          setError('Admin access required')
+          setError('Admin access required');
         } else {
-          setError(err.response?.data?.error || 'Failed to fetch users')
+          setError(err.response?.data?.error || 'Failed to fetch users');
         }
       } finally {
         setLoading(false);
@@ -39,14 +31,18 @@ export default function UsersList({ currentUser }) {
   }, []);
 
   if (loading) return <Loader size="sm" />;
-  if (error)   return <Alert color="red">{error}</Alert>;
+  if (error) return <Alert color="red">{error}</Alert>;
 
   return (
     <div>
-      <Title order={5} mb="xs">Users</Title>
+      <Title order={5} mb="xs">
+        Users
+      </Title>
 
       {users.length === 0 ? (
-        <Text c="dimmed" size="sm">No users found</Text>
+        <Text c="dimmed" size="sm">
+          No users found
+        </Text>
       ) : (
         <Stack gap={4}>
           {users.map((user, idx) => (

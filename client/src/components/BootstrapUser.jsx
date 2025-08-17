@@ -16,19 +16,21 @@ export default function BootstrapUser() {
     if (!currentUser) {
       const saved = localStorage.getItem('user');
       if (saved) {
-        try { setCurrentUser(JSON.parse(saved)); } catch {}
+        try {
+          setCurrentUser(JSON.parse(saved));
+        } catch {}
       }
     }
   }, [currentUser, setCurrentUser]);
 
   useEffect(() => {
     const handler = () => {
-        setCurrentUser(null);
-        window.location.href = '/'
-    }
-    window.addEventListener('auth-logout', handler)
-    return () => window.removeEventListener('auth-logout', handler)
-  }, [setCurrentUser])
+      setCurrentUser(null);
+      window.location.href = '/';
+    };
+    window.addEventListener('auth-logout', handler);
+    return () => window.removeEventListener('auth-logout', handler);
+  }, [setCurrentUser]);
 
   // Migrate any legacy localStorage keys → IndexedDB (one-time)
   useEffect(() => {

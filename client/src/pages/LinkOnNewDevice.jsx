@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { Button, Card, Group, Stack, Text, Textarea, TextInput, PasswordInput } from '@mantine/core';
+import {
+  Button,
+  Card,
+  Group,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  PasswordInput,
+} from '@mantine/core';
 import { deriveSharedKeyBrowser, openWithKey } from '../utils/cryptoProvisionClient.js';
 import { installLocalPrivateKeyBundle } from '../utils/encryptionClient.js';
 
@@ -28,7 +37,7 @@ export default function LinkOnNewDevice() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
           linkId: payload.linkId,
@@ -43,7 +52,9 @@ export default function LinkOnNewDevice() {
       setStatus(`SAS: ${data.sasCode}. Awaiting approval…`);
 
       const poll = async () => {
-        const p = await fetch(`/devices/provision/poll?linkId=${encodeURIComponent(payload.linkId)}`);
+        const p = await fetch(
+          `/devices/provision/poll?linkId=${encodeURIComponent(payload.linkId)}`
+        );
         const json = await p.json();
         if (!json.ready) {
           return setTimeout(poll, 1500);
@@ -62,9 +73,9 @@ export default function LinkOnNewDevice() {
         // Register this device on the backend
         await fetch('/devices/register', {
           method: 'POST',
-                    headers: {
+          headers: {
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -87,7 +98,9 @@ export default function LinkOnNewDevice() {
   return (
     <Card withBorder p="lg" radius="md" maw={700} mx="auto">
       <Stack gap="md">
-        <Text fw={700} size="lg">Link to an existing account</Text>
+        <Text fw={700} size="lg">
+          Link to an existing account
+        </Text>
         <TextInput
           label="Device name"
           value={deviceName}

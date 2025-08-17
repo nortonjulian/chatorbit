@@ -6,13 +6,13 @@ import HttpBackend from 'i18next-http-backend';
 import { SUPPORTED_LNGS } from './constants/languages'; // all your language codes
 
 i18n
-  .use(HttpBackend)        // load translations over HTTP
-  .use(LanguageDetector)   // detect user language
+  .use(HttpBackend) // load translations over HTTP
+  .use(LanguageDetector) // detect user language
   .use(initReactI18next)
   .init({
-    supportedLngs: SUPPORTED_LNGS,     // accept everything in your selector
-    fallbackLng: 'en',                  // fall back to English if a key/file is missing
-    nonExplicitSupportedLngs: true,     // map es-MX -> es, pt-BR -> pt, etc.
+    supportedLngs: SUPPORTED_LNGS, // accept everything in your selector
+    fallbackLng: 'en', // fall back to English if a key/file is missing
+    nonExplicitSupportedLngs: true, // map es-MX -> es, pt-BR -> pt, etc.
 
     interpolation: { escapeValue: false },
 

@@ -4,7 +4,7 @@ import fs from 'fs';
 
 const ROOT = process.env.UPLOADS_DIR || path.resolve('uploads'); // private root
 const AVATARS_DIR = path.join(ROOT, 'avatars');
-const MEDIA_DIR   = path.join(ROOT, 'media');
+const MEDIA_DIR = path.join(ROOT, 'media');
 
 for (const p of [ROOT, AVATARS_DIR, MEDIA_DIR]) {
   fs.mkdirSync(p, { recursive: true });
@@ -14,7 +14,7 @@ for (const p of [ROOT, AVATARS_DIR, MEDIA_DIR]) {
 const IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const AUDIO = ['audio/mpeg', 'audio/aac', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/mp4'];
 const VIDEO = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
-const DOCS  = ['application/pdf', 'text/plain'];
+const DOCS = ['application/pdf', 'text/plain'];
 const ALLOWED = new Set([...IMAGE, ...AUDIO, ...VIDEO, ...DOCS]);
 
 // Extra belt-and-suspenders: block these extensions even if MIME claims OK

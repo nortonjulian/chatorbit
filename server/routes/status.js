@@ -36,16 +36,21 @@ router.post(
     // Uploads → assets
     const uploaded = (req.files || []).map((f) => {
       const mt = f.mimetype || '';
-      const kind =
-        mt.startsWith('image/') ? 'IMAGE' :
-        mt.startsWith('video/') ? 'VIDEO' :
-        mt.startsWith('audio/') ? 'AUDIO' : 'FILE';
+      const kind = mt.startsWith('image/')
+        ? 'IMAGE'
+        : mt.startsWith('video/')
+          ? 'VIDEO'
+          : mt.startsWith('audio/')
+            ? 'AUDIO'
+            : 'FILE';
       return { kind, url: `/uploads/${f.filename}`, mimeType: mt };
     });
 
     // Inline assets (stickers/GIF/remote)
     let inline = [];
-    try { inline = JSON.parse(attachmentsInline || '[]') || []; } catch {}
+    try {
+      inline = JSON.parse(attachmentsInline || '[]') || [];
+    } catch {}
     inline = inline.map((a) => ({
       kind: a.kind,
       url: a.url,
@@ -58,7 +63,9 @@ router.post(
 
     // Custom audience ids
     let customIds = [];
-    try { customIds = JSON.parse(customAudienceIds || '[]') || []; } catch {}
+    try {
+      customIds = JSON.parse(customAudienceIds || '[]') || [];
+    } catch {}
 
     const saved = await createStatusService({
       authorId,
@@ -175,8 +182,7 @@ router.get(
       reactionSummary: reactionSummaryByStatus[s.id] || {},
     }));
 
-    const nextCursor =
-      shaped.length === limit ? shaped[shaped.length - 1].id : null;
+    const nextCursor = shaped.length === limit ? shaped[shaped.length - 1].id : null;
 
     return res.json({ items: shaped, nextCursor });
   })

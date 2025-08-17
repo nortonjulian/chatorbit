@@ -9,7 +9,9 @@ const __dirname = dirname(__filename);
 const WORKER_FILE = resolve(__dirname, '../workers/encryptKey.worker.js');
 const POOL_SIZE = Math.max(
   1,
-  Number(process.env.ENCRYPT_POOL_SIZE || Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2))))
+  Number(
+    process.env.ENCRYPT_POOL_SIZE || Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2)))
+  )
 );
 
 export class CryptoPool {
@@ -24,7 +26,7 @@ export class CryptoPool {
     const w = new Worker(WORKER_FILE);
     w.once('exit', () => {
       this.busy.delete(w);
-      this.idle = this.idle.filter(x => x !== w);
+      this.idle = this.idle.filter((x) => x !== w);
     });
     return w;
   }
@@ -62,7 +64,9 @@ export class CryptoPool {
         const onErr = (err) => {
           cleanup();
           this.busy.delete(w);
-          try { w.terminate(); } catch {}
+          try {
+            w.terminate();
+          } catch {}
           reject(err);
         };
         const cleanup = () => {

@@ -6,6 +6,9 @@
     "promise/no-return-wrap": "error",
     "promise/always-return": "off",
     "no-useless-catch": "error",
-    "import/no-extraneous-dependencies": ["error", { "devDependencies": ["**/test/**", "**/*.test.*"] }]
+    "import/no-extraneous-dependencies": [
+      "error",
+      { "devDependencies": ["**/test/**", "**/*.test.*"] }
+    ]
   }
 }

@@ -3,12 +3,10 @@ import { PrismaClient } from '@prisma/client';
 import { verifyToken } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 
-
 const router = express.Router();
 const prisma = new PrismaClient();
 
-const normalizePhone = (s) =>
-  (s || '').toString().replace(/[^\d+]/g, '');
+const normalizePhone = (s) => (s || '').toString().replace(/[^\d+]/g, '');
 
 // GET /contacts  -> all contacts for the authed user (both linked + external)
 // server/routes/contacts.js (example)
@@ -51,7 +49,12 @@ router.post('/', verifyToken, async (req, res) => {
       contact = await prisma.contact.upsert({
         where: { ownerId_userId: { ownerId, userId: Number(userId) } },
         update: { alias: alias ?? undefined, favorite: favorite ?? undefined },
-        create: { ownerId, userId: Number(userId), alias: alias ?? undefined, favorite: !!favorite },
+        create: {
+          ownerId,
+          userId: Number(userId),
+          alias: alias ?? undefined,
+          favorite: !!favorite,
+        },
         include: { user: true },
       });
     } else {

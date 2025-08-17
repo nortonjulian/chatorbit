@@ -9,7 +9,7 @@ export function formatDate(date) {
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
   });
 }
 
@@ -23,7 +23,7 @@ export function formatTime(date) {
   if (isNaN(d)) return '';
   return d.toLocaleTimeString('en-US', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 }
 

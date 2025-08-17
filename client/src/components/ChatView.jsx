@@ -71,7 +71,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const [showNewMessage, setShowNewMessage] = useState(false);
 
   // pagination state
-  const [cursor, setCursor] = useState(null);  // server "nextCursor" (message id), null => no more
+  const [cursor, setCursor] = useState(null); // server "nextCursor" (message id), null => no more
   const [loading, setLoading] = useState(false);
 
   // privacy UI state
@@ -88,13 +88,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const isOwnerOrAdmin =
-    currentUser?.role === 'ADMIN' || currentUser?.id === chatroom?.ownerId;
+  const isOwnerOrAdmin = currentUser?.role === 'ADMIN' || currentUser?.id === chatroom?.ownerId;
 
   // ✅ Smart Replies toggle: init from user pref, fallback to IDB cache
-  const [smartEnabled, setSmartEnabled] = useState(
-    () => currentUser?.enableSmartReplies ?? false
-  );
+  const [smartEnabled, setSmartEnabled] = useState(() => currentUser?.enableSmartReplies ?? false);
 
   useEffect(() => {
     (async () => {
@@ -130,9 +127,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       if (!res.ok) throw new Error('Failed to edit');
       const updated = await res.json();
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === updated.id ? { ...m, rawContent: newText, content: newText } : m
-        )
+        prev.map((m) => (m.id === updated.id ? { ...m, rawContent: newText, content: newText } : m))
       );
     } catch (error) {
       alert('Message edit failed');
@@ -350,7 +345,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     if (!readers.length) return null;
 
     const limit = 3;
-    const shown = readers.slice(0, limit).map((u) => u.username).join(', ');
+    const shown = readers
+      .slice(0, limit)
+      .map((u) => u.username)
+      .join(', ');
     const extra = readers.length - limit;
 
     return (
@@ -364,7 +362,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   if (!chatroom) {
     return (
       <Box p="md">
-        <Title order={4} mb="xs">Select a chatroom</Title>
+        <Title order={4} mb="xs">
+          Select a chatroom
+        </Title>
         <Text c="dimmed">Pick a chat on the left to get started.</Text>
       </Box>
     );
@@ -379,10 +379,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       h="100%"
       display="flex"
       style={{ flexDirection: 'column' }}
-      className={clsx(
-        privacyActive && !reveal && 'privacy-blur',
-        reveal && 'privacy-revealed'
-      )}
+      className={clsx(privacyActive && !reveal && 'privacy-blur', reveal && 'privacy-revealed')}
       onMouseDown={holdToReveal ? () => setReveal(true) : undefined}
       onMouseUp={holdToReveal ? () => setReveal(false) : undefined}
       onMouseLeave={holdToReveal ? () => setReveal(false) : undefined}
@@ -393,7 +390,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         <Title order={4}>{chatroom?.name || 'Chat'}</Title>
         <Group gap="xs">
           {chatroom?.participants?.length > 2 && (
-            <Badge variant="light" radius="sm">Group</Badge>
+            <Badge variant="light" radius="sm">
+              Group
+            </Badge>
           )}
 
           {/* About */}
@@ -638,18 +637,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           Enable Smart Replies (sends last message to server for AI)
         </label>
 
-        <SmartReplyBar
-          suggestions={suggestions}
-          onPick={(t) => sendSmartReply(t)}
-        />
+        <SmartReplyBar suggestions={suggestions} onPick={(t) => sendSmartReply(t)} />
       </div>
 
       {/* 📅 Calendar suggestion bar (detect dates in recent messages) */}
-      <EventSuggestionBar
-        messages={messages}
-        currentUser={currentUser}
-        chatroom={chatroom}
-      />
+      <EventSuggestionBar messages={messages} currentUser={currentUser} chatroom={chatroom} />
 
       {chatroom && (
         <Box mt="sm">

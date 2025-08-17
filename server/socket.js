@@ -5,7 +5,10 @@ import jwt from 'jsonwebtoken';
 function parseOrigins() {
   // Support either CORS_ORIGINS or WEB_ORIGIN (comma-separated)
   const raw = process.env.CORS_ORIGINS || process.env.WEB_ORIGIN || '';
-  const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return list.length ? list : ['*'];
 }
 

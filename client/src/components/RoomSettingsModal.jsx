@@ -97,7 +97,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
     if (!canEdit) return onClose();
     setSavingAIMode(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/ai-assistant`, { mode: aiMode });
+      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/ai-assistant`, {
+        mode: aiMode,
+      });
       onUpdated?.(data);
       onClose();
     } finally {
@@ -108,7 +110,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
   const saveAutoTranslate = async (value) => {
     setSavingAutoTranslate(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/auto-translate`, { mode: value });
+      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/auto-translate`, {
+        mode: value,
+      });
       setAutoTranslateMode(data.autoTranslateMode || value);
       onUpdated?.(data);
     } finally {
@@ -136,7 +140,9 @@ export default function RoomSettingsModal({ opened, onClose, room, onUpdated }) 
           </Group>
 
           {loadingParticipants ? (
-            <Group justify="center" py="md"><Loader /></Group>
+            <Group justify="center" py="md">
+              <Loader />
+            </Group>
           ) : (
             <Table striped highlightOnHover>
               <Table.Thead>

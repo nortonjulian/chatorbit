@@ -122,14 +122,25 @@ export default function RandomChat({ currentUser }) {
   }, [messages]);
 
   return (
-    <Paper withBorder shadow="sm" radius="xl" p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+    <Paper
+      withBorder
+      shadow="sm"
+      radius="xl"
+      p="md"
+      h="100%"
+      style={{ display: 'flex', flexDirection: 'column' }}
+    >
       <Group justify="space-between" mb="xs">
         <Title order={4}>Random Chat</Title>
         {roomId ? (
-          <Badge variant="light" radius="sm">{partner || 'OrbitBot'}</Badge>
+          <Badge variant="light" radius="sm">
+            {partner || 'OrbitBot'}
+          </Badge>
         ) : null}
       </Group>
-      <Text size="sm" c="dimmed">{status}</Text>
+      <Text size="sm" c="dimmed">
+        {status}
+      </Text>
 
       {offerAI && (
         <Button onClick={handleStartAI} variant="filled" color="violet" mt="xs" maw={220}>
@@ -142,19 +153,14 @@ export default function RandomChat({ currentUser }) {
         <Stack gap="xs" p="xs">
           {messages.map((m, i) => {
             const isMe = m.senderId === currentUser.id;
-            const bubbleProps = isMe
-              ? { bg: 'orbit.6', c: 'white' }
-              : { bg: 'gray.2', c: 'black' };
+            const bubbleProps = isMe ? { bg: 'orbit.6', c: 'white' } : { bg: 'gray.2', c: 'black' };
 
             return (
-              <Box key={i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                <Box
-                  px="md"
-                  py="xs"
-                  radius="lg"
-                  style={{ maxWidth: 360 }}
-                  {...bubbleProps}
-                >
+              <Box
+                key={i}
+                style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}
+              >
+                <Box px="md" py="xs" radius="lg" style={{ maxWidth: 360 }} {...bubbleProps}>
                   <Text size="xs" fw={600} c={isMe ? 'white' : 'dark.6'} mb={4}>
                     {isMe ? 'You' : m.sender?.username || partner || 'OrbitBot'}
                   </Text>

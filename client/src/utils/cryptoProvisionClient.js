@@ -1,7 +1,7 @@
 import nacl from 'tweetnacl';
 import * as util from 'tweetnacl-util';
 
-export const b64ToBytes = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+export const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 export const bytesToB64 = (bytes) => btoa(String.fromCharCode(...bytes));
 
 // NOTE: For MVP we model the shared key as HKDF(secret || sPub || ePub) to avoid curve ops in browser for now.
@@ -9,9 +9,21 @@ export const bytesToB64 = (bytes) => btoa(String.fromCharCode(...bytes));
 // Here we keep it simple and aligned with server "secret" + sPub exchange.
 export function hkdfSha256(keyMaterialUint8, info = 'provision-v1', len = 32) {
   // Lightweight HKDF using Web Crypto
-  return window.crypto.subtle.importKey('raw', keyMaterialUint8, {name: 'HKDF'}, false, ['deriveBits'])
-    .then(key => window.crypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode(info)}, key, len * 8))
-    .then(buf => new Uint8Array(buf));
+  return window.crypto.subtle
+    .importKey('raw', keyMaterialUint8, { name: 'HKDF' }, false, ['deriveBits'])
+    .then((key) =>
+      window.crypto.subtle.deriveBits(
+        {
+          name: 'HKDF',
+          hash: 'SHA-256',
+          salt: new Uint8Array(0),
+          info: new TextEncoder().encode(info),
+        },
+        key,
+        len * 8
+      )
+    )
+    .then((buf) => new Uint8Array(buf));
 }
 
 export async function deriveSharedKeyBrowser(secretB64, sPubB64, ePubB64) {

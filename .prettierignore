@@ -1,0 +1,7 @@
+node_modules
+dist
+build
+coverage
+client/dist
+server/prisma
+.DS_Store

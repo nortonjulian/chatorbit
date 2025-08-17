@@ -31,8 +31,8 @@ export default function DeviceManagement() {
   // Live updates from server (device:linked / device:revoked)
   useDeviceEvents({
     userId: user?.id,
-    onLinked: () => setRefreshTick(t => t + 1),
-    onRevoked: () => setRefreshTick(t => t + 1),
+    onLinked: () => setRefreshTick((t) => t + 1),
+    onRevoked: () => setRefreshTick((t) => t + 1),
   });
 
   const fetchDevices = async () => {
@@ -57,7 +57,7 @@ export default function DeviceManagement() {
 
   const onRevoke = async (id) => {
     await fetch(`/devices/revoke/${id}`, { method: 'POST', credentials: 'include' });
-    setRefreshTick(t => t + 1);
+    setRefreshTick((t) => t + 1);
   };
 
   const onRename = async (e) => {
@@ -65,15 +65,15 @@ export default function DeviceManagement() {
     await fetch(`/devices/rename/${renameId}`, {
       method: 'POST',
       headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest'
-    },
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
       credentials: 'include',
       body: JSON.stringify({ name: renameVal }),
     });
     setRenameId(null);
     setRenameVal('');
-    setRefreshTick(t => t + 1);
+    setRefreshTick((t) => t + 1);
   };
 
   const rows = useMemo(
@@ -89,23 +89,36 @@ export default function DeviceManagement() {
                 </Tooltip>
               )}
             </Group>
-            <Text size="sm" c="dimmed">{d.platform || 'Unknown platform'}</Text>
+            <Text size="sm" c="dimmed">
+              {d.platform || 'Unknown platform'}
+            </Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm">{new Date(d.createdAt).toLocaleString()}</Text>
-            <Text size="xs" c="dimmed">added</Text>
+            <Text size="xs" c="dimmed">
+              added
+            </Text>
           </Table.Td>
           <Table.Td>
             <Text size="sm">{d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : '—'}</Text>
-            <Text size="xs" c="dimmed">last seen</Text>
+            <Text size="xs" c="dimmed">
+              last seen
+            </Text>
           </Table.Td>
           <Table.Td>
             {d.revokedAt ? (
-              <Badge color="red" variant="light">Revoked</Badge>
+              <Badge color="red" variant="light">
+                Revoked
+              </Badge>
             ) : (
               <Group gap="xs">
                 <Tooltip label="Rename">
-                  <ActionIcon onClick={() => { setRenameId(d.id); setRenameVal(d.name || ''); }}>
+                  <ActionIcon
+                    onClick={() => {
+                      setRenameId(d.id);
+                      setRenameVal(d.name || '');
+                    }}
+                  >
                     <IconPencil size={16} />
                   </ActionIcon>
                 </Tooltip>
@@ -125,19 +138,23 @@ export default function DeviceManagement() {
   return (
     <Card withBorder padding="lg" radius="md">
       <Group justify="space-between" align="center" mb="md">
-        <Text fw={700} size="lg">Your devices</Text>
+        <Text fw={700} size="lg">
+          Your devices
+        </Text>
         <Group>
           <Button leftSection={<IconLink size={16} />} onClick={() => setLinkOpen(true)}>
             Link new device
           </Button>
-          <ActionIcon onClick={() => setRefreshTick(t => t + 1)}>
+          <ActionIcon onClick={() => setRefreshTick((t) => t + 1)}>
             <IconRefresh size={16} />
           </ActionIcon>
         </Group>
       </Group>
 
       {loading ? (
-        <Group justify="center" p="xl"><Loader /></Group>
+        <Group justify="center" p="xl">
+          <Loader />
+        </Group>
       ) : (
         <ScrollArea>
           <Table striped highlightOnHover>
@@ -173,7 +190,7 @@ export default function DeviceManagement() {
         opened={linkOpen}
         onClose={() => {
           setLinkOpen(false);
-          setRefreshTick(t => t + 1);
+          setRefreshTick((t) => t + 1);
         }}
       />
     </Card>

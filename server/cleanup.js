@@ -10,10 +10,7 @@ export function startCleanupJobs() {
     try {
       const res = await prisma.provisionLink.deleteMany({
         where: {
-          OR: [
-            { expiresAt: { lt: now } },
-            { usedAt: { not: null } },
-          ],
+          OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }],
         },
       });
       if (res.count) console.log(`🧹 Deleted ${res.count} expired/used ProvisionLinks`);

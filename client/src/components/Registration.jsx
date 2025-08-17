@@ -21,15 +21,14 @@ export default function Registration() {
   const { setCurrentUser } = useUser();
   const navigate = useNavigate();
 
-  const [username, setUsername]   = useState('');
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [message, setMessage]     = useState('');
-  const [messageType, setType]    = useState(''); // 'success' | 'error' | ''
-  const [loading, setLoading]     = useState(false);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setType] = useState(''); // 'success' | 'error' | ''
+  const [loading, setLoading] = useState(false);
 
-  const validateEmail = (val) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
+  const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).toLowerCase());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,7 +70,9 @@ export default function Registration() {
     <Center style={{ minHeight: '100vh' }}>
       <Container size="xs" px="md" style={{ width: '100%', maxWidth: 440 }}>
         <Paper withBorder shadow="sm" radius="xl" p="lg">
-          <Title order={3} mb="md">Create an Account</Title>
+          <Title order={3} mb="md">
+            Create an Account
+          </Title>
 
           <form onSubmit={handleSubmit}>
             <Stack gap="sm">
@@ -117,7 +118,9 @@ export default function Registration() {
 
           <Text ta="center" mt="md">
             Already have an account?{' '}
-            <Anchor component={Link} to="/">Log in</Anchor>
+            <Anchor component={Link} to="/">
+              Log in
+            </Anchor>
           </Text>
         </Paper>
       </Container>

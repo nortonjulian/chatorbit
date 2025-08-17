@@ -37,7 +37,10 @@ router.get('/', verifyToken, async (req, res) => {
     res.setHeader('Content-Length', String(stat.size));
     // Safe default: inline images/audio/video, attachment for everything else
     const isInline = /^image\/|^audio\/|^video\//.test(contentType);
-    res.setHeader('Content-Disposition', `${isInline ? 'inline' : 'attachment'}; filename="${path.basename(abs)}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `${isInline ? 'inline' : 'attachment'}; filename="${path.basename(abs)}"`
+    );
     // Short cache to allow browser back/forward but not long-term reuse
     res.setHeader('Cache-Control', 'private, max-age=120');
 

@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
       ? {
           OR: [
             { username: { contains: q, mode: 'insensitive' } },
-            { email:    { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
             { phoneNumber: { contains: q } },
           ],
         }
@@ -27,15 +27,24 @@ router.get('/', async (req, res) => {
 
     const [items, total] = await Promise.all([
       prisma.user.findMany({
-        where, take, skip,
+        where,
+        take,
+        skip,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true, username: true, email: true, phoneNumber: true,
-          role: true, isBanned: true, preferredLanguage: true,
-          allowExplicitContent: true, showOriginalWithTranslation: true,
-          enableAIResponder: true, enableReadReceipts: true,
-          createdAt: true
-        }
+          id: true,
+          username: true,
+          email: true,
+          phoneNumber: true,
+          role: true,
+          isBanned: true,
+          preferredLanguage: true,
+          allowExplicitContent: true,
+          showOriginalWithTranslation: true,
+          enableAIResponder: true,
+          enableReadReceipts: true,
+          createdAt: true,
+        },
       }),
       prisma.user.count({ where }),
     ]);
@@ -52,7 +61,7 @@ router.patch('/:id/role', async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { role } = req.body || {};
-    if (!['ADMIN','USER'].includes(role)) {
+    if (!['ADMIN', 'USER'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
     const updated = await prisma.user.update({ where: { id }, data: { role } });
@@ -68,8 +77,12 @@ router.patch('/:id/flags', async (req, res) => {
   try {
     const id = Number(req.params.id);
     const data = {};
-    ['allowExplicitContent','showOriginalWithTranslation','enableAIResponder','enableReadReceipts']
-      .forEach(k => (req.body[k] !== undefined) && (data[k] = !!req.body[k]));
+    [
+      'allowExplicitContent',
+      'showOriginalWithTranslation',
+      'enableAIResponder',
+      'enableReadReceipts',
+    ].forEach((k) => req.body[k] !== undefined && (data[k] = !!req.body[k]));
     const updated = await prisma.user.update({ where: { id }, data });
     res.json(updated);
   } catch (e) {
@@ -84,7 +97,7 @@ router.post('/:id/ban', async (req, res) => {
     const id = Number(req.params.id);
     const updated = await prisma.user.update({
       where: { id },
-      data: { isBanned: true, bannedAt: new Date() }
+      data: { isBanned: true, bannedAt: new Date() },
     });
     res.json({ success: true, user: { id: updated.id, isBanned: updated.isBanned } });
   } catch (e) {
@@ -99,7 +112,7 @@ router.post('/:id/unban', async (req, res) => {
     const id = Number(req.params.id);
     const updated = await prisma.user.update({
       where: { id },
-      data: { isBanned: false, bannedAt: null }
+      data: { isBanned: false, bannedAt: null },
     });
     res.json({ success: true, user: { id: updated.id, isBanned: updated.isBanned } });
   } catch (e) {

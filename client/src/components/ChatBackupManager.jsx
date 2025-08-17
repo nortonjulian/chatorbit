@@ -30,7 +30,8 @@ export default function ChatBackupManager({
     setStatus('Preparing…');
     try {
       // 1) Unlock local key bundle (decrypt-at-rest)
-      if (!unlockPass || unlockPass.length < 6) throw new Error('Enter your unlock passcode (min 6 chars)');
+      if (!unlockPass || unlockPass.length < 6)
+        throw new Error('Enter your unlock passcode (min 6 chars)');
       const { privateKey } = await unlockKeyBundle(unlockPass);
 
       // 2) Fetch ALL messages the user can see (encrypted)
@@ -68,7 +69,9 @@ export default function ChatBackupManager({
       // 6) Download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = filename; a.click();
+      a.href = url;
+      a.download = filename;
+      a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       setStatus('Backup downloaded ✓');
@@ -96,8 +99,8 @@ export default function ChatBackupManager({
       <Stack gap="md">
         <Text fw={700}>Chat Backups (encrypted)</Text>
         <Text c="dimmed">
-          Export your decrypted messages into an encrypted file (password-protected).
-          Restore loads an archive locally for read-only viewing.
+          Export your decrypted messages into an encrypted file (password-protected). Restore loads
+          an archive locally for read-only viewing.
         </Text>
 
         {/* Export section */}
@@ -117,8 +120,7 @@ export default function ChatBackupManager({
           <Button
             onClick={onExport}
             disabled={
-              !unlockPass || unlockPass.length < 6 ||
-              !backupPassword || backupPassword.length < 6
+              !unlockPass || unlockPass.length < 6 || !backupPassword || backupPassword.length < 6
             }
           >
             Download chat backup

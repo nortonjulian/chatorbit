@@ -39,7 +39,9 @@ export default function StickerPicker({ opened, onClose, onPick }) {
         }}
         mb="md"
       />
-      {loading ? <Loader /> : (
+      {loading ? (
+        <Loader />
+      ) : (
         <SimpleGrid cols={{ base: 3, sm: 4, md: 6 }} spacing="xs">
           {results.map((r) => (
             <Image

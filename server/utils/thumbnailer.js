@@ -16,6 +16,10 @@ export async function ensureThumb(absSource, relName) {
   } catch {}
 
   // generate ~ 512px max dimension
-  await sharp(absSource).rotate().resize(512, 512, { fit: 'inside' }).jpeg({ quality: 76 }).toFile(outPath);
+  await sharp(absSource)
+    .rotate()
+    .resize(512, 512, { fit: 'inside' })
+    .jpeg({ quality: 76 })
+    .toFile(outPath);
   return { rel: path.join('thumbs', outName), abs: outPath };
 }

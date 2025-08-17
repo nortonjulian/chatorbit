@@ -34,11 +34,7 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
           <Plus size={22} />
         </ActionIcon>
 
-        <ActionIcon
-          variant="subtle"
-          aria-label="Users"
-          onClick={() => navigate('/people')}
-        >
+        <ActionIcon variant="subtle" aria-label="Users" onClick={() => navigate('/people')}>
           <Users size={22} />
         </ActionIcon>
 
@@ -63,7 +59,9 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
         <Stack gap="md">
           <Box>
-            <Title order={5} mb="xs">Chatrooms</Title>
+            <Title order={5} mb="xs">
+              Chatrooms
+            </Title>
             <ChatroomList currentUser={currentUser} onSelect={setSelectedRoom} />
           </Box>
         </Stack>
@@ -71,10 +69,7 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
 
       {/* Start Chat modal */}
       {showStartModal && (
-        <StartChatModal
-          currentUserId={currentUser.id}
-          onClose={() => setShowStartModal(false)}
-        />
+        <StartChatModal currentUserId={currentUser.id} onClose={() => setShowStartModal(false)} />
       )}
 
       {/* Settings drawer */}

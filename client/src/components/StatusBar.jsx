@@ -77,7 +77,10 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
         {authors.map(({ author, list }) => {
           const unseen = list.some((s) => !s.viewerSeen);
           return (
-            <Tooltip key={author?.id} label={`${author?.username} — ${list.length} post${list.length > 1 ? 's' : ''}`}>
+            <Tooltip
+              key={author?.id}
+              label={`${author?.username} — ${list.length} post${list.length > 1 ? 's' : ''}`}
+            >
               <div
                 onClick={() => onOpenViewer?.({ author, stories: list })}
                 style={{ cursor: 'pointer', textAlign: 'center' }}
@@ -86,7 +89,9 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
                   style={{
                     padding: 2,
                     borderRadius: '50%',
-                    border: unseen ? '2px solid var(--mantine-color-orbit-6, #7b5ef8)' : '2px solid transparent',
+                    border: unseen
+                      ? '2px solid var(--mantine-color-orbit-6, #7b5ef8)'
+                      : '2px solid transparent',
                   }}
                 >
                   <Avatar src={author?.avatarUrl || '/default-avatar.png'} radius="xl" size="lg" />

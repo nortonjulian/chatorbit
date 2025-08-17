@@ -20,7 +20,9 @@ router.get('/', async (req, res) => {
 
     const [items, total] = await Promise.all([
       prisma.auditLog.findMany({
-        where, take, skip,
+        where,
+        take,
+        skip,
         orderBy: { createdAt: 'desc' },
         include: { actor: { select: { id: true, username: true, role: true } } },
       }),

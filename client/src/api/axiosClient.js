@@ -1,32 +1,27 @@
 import axios from 'axios';
 
+const baseURL =
+  import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5001';
+
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001',
-  withCredentials: true, // ✅ send cookies automatically
+  baseURL,
+  withCredentials: true, // ✅ send/receive HttpOnly cookies
   timeout: 20_000,
   headers: {
     'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest' // ✅ CSRF protection header
-  }
+    'X-Requested-With': 'XMLHttpRequest', // ✅ lightweight CSRF signal
+  },
 });
 
-// Attach token automatically (if you still need Bearer fallback)
-axiosClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token'); // Or your secure storage wrapper
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// ✅ No request interceptor adding Authorization headers — cookie-only auth
 
-// Handle 401s consistently
+// Optional: normalize 401 handling in one place
 axiosClient.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err?.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.dispatchEvent(new Event('auth-logout'));
+      // Broadcast a global event so the app can redirect to login, clear user state, etc.
+      window.dispatchEvent(new CustomEvent('auth-unauthorized'));
     }
     return Promise.reject(err);
   }

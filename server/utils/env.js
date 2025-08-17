@@ -12,4 +12,3 @@ export function assertRequiredEnv(names) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 }
-

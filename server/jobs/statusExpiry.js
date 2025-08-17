@@ -19,7 +19,8 @@ export function registerStatusExpiryJob(io, { everyMs = 60_000 } = {}) {
     ]);
 
     // notify author devices (optional)
-    for (const s of expired) io?.to(`user:${s.authorId}`).emit('status_expired', { statusId: s.id });
+    for (const s of expired)
+      io?.to(`user:${s.authorId}`).emit('status_expired', { statusId: s.id });
   }
 
   setInterval(() => void sweep().catch(() => {}), everyMs);

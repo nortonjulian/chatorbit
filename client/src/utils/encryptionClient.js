@@ -56,7 +56,7 @@ export async function reportMessage(messageId, decryptedContent, reporterId) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest'
+      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({ messageId, reporterId, decryptedContent }),
   });
@@ -69,22 +69,28 @@ export async function reportMessage(messageId, decryptedContent, reporterId) {
  *    - Seamless migration from legacy plaintext storage
  * ========================================================== */
 
-const DB_KEY = 'chatorbit:keys:v2';     // encrypted-at-rest record
+const DB_KEY = 'chatorbit:keys:v2'; // encrypted-at-rest record
 const LEGACY_KEY = 'chatorbit:keys:v1'; // old (plaintext) record if it exists
 
 // --- WebCrypto helpers ---
 const te = new TextEncoder();
 const td = new TextDecoder();
 
-function b64(bytes) { return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
-function ub64(b64s) { return Uint8Array.from(atob(b64s), c => c.charCodeAt(0)); }
-function randBytes(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+function b64(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+}
+function ub64(b64s) {
+  return Uint8Array.from(atob(b64s), (c) => c.charCodeAt(0));
+}
+function randBytes(n) {
+  return crypto.getRandomValues(new Uint8Array(n));
+}
 
 async function deriveAesKey(passcode, saltB64, iterations = 250_000) {
   const salt = ub64(saltB64);
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', te.encode(passcode), 'PBKDF2', false, ['deriveKey']
-  );
+  const keyMaterial = await crypto.subtle.importKey('raw', te.encode(passcode), 'PBKDF2', false, [
+    'deriveKey',
+  ]);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     keyMaterial,
@@ -101,11 +107,7 @@ async function aesGcmEncrypt(key, plaintextBytes) {
 }
 
 async function aesGcmDecrypt(key, ivB64, ctB64) {
-  const pt = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: ub64(ivB64) },
-    key,
-    ub64(ctB64)
-  );
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ub64(ivB64) }, key, ub64(ctB64));
   return new Uint8Array(pt);
 }
 
@@ -130,12 +132,13 @@ function readLegacyLocalStorage() {
  */
 export async function getLocalKeyBundleMeta() {
   const rec = await get(DB_KEY);
-  if (rec) return {
-    version: rec.version,
-    createdAt: rec.createdAt,
-    hasEncrypted: !!rec.enc,
-    publicKey: rec.publicKey ?? null,
-  };
+  if (rec)
+    return {
+      version: rec.version,
+      createdAt: rec.createdAt,
+      hasEncrypted: !!rec.enc,
+      publicKey: rec.publicKey ?? null,
+    };
   // also check legacy
   const legacy = (await get(LEGACY_KEY)) || readLegacyLocalStorage();
   if (legacy?.privateKey && legacy?.publicKey) {
@@ -208,11 +211,18 @@ export async function enableKeyPasscode(passcode) {
     throw new Error('No local keypair found to protect');
   }
 
-  await saveEncryptedBundle({ publicKey: legacy.publicKey, privateKey: legacy.privateKey }, passcode);
+  await saveEncryptedBundle(
+    { publicKey: legacy.publicKey, privateKey: legacy.privateKey },
+    passcode
+  );
 
   // Clean legacy copies
-  try { await del(LEGACY_KEY); } catch {}
-  try { localStorage.removeItem(LEGACY_KEY); } catch {}
+  try {
+    await del(LEGACY_KEY);
+  } catch {}
+  try {
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {}
 
   return true;
 }
@@ -249,8 +259,12 @@ export function lockKeyBundle() {
 /** Clear all stored key data (logout). */
 export async function clearLocalKeyBundle() {
   await del(DB_KEY);
-  try { await del(LEGACY_KEY); } catch {}
-  try { localStorage.removeItem(LEGACY_KEY); } catch {}
+  try {
+    await del(LEGACY_KEY);
+  } catch {}
+  try {
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {}
   lockKeyBundle();
 }
 

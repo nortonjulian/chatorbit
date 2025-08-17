@@ -54,7 +54,9 @@ export default function App() {
   const [features, setFeatures] = useState({ status: false });
 
   useEffect(() => {
-    fetchFeatures().then(setFeatures).catch(() => setFeatures({ status: false }));
+    fetchFeatures()
+      .then(setFeatures)
+      .catch(() => setFeatures({ status: false }));
   }, []);
 
   // Join per-user Socket.IO room so server can push targeted events (e.g., status updates)
@@ -64,10 +66,14 @@ export default function App() {
     }
   }, [currentUser?.id]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    try {
+      await axiosClient.post('/auth/logout'); // tells server to clear cookie
+    } catch (err) {
+      console.warn('Logout error', err);
+    } finally {
+      setCurrentUser(null); // always clear UI state
+    }
   };
 
   const AuthedLayout = () => (

@@ -7,7 +7,8 @@ export function audit(action, { resource, resourceId, redactor } = {}) {
       res.removeListener('close', done);
 
       const status = res.statusCode;
-      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+      const ip =
+        req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
       const userAgent = req.get('user-agent') || null;
 
       // Allow caller to provide redacted metadata builder
@@ -22,18 +23,20 @@ export function audit(action, { resource, resourceId, redactor } = {}) {
 
       // Lazy import prisma to avoid cycles
       import('../utils/prismaClient.js').then(({ default: prisma }) => {
-        prisma.auditLog.create({
-          data: {
-            actorId,
-            action,
-            resource: resource || null,
-            resourceId: resourceId?.toString() || null,
-            status,
-            ip,
-            userAgent,
-            metadata
-          }
-        }).catch(() => {});
+        prisma.auditLog
+          .create({
+            data: {
+              actorId,
+              action,
+              resource: resource || null,
+              resourceId: resourceId?.toString() || null,
+              status,
+              ip,
+              userAgent,
+              metadata,
+            },
+          })
+          .catch(() => {});
       });
     };
 

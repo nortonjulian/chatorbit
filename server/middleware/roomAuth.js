@@ -34,7 +34,9 @@ export function requireRoomMember(param = 'id') {
     try {
       ensureRoleOrThrow(role, ['MEMBER', 'MODERATOR', 'ADMIN']);
       next();
-    } catch (e) { next(e); }
+    } catch (e) {
+      next(e);
+    }
   };
 }
 
@@ -48,7 +50,9 @@ export function requireRoomAdmin(param = 'id') {
     try {
       ensureRoleOrThrow(role, ['MODERATOR', 'ADMIN']);
       next();
-    } catch (e) { next(e); }
+    } catch (e) {
+      next(e);
+    }
   };
 }
 

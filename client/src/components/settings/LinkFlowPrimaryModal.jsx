@@ -20,7 +20,10 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
           setError('');
           setStep('idle');
           // 1) create link
-          const res = await fetch('/devices/provision/start', { method: 'POST', credentials: 'include' });
+          const res = await fetch('/devices/provision/start', {
+            method: 'POST',
+            credentials: 'include',
+          });
           const data = await res.json();
           setLink(data);
           setStep('ready');
@@ -28,7 +31,9 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
           // 2) poll for client-init (sPub becomes available when new device calls client-init)
           interval = setInterval(async () => {
             try {
-              const p = await fetch(`/devices/provision/poll?linkId=${encodeURIComponent(data.linkId)}`);
+              const p = await fetch(
+                `/devices/provision/poll?linkId=${encodeURIComponent(data.linkId)}`
+              );
               const json = await p.json();
               if (json?.sPub) {
                 setSPub(json.sPub);
@@ -65,7 +70,7 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -86,21 +91,36 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
   return (
     <Modal opened={opened} onClose={onClose} title="Link a new device" centered size="lg">
       {!link || step === 'idle' ? (
-        <Group justify="center" p="xl"><Loader /></Group>
+        <Group justify="center" p="xl">
+          <Loader />
+        </Group>
       ) : (
         <Stack gap="md">
-          <Text>On your new device, open ChatOrbit → "Link to existing account" and scan this code.</Text>
+          <Text>
+            On your new device, open ChatOrbit → "Link to existing account" and scan this code.
+          </Text>
           <Group justify="center">
             <QRCode value={qrText} size={220} />
           </Group>
-          <Text ta="center" c="dimmed">SAS code: <strong>{link.qrPayload.sas}</strong> (confirm it matches on both devices)</Text>
+          <Text ta="center" c="dimmed">
+            SAS code: <strong>{link.qrPayload.sas}</strong> (confirm it matches on both devices)
+          </Text>
 
           {error && <Text c="red">{error}</Text>}
 
           <Group justify="space-between" mt="sm">
-            <Button variant="default" onClick={onClose}>Close</Button>
-            <Button disabled={!sPub || step==='approving' || step==='sent'} onClick={approveAndSend}>
-              {step === 'sent' ? 'Sent ✓' : step === 'approving' ? 'Sending…' : 'Approve & Send Key'}
+            <Button variant="default" onClick={onClose}>
+              Close
+            </Button>
+            <Button
+              disabled={!sPub || step === 'approving' || step === 'sent'}
+              onClick={approveAndSend}
+            >
+              {step === 'sent'
+                ? 'Sent ✓'
+                : step === 'approving'
+                  ? 'Sending…'
+                  : 'Approve & Send Key'}
             </Button>
           </Group>
         </Stack>

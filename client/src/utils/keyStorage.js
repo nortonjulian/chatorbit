@@ -11,7 +11,7 @@ export async function savePrivateKey(userId, privateKey) {
     const db = await openDB(DB_NAME, 1, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME);
+          db.createObjectStore(STORE_NAME);
         }
       },
     });

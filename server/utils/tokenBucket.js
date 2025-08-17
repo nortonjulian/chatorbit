@@ -6,6 +6,11 @@ export function allow(userId, rate = 8, perMs = 10_000) {
   const elapsed = now - b.last;
   b.tokens = Math.min(rate, b.tokens + (elapsed / perMs) * rate);
   b.last = now;
-  if (b.tokens < 1) { buckets.set(userId, b); return false; }
-  b.tokens -= 1; buckets.set(userId, b); return true;
+  if (b.tokens < 1) {
+    buckets.set(userId, b);
+    return false;
+  }
+  b.tokens -= 1;
+  buckets.set(userId, b);
+  return true;
 }

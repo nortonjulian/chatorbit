@@ -52,9 +52,7 @@ async function openaiTranslate({ text, targetLang, sourceLang }) {
       temperature: 0,
       messages: [
         { role: 'system', content: system },
-        ...(sourceLang
-          ? [{ role: 'system', content: `Source language hint: ${sourceLang}` }]
-          : []),
+        ...(sourceLang ? [{ role: 'system', content: `Source language hint: ${sourceLang}` }] : []),
         { role: 'user', content: text },
       ],
       max_tokens: 400,
@@ -106,12 +104,7 @@ async function translateOnce({ text, targetLang, sourceLang }) {
  * - Optionally warms cache for extraTargets in parallel (limited concurrency)
  * - Return shape keeps backward-compat `translated` and adds richer fields
  */
-export async function translateText({
-  text,
-  targetLang,
-  sourceLang,
-  extraTargets = [],
-}) {
+export async function translateText({ text, targetLang, sourceLang, extraTargets = [] }) {
   if (!text || !targetLang) throw Boom.badRequest('text and targetLang required');
 
   const norm = (s) => (s ?? '').toString().trim();

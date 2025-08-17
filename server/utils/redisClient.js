@@ -11,7 +11,7 @@ export const redis = createClient({ url });
 
 redisPub.on('error', (e) => console.error('Redis pub error:', e));
 redisSub.on('error', (e) => console.error('Redis sub error:', e));
-redis.on('error',     (e) => console.error('Redis error:', e));
+redis.on('error', (e) => console.error('Redis error:', e));
 
 let ready = false;
 export async function ensureRedis() {

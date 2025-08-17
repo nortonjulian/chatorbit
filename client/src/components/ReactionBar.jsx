@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Group, ActionIcon, Tooltip, Badge, Popover } from '@mantine/core';
 import axiosClient from '../api/axiosClient';
 
-const QUICK = ['👍','😂','🔥','🎉','😮','❤️'];
+const QUICK = ['👍', '😂', '🔥', '🎉', '😮', '❤️'];
 
 export default function ReactionBar({ message, currentUserId }) {
   const [opened, setOpened] = useState(false);
@@ -50,13 +50,22 @@ export default function ReactionBar({ message, currentUserId }) {
       <Popover opened={opened} onChange={setOpened} position="top-end" withArrow>
         <Popover.Target>
           <Tooltip label="Add reaction">
-            <ActionIcon variant="subtle" onClick={() => setOpened((v) => !v)}>＋</ActionIcon>
+            <ActionIcon variant="subtle" onClick={() => setOpened((v) => !v)}>
+              ＋
+            </ActionIcon>
           </Tooltip>
         </Popover.Target>
         <Popover.Dropdown>
           <Group gap="xs">
             {QUICK.map((e) => (
-              <ActionIcon key={e} variant="light" onClick={() => { setOpened(false); toggle(e); }}>
+              <ActionIcon
+                key={e}
+                variant="light"
+                onClick={() => {
+                  setOpened(false);
+                  toggle(e);
+                }}
+              >
                 {e}
               </ActionIcon>
             ))}

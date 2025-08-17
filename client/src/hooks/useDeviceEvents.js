@@ -58,11 +58,21 @@ export function useDeviceEvents({
     if (!socket) return;
 
     const onLinkedHandler = (p) => {
-      if (showToasts) notifications.show({ title: 'Device linked', message: p?.device?.name || 'A new device was linked', color: 'green' });
+      if (showToasts)
+        notifications.show({
+          title: 'Device linked',
+          message: p?.device?.name || 'A new device was linked',
+          color: 'green',
+        });
       onLinked?.(p);
     };
     const onRevokedHandler = (p) => {
-      if (showToasts) notifications.show({ title: 'Device revoked', message: 'A device was revoked', color: 'yellow' });
+      if (showToasts)
+        notifications.show({
+          title: 'Device revoked',
+          message: 'A device was revoked',
+          color: 'yellow',
+        });
       onRevoked?.(p);
     };
     const onProvisionReadyHandler = (p) => {
@@ -87,7 +97,9 @@ export function useDeviceEvents({
       socket.off('disconnect', onDisconnect);
       // Only close if we created this socket instance
       if (createdHere.current) {
-        try { socket.close(); } catch {}
+        try {
+          socket.close();
+        } catch {}
       }
     };
   }, [userId, url, showToasts, externalSocket]);

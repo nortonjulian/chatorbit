@@ -16,10 +16,14 @@ export default function RoomAboutModal({ opened, onClose, room, onSaved }) {
     if (!canEdit) return onClose();
     setSaving(true);
     try {
-      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/meta`, { description: value });
+      const { data } = await axiosClient.patch(`/chatrooms/${room.id}/meta`, {
+        description: value,
+      });
       onSaved?.(data);
       onClose();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -34,7 +38,9 @@ export default function RoomAboutModal({ opened, onClose, room, onSaved }) {
       />
       {canEdit && (
         <Group justify="flex-end" mt="md">
-          <Button onClick={save} loading={saving}>Save</Button>
+          <Button onClick={save} loading={saving}>
+            Save
+          </Button>
         </Group>
       )}
     </Modal>

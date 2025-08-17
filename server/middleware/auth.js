@@ -1,52 +1,65 @@
 import jwt from 'jsonwebtoken';
 
-// Helper: pull JWT from Authorization: Bearer ... or from an HTTP-only cookie
-function getTokenFromReq(req) {
-  const header = req.headers.authorization || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-
-  const cookieName = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
-  const cookieToken = req.cookies?.[cookieName] || null;
-
-  return bearer || cookieToken || null;
+/** Centralized cookie config/name */
+function getCookieName() {
+  return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
 }
 
-export function verifyToken(req, res, next) {
+/** Returns the JWT string from (1) cookie [preferred], or (2) Authorization: Bearer ... if you allow it */
+function getTokenFromReq(req, { allowBearer = false } = {}) {
+  // 1) Cookie (preferred)
+  const cookieToken = req.cookies?.[getCookieName()] || null;
+  if (cookieToken) return cookieToken;
+
+  // 2) Optional Bearer header (handy for tools; disable by default)
+  if (allowBearer) {
+    const header = req.headers.authorization || '';
+    if (header.startsWith('Bearer ')) return header.slice(7);
+  }
+
+  return null;
+}
+
+/** Strict auth: requires a valid JWT; attaches `req.user = { id, username, role }` */
+export function requireAuth(req, res, next) {
   try {
-    const token = getTokenFromReq(req);
+    const token = getTokenFromReq(req, { allowBearer: false });
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      // Your server bootstrap should already assert this, but guard here too.
       return res.status(500).json({ error: 'Server misconfiguration (JWT secret missing)' });
     }
 
     const decoded = jwt.verify(token, secret);
-    req.user = decoded; // { id, username, role, ... }
+    // Expecting payload like: { id, username, role }
+    if (!decoded?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+    req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
     next();
   } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 }
 
-// Softer version: attaches req.user if present/valid; otherwise continues.
-// Useful for logout endpoints or routes that behave differently when signed in.
+/** Soft auth: sets req.user if token is valid; otherwise continues */
 export function verifyTokenOptional(req, _res, next) {
   try {
-    const token = getTokenFromReq(req);
-    if (!token) return next();
-
+    const token = getTokenFromReq(req, { allowBearer: false });
     const secret = process.env.JWT_SECRET;
-    if (!secret) return next();
+    if (!token || !secret) return next();
 
-    req.user = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, secret);
+    if (decoded?.id) {
+      req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+    }
   } catch {
-    // ignore invalid/expired tokens in optional mode
+    // ignore invalid/expired tokens
   }
   next();
 }
 
+/** Admin gate: requires req.user.role === 'ADMIN'. Use after requireAuth */
 export function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Admin access required' });

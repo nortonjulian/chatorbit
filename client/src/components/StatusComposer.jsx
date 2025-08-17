@@ -25,8 +25,14 @@ export default function StatusComposer({ opened, onClose }) {
       form.append('expireSeconds', String(Number(ttl) || 86400));
       if (audience === 'CUSTOM') form.append('customAudienceIds', custom);
       files.forEach((f) => form.append('files', f));
-      await axiosClient.post('/status', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setCaption(''); setFiles([]); setCustom('[]'); setAudience('MUTUALS'); setTtl('86400');
+      await axiosClient.post('/status', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCaption('');
+      setFiles([]);
+      setCustom('[]');
+      setAudience('MUTUALS');
+      setTtl('86400');
       onClose?.();
     } finally {
       setLoading(false);
@@ -76,7 +82,9 @@ export default function StatusComposer({ opened, onClose }) {
         {files.length > 0 && <Text size="sm">{files.length} item(s) attached</Text>}
       </Group>
       <Group justify="flex-end" mt="md">
-        <Button variant="subtle" onClick={onClose}>Cancel</Button>
+        <Button variant="subtle" onClick={onClose}>
+          Cancel
+        </Button>
         <Button onClick={submit} loading={loading} disabled={loading}>
           Post
         </Button>

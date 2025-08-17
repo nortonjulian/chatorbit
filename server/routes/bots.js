@@ -20,7 +20,8 @@ function requireAdmin(req, res, next) {
  */
 router.post('/', verifyToken, requireAdmin, async (req, res) => {
   const { name, url, secret, ownerId, createServiceUser = true } = req.body || {};
-  if (!name || !url || !secret) return res.status(400).json({ error: 'name, url, secret required' });
+  if (!name || !url || !secret)
+    return res.status(400).json({ error: 'name, url, secret required' });
 
   let serviceUserId = null;
   if (createServiceUser) {
@@ -102,7 +103,13 @@ router.post('/:installId/reply', async (req, res) => {
     if (!inst.isEnabled) return res.status(403).json({ error: 'install disabled' });
 
     const bodyString = JSON.stringify(req.body || {});
-    const ok = verifySignature(inst.bot.secret, ts, bodyString, sig, Number(process.env.BOT_TOLERANCE_SECONDS || 300));
+    const ok = verifySignature(
+      inst.bot.secret,
+      ts,
+      bodyString,
+      sig,
+      Number(process.env.BOT_TOLERANCE_SECONDS || 300)
+    );
     if (!ok) return res.status(401).json({ error: 'invalid signature' });
 
     const senderId = inst.bot.serviceUserId || Number(process.env.ORBIT_BOT_USER_ID || 0);

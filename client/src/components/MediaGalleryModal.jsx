@@ -29,17 +29,25 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
             const mime = m.mimeType || '';
             const kind =
               m.kind ||
-              (mime.startsWith('image/') ? 'IMAGE' :
-               mime.startsWith('video/') ? 'VIDEO' :
-               mime.startsWith('audio/') ? 'AUDIO' :
-               (m.imageUrl ? 'IMAGE' : null)) || 'FILE';
+              (mime.startsWith('image/')
+                ? 'IMAGE'
+                : mime.startsWith('video/')
+                  ? 'VIDEO'
+                  : mime.startsWith('audio/')
+                    ? 'AUDIO'
+                    : m.imageUrl
+                      ? 'IMAGE'
+                      : null) ||
+              'FILE';
             return { ...m, url, kind };
           })
           .filter((m) => m.url); // only display if we have a URL
         setItems(normalized.reverse()); // newest first
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [opened, roomId]);
 
   const selected = useMemo(
@@ -51,14 +59,7 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
 
   return (
     <>
-      <Modal
-        opened={opened}
-        onClose={onClose}
-        title="Shared media"
-        size="lg"
-        centered
-        padding="md"
-      >
+      <Modal opened={opened} onClose={onClose} title="Shared media" size="lg" centered padding="md">
         {items.length === 0 ? (
           <Text c="dimmed">No media cached locally yet.</Text>
         ) : (
@@ -149,12 +150,7 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
         {/* Basic actions (download). Forward/Edit can be added later from here. */}
         {selected?.url && (
           <Group justify="flex-end" mt="md">
-            <Button
-              component="a"
-              href={selected.url}
-              download
-              variant="light"
-            >
+            <Button component="a" href={selected.url} download variant="light">
               Download
             </Button>
           </Group>

@@ -17,7 +17,8 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
       prisma.report.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        take, skip,
+        take,
+        skip,
         include: {
           reporter: { select: { id: true, username: true, email: true } },
           message: {
@@ -80,7 +81,11 @@ router.post('/users/:userId/ban', verifyToken, requireAdmin, async (req, res) =>
       where: { id: userId },
       data: { isBanned: true, bannedAt: new Date() },
     });
-    res.json({ success: true, user: { id: updated.id, isBanned: updated.isBanned }, reason: reason || '' });
+    res.json({
+      success: true,
+      user: { id: updated.id, isBanned: updated.isBanned },
+      reason: reason || '',
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to ban user' });

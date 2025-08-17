@@ -64,9 +64,9 @@ export default function SettingsBackups() {
       <Card withBorder radius="md" p="lg">
         <ChatBackupManager
           fetchAllMessages={fetchAllMessages}
-          currentUserId={currentUser?.id} 
-          currentUserPrivateKey={unlockedKey}     // base64 private key (once unlocked)
-          senderPublicKeys={senderPublicKeys}     // map: senderId -> base64 publicKey (optional)
+          currentUserId={currentUser?.id}
+          currentUserPrivateKey={unlockedKey} // base64 private key (once unlocked)
+          senderPublicKeys={senderPublicKeys} // map: senderId -> base64 publicKey (optional)
         />
       </Card>
     </Stack>

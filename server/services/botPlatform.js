@@ -6,14 +6,14 @@ export function parseAllowedHosts() {
   const raw = process.env.BOT_ALLOWED_HOSTS || '';
   return raw
     .split(',')
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
 function hostAllowed(hostname) {
   const allowed = parseAllowedHosts();
   if (!allowed.length) return false;
-  return allowed.some(pattern => {
+  return allowed.some((pattern) => {
     if (pattern === hostname) return true;
     if (pattern.startsWith('*.')) {
       const suffix = pattern.slice(1); // ".example.com"
@@ -59,9 +59,15 @@ export function buildMessagePayload({ install, bot, message }) {
         id: message.senderId ?? message.sender?.id,
         username: message.sender?.username,
       },
-      attachments: (message.attachments || []).map(a => ({
-        id: a.id, kind: a.kind, url: a.url, mimeType: a.mimeType,
-        width: a.width, height: a.height, durationSec: a.durationSec, caption: a.caption,
+      attachments: (message.attachments || []).map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        url: a.url,
+        mimeType: a.mimeType,
+        width: a.width,
+        height: a.height,
+        durationSec: a.durationSec,
+        caption: a.caption,
       })),
       createdAt: message.createdAt,
     },

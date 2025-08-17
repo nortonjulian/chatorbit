@@ -42,11 +42,7 @@ export async function createMessageService({
   const roomIdNum = Number(chatRoomId);
 
   // 0) Validate presence (allow content OR any media/attachments)
-  if (
-    !senderId ||
-    !roomIdNum ||
-    (!content && !imageUrl && !audioUrl && !(attachments?.length))
-  ) {
+  if (!senderId || !roomIdNum || (!content && !imageUrl && !audioUrl && !attachments?.length)) {
     throw new Error('Missing required fields');
   }
 
@@ -90,9 +86,7 @@ export async function createMessageService({
 
   // 3) Profanity filtering (respect sender & recipients)
   const isMsgExplicit = content ? isExplicit(content) : false;
-  const anyRecipientDisallows = recipientsExceptSender.some(
-    (u) => !u.allowExplicitContent
-  );
+  const anyRecipientDisallows = recipientsExceptSender.some((u) => !u.allowExplicitContent);
   const senderDisallows = !sender.allowExplicitContent;
   const mustClean = Boolean(content) && (anyRecipientDisallows || senderDisallows);
   const cleanContent = mustClean ? cleanText(content) : content;
@@ -101,9 +95,7 @@ export async function createMessageService({
   let translationsMap = null;
   let translatedFrom = sender.preferredLanguage || 'en';
   if (cleanContent) {
-    const targetLangs = recipientsExceptSender.map(
-      (u) => u.preferredLanguage || 'en'
-    );
+    const targetLangs = recipientsExceptSender.map((u) => u.preferredLanguage || 'en');
     const res = await translateForTargets(cleanContent, translatedFrom, targetLangs);
     translationsMap = Object.keys(res.map || {}).length ? res.map : null;
     translatedFrom = res.from || translatedFrom;
@@ -126,13 +118,13 @@ export async function createMessageService({
   const saved = await prisma.message.create({
     data: {
       contentCiphertext: ciphertext,
-      encryptedKeys,                              // legacy JSON (if you still keep it) + normalized table below
-      rawContent: content || null,                // visible to sender/admin by your GET route
-      translations: translationsMap,              // JSON map of lang -> translated text (plaintext)
+      encryptedKeys, // legacy JSON (if you still keep it) + normalized table below
+      rawContent: content || null, // visible to sender/admin by your GET route
+      translations: translationsMap, // JSON map of lang -> translated text (plaintext)
       translatedFrom,
       isExplicit: isMsgExplicit,
-      imageUrl: imageUrl || null,                 // legacy single image
-      audioUrl: audioUrl || null,                 // legacy single audio
+      imageUrl: imageUrl || null, // legacy single image
+      audioUrl: audioUrl || null, // legacy single audio
       audioDurationSec: audioDurationSec ?? null,
       isAutoReply,
       expiresAt,
@@ -142,7 +134,7 @@ export async function createMessageService({
         ? {
             createMany: {
               data: attachments.map((a) => ({
-                kind: a.kind,                     // 'image' | 'video' | 'audio' | 'file'
+                kind: a.kind, // 'image' | 'video' | 'audio' | 'file'
                 url: a.url,
                 mimeType: a.mimeType || '',
                 width: a.width ?? null,
@@ -240,9 +232,7 @@ export async function maybeAutoTranslate({ savedMessage, io, prisma: prismaArg }
     const db = prismaArg || prisma;
 
     // Provider available?
-    const hasProvider =
-      !!process.env.DEEPL_API_KEY ||
-      !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
+    const hasProvider = !!process.env.DEEPL_API_KEY || !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
     if (!hasProvider) return;
 
     const roomId = Number(savedMessage.chatRoomId);

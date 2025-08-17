@@ -16,13 +16,10 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
       qs.set('limit', initial ? '50' : '30');
       if (cursor) qs.set('cursor', String(cursor));
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE}/chatrooms?${qs.toString()}`,
-        {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_BASE}/chatrooms?${qs.toString()}`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
       if (!res.ok) throw new Error('Failed to fetch chatrooms');
       const data = await res.json(); // { items, nextCursor }
       setItems((prev) => (initial ? data.items : [...prev, ...data.items]));
@@ -65,13 +62,11 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
   return (
     <Box>
       {items.length === 0 && !loading ? (
-        <Text c="dimmed" size="sm">No chatrooms yet.</Text>
+        <Text c="dimmed" size="sm">
+          No chatrooms yet.
+        </Text>
       ) : (
-        <ScrollArea.Autosize
-          mah="calc(100vh - 160px)"
-          type="auto"
-          viewportRef={viewportRef}
-        >
+        <ScrollArea.Autosize mah="calc(100vh - 160px)" type="auto" viewportRef={viewportRef}>
           <Stack gap="xs" p={0}>
             {items.map((room) => {
               const isSelected = selectedRoom?.id === room.id;
@@ -97,10 +92,14 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
               );
             })}
             {loading && (
-              <Text ta="center" c="dimmed" py="xs">Loading…</Text>
+              <Text ta="center" c="dimmed" py="xs">
+                Loading…
+              </Text>
             )}
             {!cursor && items.length > 0 && (
-              <Text ta="center" c="dimmed" py="xs">No more chats</Text>
+              <Text ta="center" c="dimmed" py="xs">
+                No more chats
+              </Text>
             )}
           </Stack>
         </ScrollArea.Autosize>

@@ -1,10 +1,14 @@
 export async function exportEncryptedPrivateKey(privateKeyB64, password) {
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
 
   const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+    'raw',
+    enc.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
   );
 
   const aesKey = await crypto.subtle.deriveKey(
@@ -15,7 +19,11 @@ export async function exportEncryptedPrivateKey(privateKeyB64, password) {
     ['encrypt']
   );
 
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, enc.encode(privateKeyB64));
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    aesKey,
+    enc.encode(privateKeyB64)
+  );
   const blob = {
     v: 1,
     kdf: 'PBKDF2-SHA256-150k',
@@ -33,11 +41,15 @@ export async function importEncryptedPrivateKey(file, password) {
   const dec = new TextDecoder();
 
   const salt = new Uint8Array(parsed.salt);
-  const iv   = new Uint8Array(parsed.iv);
-  const ct   = new Uint8Array(parsed.ct);
+  const iv = new Uint8Array(parsed.iv);
+  const ct = new Uint8Array(parsed.ct);
 
   const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+    'raw',
+    enc.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
   );
 
   const aesKey = await crypto.subtle.deriveKey(

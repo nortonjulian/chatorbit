@@ -15,7 +15,7 @@ export function createInviteTemplate({
   eventTime,
   location,
   hostName,
-  joinLink
+  joinLink,
 }) {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5;">

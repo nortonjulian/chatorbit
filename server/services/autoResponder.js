@@ -1,6 +1,6 @@
 import { generateAIResponse } from '../utils/generateAIResponse.js';
 import { createMessageService } from './messageService.js';
-import { allow } from '../utils/tokenBucket.js';  // ⬅️ NEW
+import { allow } from '../utils/tokenBucket.js'; // ⬅️ NEW
 
 const COOLDOWN_DEFAULT = 120; // seconds
 
@@ -27,9 +27,9 @@ export async function maybeAutoRespondUsers({ savedMessage, prisma, io }) {
           id: true,
           username: true,
           enableAIResponder: true,
-          autoResponderMode: true,         // 'off' | 'dm' | 'mention' | 'all'
-          autoResponderCooldownSec: true,  // per-user cool-down
-          autoResponderActiveUntil: true,  // optional availability window
+          autoResponderMode: true, // 'off' | 'dm' | 'mention' | 'all'
+          autoResponderCooldownSec: true, // per-user cool-down
+          autoResponderActiveUntil: true, // optional availability window
           autoResponderSignature: true,
         },
       },
@@ -85,7 +85,7 @@ Make it clear this is an auto-reply.`;
     const content = `${reply}\n\n${signature}`;
 
     const botMsg = await createMessageService({
-      senderId: u.id,          // reply AS the user
+      senderId: u.id, // reply AS the user
       chatRoomId: roomId,
       content,
       isAutoReply: true,

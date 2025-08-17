@@ -42,7 +42,9 @@ function SaveContactButton({ currentUserId, otherUserId }) {
     return (
       <Group gap="xs">
         <IconCheck size={16} color="green" />
-        <Text size="sm" c="green">Saved</Text>
+        <Text size="sm" c="green">
+          Saved
+        </Text>
       </Group>
     );
   }
@@ -58,13 +60,7 @@ function SaveContactButton({ currentUserId, otherUserId }) {
             size="xs"
             radius="md"
           />
-          <Button
-            size="xs"
-            radius="md"
-            variant="filled"
-            color="blue"
-            onClick={saveContact}
-          >
+          <Button size="xs" radius="md" variant="filled" color="blue" onClick={saveContact}>
             Save
           </Button>
         </Group>

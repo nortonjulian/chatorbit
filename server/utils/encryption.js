@@ -49,7 +49,7 @@ function sealKeyInline(sessionKeyBuf, senderSecretB64, recipientPublicB64) {
 export async function encryptMessageForParticipants(message, sender, recipients) {
   // 1) Symmetric encrypt the message once
   const sessionKey = crypto.randomBytes(32); // 256-bit key
-  const iv = crypto.randomBytes(12);         // GCM 96-bit IV
+  const iv = crypto.randomBytes(12); // GCM 96-bit IV
   const cipher = crypto.createCipheriv('aes-256-gcm', sessionKey, iv);
   const enc = Buffer.concat([cipher.update(message, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -83,7 +83,10 @@ export async function encryptMessageForParticipants(message, sender, recipients)
           return { userId: r.id, sealed: out.sealedKeyB64 };
         } catch {
           // Per-recipient fallback
-          return { userId: r.id, sealed: sealKeyInline(sessionKey, sender.privateKey, r.publicKey) };
+          return {
+            userId: r.id,
+            sealed: sealKeyInline(sessionKey, sender.privateKey, r.publicKey),
+          };
         }
       })
     );

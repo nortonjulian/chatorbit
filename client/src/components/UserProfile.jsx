@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import LanguageSelector from './LanguageSelector';
 import axiosClient from '../api/axiosClient';
-import { useUser } from "../context/UserContext";
+import { useUser } from '../context/UserContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import {
@@ -75,9 +75,7 @@ function UserProfile({ onLanguageChange }) {
   const [privacyHoldToReveal, setPrivacyHoldToReveal] = useState(
     currentUser.privacyHoldToReveal ?? false
   );
-  const [notifyOnCopy, setNotifyOnCopy] = useState(
-    currentUser.notifyOnCopy ?? false
-  );
+  const [notifyOnCopy, setNotifyOnCopy] = useState(currentUser.notifyOnCopy ?? false);
 
   // --- Smart Replies (saved immediately via /users/me) ---
   const [smartSaving, setSmartSaving] = useState(false);
@@ -198,7 +196,9 @@ function UserProfile({ onLanguageChange }) {
         setStatus(t('profile.noPrivateKey', 'No private key found'), 'error');
         return;
       }
-      const pwd = window.prompt(t('profile.setBackupPassword', 'Set a password to encrypt your backup'));
+      const pwd = window.prompt(
+        t('profile.setBackupPassword', 'Set a password to encrypt your backup')
+      );
       if (!pwd) return;
 
       const blob = await exportEncryptedPrivateKey(privateKey, pwd);
@@ -251,7 +251,9 @@ function UserProfile({ onLanguageChange }) {
 
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg" maw={560} mx="auto">
-      <Title order={3} mb="md">{t('profile.title', 'Profile')}</Title>
+      <Title order={3} mb="md">
+        {t('profile.title', 'Profile')}
+      </Title>
 
       <Stack gap="md">
         {/* Avatar */}
@@ -273,10 +275,7 @@ function UserProfile({ onLanguageChange }) {
         <Divider />
 
         {/* Language */}
-        <LanguageSelector
-          currentLanguage={preferredLanguage}
-          onChange={setPreferredLanguage}
-        />
+        <LanguageSelector currentLanguage={preferredLanguage} onChange={setPreferredLanguage} />
 
         {/* General toggles */}
         <Switch
@@ -355,7 +354,10 @@ function UserProfile({ onLanguageChange }) {
         />
 
         {/* Disappearing messages */}
-        <Divider label={t('profile.disappearing', 'Disappearing messages')} labelPosition="center" />
+        <Divider
+          label={t('profile.disappearing', 'Disappearing messages')}
+          labelPosition="center"
+        />
         <Switch
           checked={autoDeleteSeconds > 0}
           onChange={(e) => setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)}
@@ -400,7 +402,9 @@ function UserProfile({ onLanguageChange }) {
 
         {/* Key management */}
         <Group>
-          <Button variant="light" onClick={exportKey}>{t('profile.exportKey', 'Export key')}</Button>
+          <Button variant="light" onClick={exportKey}>
+            {t('profile.exportKey', 'Export key')}
+          </Button>
           <FileInput
             ref={importFileRef}
             accept="application/json"
@@ -411,7 +415,9 @@ function UserProfile({ onLanguageChange }) {
             {t('profile.rotateKeys', 'Rotate keys')}
           </Button>
         </Group>
-        <Text size="xs" c="dimmed">{t('profile.keyDisclaimer', 'Keep your keys safe.')}</Text>
+        <Text size="xs" c="dimmed">
+          {t('profile.keyDisclaimer', 'Keep your keys safe.')}
+        </Text>
 
         {statusMessage && (
           <Alert color={statusType === 'error' ? 'red' : 'green'} variant="light">
