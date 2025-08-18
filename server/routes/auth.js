@@ -49,7 +49,7 @@ function readJwtFromCookies(req) {
   const token = req.cookies?.[getCookieName()];
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET); // { id, username, role, iat, exp }
+    return jwt.verify(token, JWT_SECRET); // { id, username, role, plan, iat, exp }
   } catch {
     return null;
   }
@@ -126,6 +126,7 @@ router.post('/register', registerLimiter, async (req, res) => {
         password: hashedPassword,
         preferredLanguage: preferredLanguage || 'en',
         role: 'USER',
+        plan: 'FREE',
         publicKey,
         privateKey: null, // do not store private key server-side
       },
@@ -134,7 +135,13 @@ router.post('/register', registerLimiter, async (req, res) => {
     // Return the private key once so the client can store it securely
     res.status(201).json({
       message: 'user registered',
-      user: { id: user.id, username: user.username, publicKey: user.publicKey },
+      user: {
+        id: user.id,
+        username: user.username,
+        publicKey: user.publicKey,
+        plan: user.plan,
+        role: user.role,
+      },
       privateKey,
     });
   } catch (error) {
@@ -160,7 +167,14 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!validPassword)
       return res.status(401).json({ error: 'Invalid username or password' });
 
-    const payload = { id: user.id, username: user.username, role: user.role };
+    // ✅ Add plan into JWT payload
+    const payload = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      plan: user.plan || 'FREE',
+    };
+
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
     // ✅ Set HttpOnly cookie (no token in JSON)
@@ -169,7 +183,12 @@ router.post('/login', loginLimiter, async (req, res) => {
     // Minimal response; client can call /auth/me to hydrate
     res.json({
       ok: true,
-      user: { id: user.id, username: user.username, role: user.role },
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        plan: user.plan || 'FREE',
+      },
     });
   } catch (error) {
     console.error('Login error', error);
@@ -178,16 +197,8 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 // Logout (clears cookie)
-router.post('/logout', (req, res) => {
-  const cookieName = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
-
-  res.clearCookie(cookieName, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-  });
-
+router.post('/logout', (_req, res) => {
+  clearJwtCookie(res);
   return res.json({ message: 'Logged out successfully' });
 });
 
@@ -199,7 +210,7 @@ router.get('/me', async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, username: true, role: true },
+      select: { id: true, username: true, role: true, plan: true, avatarUrl: true, preferredLanguage: true },
     });
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     res.json({ user });

@@ -14,6 +14,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
 import SettingsBackups from './pages/SettingsBackups.jsx';
+import UpgradePage from './pages/UpgradePage.jsx'; // ✅ new import
 
 import { useUser } from './context/UserContext';
 import BootstrapUser from './components/BootstrapUser';
@@ -40,9 +41,14 @@ import AuditLogsPage from './pages/AuditLogsPage';
 import socket from './lib/socket';
 
 // ✅ Feature flags (server-driven)
-import { fetchFeatures } from './lib/features'; // <<— JS version at client/src/lib/features.js
-// Optional: a minimal page to render the status feed
-import StatusFeed from './pages/StatusFeed.jsx'; // create a stub if you don't have it yet
+import { fetchFeatures } from './lib/features';
+import StatusFeed from './pages/StatusFeed.jsx';
+
+// 🔔 Calls
+import CallManager from './components/CallManager';
+
+// 🔐 HTTP client for logout
+import axiosClient from './api/axiosClient';
 
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
@@ -50,7 +56,6 @@ export default function App() {
 
   const { currentUser, setCurrentUser } = useUser();
 
-  // 🔧 Server-driven features
   const [features, setFeatures] = useState({ status: false });
 
   useEffect(() => {
@@ -59,7 +64,6 @@ export default function App() {
       .catch(() => setFeatures({ status: false }));
   }, []);
 
-  // Join per-user Socket.IO room so server can push targeted events (e.g., status updates)
   useEffect(() => {
     if (currentUser?.id) {
       socket.emit('join_user', currentUser.id);
@@ -68,11 +72,11 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await axiosClient.post('/auth/logout'); // tells server to clear cookie
+      await axiosClient.post('/auth/logout');
     } catch (err) {
       console.warn('Logout error', err);
     } finally {
-      setCurrentUser(null); // always clear UI state
+      setCurrentUser(null);
     }
   };
 
@@ -96,7 +100,6 @@ export default function App() {
 
       <AppShell.Navbar p="md">
         <ScrollArea.Autosize mah="calc(100vh - 120px)">
-          {/* Pass features to Sidebar so it can show/hide the Status nav item */}
           <Sidebar
             currentUser={currentUser}
             setSelectedRoom={setSelectedRoom}
@@ -106,6 +109,7 @@ export default function App() {
       </AppShell.Navbar>
 
       <AppShell.Main>
+        <CallManager />
         <Outlet />
       </AppShell.Main>
     </AppShell>
@@ -113,13 +117,10 @@ export default function App() {
 
   return (
     <>
-      {/* 🔔 Global Notifications */}
       <Notifications position="top-right" />
-
       <BootstrapUser />
 
       {!currentUser ? (
-        // Public routes
         <Routes>
           <Route path="/" element={<LoginForm />} />
           <Route path="/register" element={<Registration />} />
@@ -128,11 +129,9 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       ) : (
-        // Authenticated routes
         <Routes>
           <Route path="/forbidden" element={<Forbidden />} />
           <Route path="/" element={<AuthedLayout />}>
-            {/* 👇 ChatHome wrapper WITH children + currentUser prop */}
             <Route
               index
               element={
@@ -161,9 +160,9 @@ export default function App() {
 
             <Route path="people" element={<PeoplePage />} />
             <Route path="settings/backups" element={<SettingsBackups />} />
+            <Route path="settings/upgrade" element={<UpgradePage />} /> 
             <Route path="/join/:code" element={<JoinInvitePage />} />
 
-            {/* ✅ Feature-flagged Status route: only register when enabled */}
             {features.status && (
               <Route path="status" element={<StatusFeed />} />
             )}

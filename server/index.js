@@ -26,8 +26,11 @@ import mediaRouter from './routes/media.js';
 import statusRoutes from './routes/status.js';
 import devicesRouter from './routes/devices.js';
 import featuresRouter from './routes/features.js';
-
 import filesRouter from './routes/files.js';
+
+// ✅ Billing (customer portal, checkout, and webhook)
+import billingRouter from './routes/billing.js';
+import billingWebhook from './routes/billingWebhook.js';
 
 import { registerStatusExpiryJob } from './jobs/statusExpiry.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -40,6 +43,10 @@ import { startBotDispatcher } from './jobs/botDispatcher.js';
 import { initSocket } from './socket.js';
 // ✅ Cookie-based Socket.IO auth
 import { cookieSocketAuth } from './middleware/socketAuth.js';
+
+// ✅ Auth + plan gates
+import { requireAuth } from './middleware/auth.js';
+import { requirePremium } from './middleware/plan.js';
 
 import { startCleanupJobs } from './cleanup.js';
 
@@ -162,8 +169,21 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 
-// --- Parsers ---
+// --- Parsers order (⚠️ webhook raw BEFORE json) ---
+
+// Cookies first (both webhook and normal routes may read cookies)
 app.use(cookieParser());
+
+// ✅ Webhook sub-app that uses raw body for signature verification (e.g., Stripe)
+const webhookApp = express();
+webhookApp.post(
+  '/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  billingRouter
+);
+app.use(webhookApp);
+
+// Now safe to parse JSON for the rest of the app
 app.use(express.json());
 
 // --- Lightweight CSRF header check for state-changing requests ---
@@ -201,6 +221,16 @@ app.use('/devices', devicesRouter);
 app.use('/features', featuresRouter);
 app.use(groupInvitesRouter);
 
+// ✅ Billing (regular JSON endpoints like /billing/checkout, /billing/portal)
+app.use('/billing', billingRouter);
+
+// ✅ Example premium-only endpoint (put your premium logic here)
+app.get('/ai/power-feature', requireAuth, requirePremium, (req, res) => {
+  res.json({ ok: true });
+});
+
+app.use('/files', filesRouter);
+
 // 404 then error handler
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -218,12 +248,6 @@ app.use('/admin/users', adminUsersRouter);
 app.use('/admin/audit', adminAuditRouter);
 
 startCleanupJobs();
-
-// Serve uploaded avatars and other uploads via signed proxy (moved to /files)
-// app.use('/uploads/avatars', express.static('uploads/avatars'));
-// app.use('/uploads', express.static('uploads'));
-
-app.use('/files', filesRouter);
 
 // --- RANDOM CHAT (Redis-backed; no in-memory state) ---
 io.on('connection', (socket) => {

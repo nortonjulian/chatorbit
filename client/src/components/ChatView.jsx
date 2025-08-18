@@ -45,6 +45,8 @@ import RoomAboutModal from './RoomAboutModal.jsx';
 import RoomSearchDrawer from './RoomSearchDrawer.jsx';
 import MediaGalleryModal from './MediaGalleryModal.jsx';
 
+import { playSound } from '../lib/sound.js';
+
 function getTimeLeftString(expiresAt) {
   const now = Date.now();
   const expires = new Date(expiresAt).getTime();
@@ -245,15 +247,35 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         addMessages(chatroom.id, [decrypted]).catch(() => {});
 
         const v = scrollViewportRef.current;
-        if (v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10) {
+        const atBottom =
+          v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10;
+
+        if (atBottom) {
           scrollToBottom();
         } else {
           setShowNewMessage(true);
+        }
+
+        // 🔔 Play a sound for inbound messages if user isn't at bottom or tab is hidden
+        const isMine = decrypted?.sender?.id === currentUserId;
+        const tabHidden = document.hidden;
+        if (!isMine && (!atBottom || tabHidden)) {
+          playSound('/sounds/new-message.mp3', { volume: 0.6 });
         }
       } catch (e) {
         console.error('Failed to decrypt incoming message', e);
         setMessages((prev) => [...prev, data]);
         setShowNewMessage(true);
+
+        // Fallback sound even if decryption failed (treat as inbound)
+        const isMine = data?.senderId === currentUserId;
+        const v = scrollViewportRef.current;
+        const atBottom =
+          v && v.scrollTop + v.clientHeight >= v.scrollHeight - 10;
+        const tabHidden = document.hidden;
+        if (!isMine && (!atBottom || tabHidden)) {
+          playSound('/sounds/new-message.mp3', { volume: 0.6 });
+        }
       }
     };
 

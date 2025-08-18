@@ -21,6 +21,11 @@ enum AutoResponderMode {
   all // any inbound msg in any room
 }
 
+enum Plan {
+  FREE
+  PREMIUM
+}
+
 model User {
   id                          Int     @id @default(autoincrement())
   username                    String  @unique
@@ -70,6 +75,10 @@ model User {
   // ⬇️ NEW back-relations for Bot
   botsOwned     Bot[] @relation("BotsOwned")
   botsAsService Bot[] @relation("BotServiceUser")
+
+  plan        Plan    @default(FREE)
+  messageTone String? @default("default.mp3")
+  ringtone    String? @default("classic.mp3")
 }
 
 enum AutoTranslateMode {

@@ -29,6 +29,9 @@ import {
 } from '../utils/keyBackup';
 import { setPref, PREF_SMART_REPLIES } from '../utils/prefsStore';
 
+// 🔊 Sound settings
+import SoundSettings from './SoundSettings';
+
 function UserProfile({ onLanguageChange }) {
   const { t } = useTranslation();
   const { currentUser, setCurrentUser } = useUser();
@@ -99,7 +102,6 @@ function UserProfile({ onLanguageChange }) {
         ...u,
         enableSmartReplies: data.enableSmartReplies,
       }));
-      // Mirror to IndexedDB so ChatView can preload before /users/me loads
       await setPref(PREF_SMART_REPLIES, checked);
     } catch (e) {
       console.error('Failed to update Smart Replies', e);
@@ -334,6 +336,13 @@ function UserProfile({ onLanguageChange }) {
           )}
         />
 
+        {/* 🔊 Sound settings */}
+        <Divider
+          label={t('profile.soundSettings', 'Sounds')}
+          labelPosition="center"
+        />
+        <SoundSettings />
+
         <Divider
           label={t('profile.autoResponder', 'Auto-responder')}
           labelPosition="center"
@@ -429,10 +438,7 @@ function UserProfile({ onLanguageChange }) {
         <Switch
           checked={privacyBlurOnUnfocus}
           onChange={(e) => setPrivacyBlurOnUnfocus(e.currentTarget.checked)}
-          label={t(
-            'profile.privacyBlurOnUnfocus',
-            'Blur when app is unfocused'
-          )}
+          label={t('profile.privacyBlurOnUnfocus', 'Blur when app is unfocused')}
         />
         <Switch
           checked={privacyHoldToReveal}
