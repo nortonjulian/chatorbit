@@ -6,9 +6,19 @@ import { translateText } from '../utils/translateText.js';
 import { allow } from '../utils/tokenBucket.js';
 
 const ORBIT_BOT_USER_ID = Number(process.env.ORBIT_BOT_USER_ID ?? 0);
-const MAX_TRANSLATE_CHARS = Number(
-  process.env.TRANSLATE_MAX_INPUT_CHARS || 1200
-);
+const MAX_TRANSLATE_CHARS = Number(process.env.TRANSLATE_MAX_INPUT_CHARS || 1200);
+
+/* =========================
+ *  Plan-aware expiry limits
+ * ========================= */
+const FREE_MAX = 24 * 3600;          // 24h
+const PREMIUM_MAX = 7 * 24 * 3600;   // 7d
+
+function clampExpireSeconds(seconds, plan = 'FREE') {
+  const max = (plan || 'FREE').toUpperCase() === 'PREMIUM' ? PREMIUM_MAX : FREE_MAX;
+  if (!seconds || seconds <= 0) return 0;
+  return Math.min(seconds, max);
+}
 
 /**
  * Creates a message with full pipeline:
@@ -16,17 +26,17 @@ const MAX_TRANSLATE_CHARS = Number(
  *  - profanity filter based on sender/recipients
  *  - per-language translations (JSON map)
  *  - AES-GCM content encryption + NaCl-sealed session keys for all participants
- *  - optional expiry (per-message override beats user default)
+ *  - optional expiry (per-message override beats user default, clamped by plan)
  *
  * @param {Object} args
  * @param {number} args.senderId
  * @param {number|string} args.chatRoomId
  * @param {string} [args.content]                 // plaintext from client
  * @param {number} [args.expireSeconds]           // per-message TTL (seconds); overrides user default if provided
- * @param {string|null} [args.imageUrl=null]      // legacy single image url
- * @param {string|null} [args.audioUrl=null]      // legacy single audio url
+ * @param {string|null} [args.imageUrl=null]
+ * @param {string|null} [args.audioUrl=null]
  * @param {number|null} [args.audioDurationSec=null]
- * @param {boolean} [args.isAutoReply=false]      // mark message as auto-reply (for UI + loop guards)
+ * @param {boolean} [args.isAutoReply=false]
  * @param {Array} [args.attachments=[]]           // [{ kind, url, mimeType, width, height, durationSec, caption }]
  * @returns {Promise<Object>} Prisma message (selected fields) + { chatRoomId }
  */
@@ -44,11 +54,7 @@ export async function createMessageService({
   const roomIdNum = Number(chatRoomId);
 
   // 0) Validate presence (allow content OR any media/attachments)
-  if (
-    !senderId ||
-    !roomIdNum ||
-    (!content && !imageUrl && !audioUrl && !attachments?.length)
-  ) {
+  if (!senderId || !roomIdNum || (!content && !imageUrl && !audioUrl && !attachments?.length)) {
     throw new Error('Missing required fields');
   }
 
@@ -62,6 +68,7 @@ export async function createMessageService({
       allowExplicitContent: true,
       autoDeleteSeconds: true, // default TTL
       publicKey: true,
+      plan: true,               // 👈 include plan for TTL clamp
     },
   });
   if (!sender) throw new Error('Sender not found');
@@ -88,41 +95,33 @@ export async function createMessageService({
   });
 
   const recipientUsers = participants.map((p) => p.user); // includes sender
-  const recipientsExceptSender = recipientUsers.filter(
-    (u) => u.id !== sender.id
-  );
+  const recipientsExceptSender = recipientUsers.filter((u) => u.id !== sender.id);
 
   // 3) Profanity filtering (respect sender & recipients)
   const isMsgExplicit = content ? isExplicit(content) : false;
-  const anyRecipientDisallows = recipientsExceptSender.some(
-    (u) => !u.allowExplicitContent
-  );
+  const anyRecipientDisallows = recipientsExceptSender.some((u) => !u.allowExplicitContent);
   const senderDisallows = !sender.allowExplicitContent;
-  const mustClean =
-    Boolean(content) && (anyRecipientDisallows || senderDisallows);
+  const mustClean = Boolean(content) && (anyRecipientDisallows || senderDisallows);
   const cleanContent = mustClean ? cleanText(content) : content;
 
   // 4) Per-language translations (store a map)
   let translationsMap = null;
   let translatedFrom = sender.preferredLanguage || 'en';
   if (cleanContent) {
-    const targetLangs = recipientsExceptSender.map(
-      (u) => u.preferredLanguage || 'en'
-    );
-    const res = await translateForTargets(
-      cleanContent,
-      translatedFrom,
-      targetLangs
-    );
+    const targetLangs = recipientsExceptSender.map((u) => u.preferredLanguage || 'en');
+    const res = await translateForTargets(cleanContent, translatedFrom, targetLangs);
     translationsMap = Object.keys(res.map || {}).length ? res.map : null;
     translatedFrom = res.from || translatedFrom;
   }
 
-  // 5) Expiry: per-message override beats user default
-  const secs = Number.isFinite(expireSeconds)
+  // 5) Expiry: per-message override beats user default, then clamp by plan
+  const requestedSecs = Number.isFinite(expireSeconds)
     ? Number(expireSeconds)
     : sender.autoDeleteSeconds || 0;
-  const expiresAt = secs > 0 ? new Date(Date.now() + secs * 1000) : null;
+
+  const plan = (sender.plan || 'FREE').toUpperCase();
+  const secsClamped = clampExpireSeconds(requestedSecs, plan);
+  const expiresAt = secsClamped > 0 ? new Date(Date.now() + secsClamped * 1000) : null;
 
   // 6) Encrypt message for all participants (AES-GCM + NaCl sealed session key per user)
   const { ciphertext, encryptedKeys } = await encryptMessageForParticipants(
@@ -140,11 +139,11 @@ export async function createMessageService({
       translations: translationsMap, // JSON map of lang -> translated text (plaintext)
       translatedFrom,
       isExplicit: isMsgExplicit,
-      imageUrl: imageUrl || null, // legacy single image
-      audioUrl: audioUrl || null, // legacy single audio
+      imageUrl: imageUrl || null,
+      audioUrl: audioUrl || null,
       audioDurationSec: audioDurationSec ?? null,
       isAutoReply,
-      expiresAt,
+      expiresAt, // 👈 clamped TTL applied here
       sender: { connect: { id: sender.id } },
       chatRoom: { connect: { id: roomIdNum } },
       attachments: attachments?.length
@@ -246,24 +245,17 @@ export async function createMessageService({
  *   message.translations = { "en": "...", "es": "...", ... }
  * Triggers only when a provider key/endpoint exists and based on room mode.
  */
-export async function maybeAutoTranslate({
-  savedMessage,
-  io,
-  prisma: prismaArg,
-}) {
+export async function maybeAutoTranslate({ savedMessage, io, prisma: prismaArg }) {
   try {
     const db = prismaArg || prisma;
 
     // Provider available?
-    const hasProvider =
-      !!process.env.DEEPL_API_KEY || !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
+    const hasProvider = !!process.env.DEEPL_API_KEY || !!process.env.TRANSLATE_ENDPOINT; // e.g., a custom service
     if (!hasProvider) return;
 
     const roomId = Number(savedMessage.chatRoomId);
     const senderId = Number(savedMessage.senderId ?? savedMessage.sender?.id);
-    const raw = String(
-      savedMessage.rawContent || savedMessage.content || ''
-    ).trim();
+    const raw = String(savedMessage.rawContent || savedMessage.content || '').trim();
     if (!roomId || !raw) return;
 
     // Avoid loops for bot/system messages
@@ -301,7 +293,6 @@ export async function maybeAutoTranslate({
         .map((p) => (p.user?.preferredLanguage || 'en').trim().toLowerCase())
         .filter(Boolean)
     );
-
     if (targets.size === 0) return;
 
     // Translate fan-out with per-language throttles

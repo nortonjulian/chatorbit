@@ -19,18 +19,51 @@ import {
   Divider,
   Select,
   TextInput,
+  Card,            // ✅ added
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
-import { IconUpload } from '@tabler/icons-react';
+import { IconUpload, IconCloudUpload, IconStars } from '@tabler/icons-react'; // ✅ added icons
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import {
   exportEncryptedPrivateKey,
   importEncryptedPrivateKey,
 } from '../utils/keyBackup';
 import { setPref, PREF_SMART_REPLIES } from '../utils/prefsStore';
-
-// 🔊 Sound settings
 import SoundSettings from './SoundSettings';
+import PremiumGuard from './PremiumGuard';
+// If you want to embed the full backup UI inline instead of linking:
+// import BackupManager from './settings/BackupManager.jsx';
+
+function AdvancedTtlControls({ value, onChange }) {
+  // max 7 days = 604800 seconds
+  const presets = [
+    { label: '1 hour', sec: 3600 },
+    { label: '8 hours', sec: 8 * 3600 },
+    { label: '24 hours', sec: 24 * 3600 },
+    { label: '3 days', sec: 3 * 24 * 3600 },
+    { label: '7 days', sec: 7 * 24 * 3600 },
+  ];
+  return (
+    <Group align="flex-end" gap="sm">
+      <NumberInput
+        label="Disappear after (seconds)"
+        min={1}
+        max={7 * 24 * 3600}
+        step={60}
+        value={value}
+        onChange={(v) => onChange(Number(v) || 0)}
+        clampBehavior="strict"
+      />
+      <Select
+        label="Presets"
+        placeholder="Choose…"
+        data={presets.map((p) => ({ value: String(p.sec), label: p.label }))}
+        onChange={(v) => v && onChange(Number(v))}
+        searchable
+      />
+    </Group>
+  );
+}
 
 function UserProfile({ onLanguageChange }) {
   const { t } = useTranslation();
@@ -40,10 +73,23 @@ function UserProfile({ onLanguageChange }) {
     return <Text c="dimmed">{t('profile.mustLogin')}</Text>;
   }
 
-  // --- Preferences state (backed by server via Save button) ---
+  // --- Plan + themes (plan-aware) ---
+  const planUpper = (currentUser.plan || 'FREE').toUpperCase();
+  const isPremium = planUpper === 'PREMIUM';
+  const freeThemes = ['light', 'dark'];
+  const premiumThemes = ['solarized', 'midnight', 'vibrant'];
+  const themeChoices = isPremium ? [...freeThemes, ...premiumThemes] : freeThemes;
+  const themeOptions = themeChoices.map((v) => ({
+    value: v,
+    label: v.charAt(0).toUpperCase() + v.slice(1),
+  }));
+
+  // --- Preferences state ---
   const [preferredLanguage, setPreferredLanguage] = useState(
     currentUser.preferredLanguage || 'en'
   );
+  const [theme, setTheme] = useState(currentUser.theme || 'light');
+
   const [showOriginalWithTranslation, setShowOriginalWithTranslation] =
     useState(currentUser.showOriginalWithTranslation ?? true);
   const [allowExplicitContent, setAllowExplicitContent] = useState(
@@ -129,13 +175,14 @@ function UserProfile({ onLanguageChange }) {
     try {
       await axiosClient.patch(`/users/${currentUser.id}`, {
         preferredLanguage,
+        theme,
         showOriginalWithTranslation,
         allowExplicitContent,
         enableAIResponder,
         enableReadReceipts,
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
 
-        // Auto-responder settings
+        // Auto-responder
         autoResponderMode,
         autoResponderCooldownSec: Number(autoResponderCooldownSec) || 120,
         autoResponderSignature,
@@ -143,7 +190,7 @@ function UserProfile({ onLanguageChange }) {
           ? autoResponderActiveUntil.toISOString()
           : null,
 
-        // Privacy flags
+        // Privacy
         privacyBlurEnabled,
         privacyBlurOnUnfocus,
         privacyHoldToReveal,
@@ -156,19 +203,18 @@ function UserProfile({ onLanguageChange }) {
       setCurrentUser((prev) => ({
         ...prev,
         preferredLanguage,
+        theme,
         showOriginalWithTranslation,
         allowExplicitContent,
         enableAIResponder,
         enableReadReceipts,
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
-
         autoResponderMode,
         autoResponderCooldownSec: Number(autoResponderCooldownSec) || 120,
         autoResponderSignature,
         autoResponderActiveUntil: autoResponderActiveUntil
           ? autoResponderActiveUntil.toISOString()
           : null,
-
         privacyBlurEnabled,
         privacyBlurOnUnfocus,
         privacyHoldToReveal,
@@ -302,6 +348,24 @@ function UserProfile({ onLanguageChange }) {
           onChange={setPreferredLanguage}
         />
 
+        {/* Appearance */}
+        <Divider label={t('profile.appearance', 'Appearance')} labelPosition="center" />
+        {!isPremium && (
+          <Alert variant="light" color="blue">
+            {t(
+              'profile.themeFreeNotice',
+              'You’re on Free—only Light & Dark are available. Upgrade to unlock more themes.'
+            )}
+          </Alert>
+        )}
+        <Select
+          label={t('profile.theme', 'Theme')}
+          value={theme}
+          onChange={(v) => v && setTheme(v)}
+          data={themeOptions}
+          withinPortal
+        />
+
         {/* General toggles */}
         <Switch
           checked={showOriginalWithTranslation}
@@ -337,16 +401,10 @@ function UserProfile({ onLanguageChange }) {
         />
 
         {/* 🔊 Sound settings */}
-        <Divider
-          label={t('profile.soundSettings', 'Sounds')}
-          labelPosition="center"
-        />
+        <Divider label={t('profile.soundSettings', 'Sounds')} labelPosition="center" />
         <SoundSettings />
 
-        <Divider
-          label={t('profile.autoResponder', 'Auto-responder')}
-          labelPosition="center"
-        />
+        <Divider label={t('profile.autoResponder', 'Auto-responder')} labelPosition="center" />
 
         {/* Auto-responder controls */}
         <Switch
@@ -361,14 +419,8 @@ function UserProfile({ onLanguageChange }) {
           onChange={setAutoResponderMode}
           data={[
             { value: 'dm', label: t('profile.autoReplyDm', '1:1 chats only') },
-            {
-              value: 'mention',
-              label: t('profile.autoReplyMention', 'Only when I’m @mentioned'),
-            },
-            {
-              value: 'all',
-              label: t('profile.autoReplyAll', 'All inbound messages'),
-            },
+            { value: 'mention', label: t('profile.autoReplyMention', 'Only when I’m @mentioned') },
+            { value: 'all', label: t('profile.autoReplyAll', 'All inbound messages') },
             { value: 'off', label: t('common.off', 'Off') },
           ]}
           disabled={!enableAIResponder}
@@ -400,20 +452,14 @@ function UserProfile({ onLanguageChange }) {
         />
 
         {/* Disappearing messages */}
-        <Divider
-          label={t('profile.disappearing', 'Disappearing messages')}
-          labelPosition="center"
-        />
+        <Divider label={t('profile.disappearing', 'Disappearing messages')} labelPosition="center" />
         <Switch
           checked={autoDeleteSeconds > 0}
-          onChange={(e) =>
-            setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)
-          }
-          label={t(
-            'profile.disappearingMessages',
-            'Enable disappearing messages'
-          )}
+          onChange={(e) => setAutoDeleteSeconds(e.currentTarget.checked ? 10 : 0)}
+          label={t('profile.disappearingMessages', 'Enable disappearing messages')}
         />
+
+        {/* Basic seconds field (visible to all) */}
         {autoDeleteSeconds > 0 && (
           <NumberInput
             min={1}
@@ -425,11 +471,79 @@ function UserProfile({ onLanguageChange }) {
           />
         )}
 
+        {/* Premium-only advanced TTL up to 7 days */}
+        {autoDeleteSeconds > 0 && (
+          <PremiumGuard silent>
+            <AdvancedTtlControls
+              value={autoDeleteSeconds}
+              onChange={setAutoDeleteSeconds}
+            />
+          </PremiumGuard>
+        )}
+
+        {/* ===== Backup & Sync (Premium) ===== */}
+        <Divider label="Backup & Sync" labelPosition="center" />
+
+        <PremiumGuard>
+          <Card withBorder radius="lg" p="md">
+            <Group justify="space-between" align="center">
+              <Group>
+                <IconCloudUpload size={20} />
+                <Text fw={600}>Encrypted Backups & Device Sync</Text>
+              </Group>
+              <Button variant="light" component="a" href="/settings/backups">
+                Open Backup Tools
+              </Button>
+            </Group>
+            <Text size="sm" c="dimmed" mt="xs">
+              Create password-protected backups of your keys, and restore on another device to sync.
+            </Text>
+          </Card>
+
+          {/*
+          Or embed the full UI inline:
+          <BackupManager />
+          */}
+        </PremiumGuard>
+
+        {/* (Optional inline-variant guard for free users; left empty when premium) */}
+        <PremiumGuard variant="inline" silent>
+          {/* renders nothing for premium, upsell handled elsewhere */}
+        </PremiumGuard>
+
+        {/* ===== Priority Updates (Premium) ===== */}
+        <PremiumGuard>
+          <Card withBorder radius="lg" p="md">
+            <Group gap="xs" align="center">
+              <IconStars size={18} />
+              <Text fw={600}>Priority Updates</Text>
+            </Group>
+            <Text size="sm" c="dimmed" mt="xs">
+              Premium members receive new features and improvements first. No action needed — it’s automatic.
+            </Text>
+          </Card>
+        </PremiumGuard>
+
+        {/* Tasteful upsell for Free users */}
+        <PremiumGuard variant="inline" silent={false}>
+          <Card withBorder radius="lg" p="md">
+            <Group justify="space-between" align="center">
+              <Group gap="xs" align="center">
+                <IconStars size={18} />
+                <Text fw={600}>Priority Updates</Text>
+              </Group>
+              <Button color="yellow" variant="light" component="a" href="/settings/upgrade">
+                Upgrade
+              </Button>
+            </Group>
+            <Text size="sm" c="dimmed" mt="xs">
+              Get early access to new features and improvements.
+            </Text>
+          </Card>
+        </PremiumGuard>
+
         {/* Privacy */}
-        <Divider
-          label={t('profile.privacy', 'Privacy')}
-          labelPosition="center"
-        />
+        <Divider label={t('profile.privacy', 'Privacy')} labelPosition="center" />
         <Switch
           checked={privacyBlurEnabled}
           onChange={(e) => setPrivacyBlurEnabled(e.currentTarget.checked)}
@@ -452,12 +566,7 @@ function UserProfile({ onLanguageChange }) {
         />
 
         {/* Security */}
-        <Divider
-          label={t('profile.security', 'Security')}
-          labelPosition="center"
-        />
-
-        {/* Key management */}
+        <Divider label={t('profile.security', 'Security')} labelPosition="center" />
         <Group>
           <Button variant="light" onClick={exportKey}>
             {t('profile.exportKey', 'Export key')}
@@ -477,10 +586,7 @@ function UserProfile({ onLanguageChange }) {
         </Text>
 
         {statusMessage && (
-          <Alert
-            color={statusType === 'error' ? 'red' : 'green'}
-            variant="light"
-          >
+          <Alert color={statusType === 'error' ? 'red' : 'green'} variant="light">
             {statusMessage}
           </Alert>
         )}

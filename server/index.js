@@ -27,6 +27,7 @@ import statusRoutes from './routes/status.js';
 import devicesRouter from './routes/devices.js';
 import featuresRouter from './routes/features.js';
 import filesRouter from './routes/files.js';
+import backupsRouter from './routes/backups.js';
 
 // ✅ Billing (customer portal, checkout, and webhook)
 import billingRouter from './routes/billing.js';
@@ -225,11 +226,13 @@ app.use(groupInvitesRouter);
 app.use('/billing', billingRouter);
 
 // ✅ Example premium-only endpoint (put your premium logic here)
-app.get('/ai/power-feature', requireAuth, requirePremium, (req, res) => {
+app.get('/power-feature', requireAuth, requirePremium, (req, res) => {
   res.json({ ok: true });
 });
 
 app.use('/files', filesRouter);
+
+app.use('/backups', backupsRouter);
 
 // 404 then error handler
 app.use(notFoundHandler);

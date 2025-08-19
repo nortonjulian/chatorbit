@@ -20,6 +20,8 @@ import {
   IconInfoCircle,
   IconSearch,
   IconPhoto,
+  IconClock,
+  IconSparkles,
 } from '@tabler/icons-react';
 import MessageInput from './MessageInput';
 import ReactionBar from './ReactionBar.jsx';
@@ -46,6 +48,7 @@ import RoomSearchDrawer from './RoomSearchDrawer.jsx';
 import MediaGalleryModal from './MediaGalleryModal.jsx';
 
 import { playSound } from '../lib/sound.js';
+import PremiumGuard from './PremiumGuard.jsx';
 
 function getTimeLeftString(expiresAt) {
   const now = Date.now();
@@ -105,7 +108,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         setSmartEnabled(v);
         await setPref(PREF_SMART_REPLIES, v); // mirror server → cache
       } else {
-        // profile not loaded yet — preload from cache
         const cached = await getPref(PREF_SMART_REPLIES, false);
         setSmartEnabled(!!cached);
       }
@@ -174,17 +176,14 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       if (initial) {
         setMessages(chronological);
         setCursor(data.nextCursor ?? null);
-        // scroll to bottom on first load
         setTimeout(scrollToBottom, 0);
       } else {
-        // Preserve scroll position when prepending older messages
         const v = scrollViewportRef.current;
         const prevHeight = v ? v.scrollHeight : 0;
 
         setMessages((prev) => [...chronological, ...prev]);
         setCursor(data.nextCursor ?? null);
 
-        // After DOM paints, keep the viewport anchored around the same content
         setTimeout(() => {
           if (!v) return;
           const newHeight = v.scrollHeight;
@@ -192,7 +191,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         }, 0);
       }
 
-      // Cache locally for search/media
       addMessages(chatroom.id, chronological).catch(() => {});
     } catch (err) {
       console.error('Failed to fetch/decrypt paged messages', err);
@@ -230,7 +228,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     return () => v.removeEventListener('scroll', onScroll);
   }, [cursor, loading]);
 
-  // --- Realtime: receiving new messages (append at bottom) ---
+  // --- Realtime: receiving new messages ---
   useEffect(() => {
     if (!chatroom || !currentUserId) return;
 
@@ -256,7 +254,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           setShowNewMessage(true);
         }
 
-        // 🔔 Play a sound for inbound messages if user isn't at bottom or tab is hidden
         const isMine = decrypted?.sender?.id === currentUserId;
         const tabHidden = document.hidden;
         if (!isMine && (!atBottom || tabHidden)) {
@@ -267,7 +264,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         setMessages((prev) => [...prev, data]);
         setShowNewMessage(true);
 
-        // Fallback sound even if decryption failed (treat as inbound)
         const isMine = data?.senderId === currentUserId;
         const v = scrollViewportRef.current;
         const atBottom =
@@ -307,7 +303,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   useEffect(() => {
     const onCopyNotice = ({ messageId, toUserId }) => {
       if (toUserId !== currentUserId) return;
-      // Optional: toast/mark UI
     };
     socket.on('message_copy_notice', onCopyNotice);
     return () => socket.off('message_copy_notice', onCopyNotice);
@@ -316,7 +311,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   // 🔔 Real-time: read receipts
   useEffect(() => {
     const onRead = ({ messageId, reader }) => {
-      if (!reader || reader.id === currentUserId) return; // ignore our own echo
+      if (!reader || reader.id === currentUserId) return;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
@@ -364,7 +359,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     return () => socket.off('reaction_updated', onReaction);
   }, [currentUserId]);
 
-  // ✅ Smart Replies: compute suggestions from last few decrypted turns
+  // ✅ Smart Replies
   const { suggestions, clear } = useSmartReplies({
     messages,
     currentUserId,
@@ -372,16 +367,49 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     locale: navigator.language || 'en-US',
   });
 
-  // ✅ Send a picked smart reply through your existing socket flow
   const sendSmartReply = (text) => {
     if (!text?.trim() || !chatroom?.id) return;
     socket.emit('send_message', { content: text, chatRoomId: chatroom.id });
     clear();
   };
 
+  // === Premium toolbar actions ===
+  const runPowerAi = async () => {
+    try {
+      const { data } = await axiosClient.get('/ai/power-feature');
+      // handle result / toast
+      console.log('AI power result', data);
+    } catch (e) {
+      console.error(e);
+      alert('Power AI failed.');
+    }
+  };
+
+  const openSchedulePrompt = async () => {
+    const iso = window.prompt('Schedule time (ISO or YYYY-MM-DD HH:mm):');
+    if (!iso || !chatroom?.id) return;
+    let scheduledAt;
+    try {
+      scheduledAt = new Date(iso).toISOString();
+    } catch {
+      alert('Invalid date');
+      return;
+    }
+    try {
+      await axiosClient.post(`/messages/${chatroom.id}/schedule`, {
+        content: '(scheduled message)',
+        scheduledAt,
+      });
+      alert('Scheduled ✓');
+    } catch (e) {
+      console.error(e);
+      alert('Schedule failed.');
+    }
+  };
+
   const renderReadBy = (msg) => {
     if (!currentUser?.showReadReceipts) return null;
-    if (msg.sender?.id !== currentUserId) return null; // only show on our messages
+    if (msg.sender?.id !== currentUserId) return null;
     const readers = (msg.readBy || []).filter((u) => u.id !== currentUserId);
     if (!readers.length) return null;
 
@@ -460,7 +488,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             </ActionIcon>
           </Tooltip>
 
-          {/* Invite button (owner/admin only) */}
+          {/* Invite (owner/admin) */}
           {isOwnerOrAdmin && (
             <Tooltip label="Invite people">
               <ActionIcon variant="subtle" onClick={() => setInviteOpen(true)}>
@@ -469,7 +497,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             </Tooltip>
           )}
 
-          {/* Settings button (owner/admin only) */}
+          {/* Settings (owner/admin) */}
           {isOwnerOrAdmin && (
             <Tooltip label="Room settings">
               <ActionIcon
@@ -483,11 +511,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         </Group>
       </Group>
 
-      <ScrollArea
-        style={{ flex: 1 }}
-        viewportRef={scrollViewportRef}
-        type="auto"
-      >
+      <ScrollArea style={{ flex: 1 }} viewportRef={scrollViewportRef} type="auto">
         <Stack gap="xs" p="xs">
           {messages.map((msg) => {
             const isCurrentUser = msg.sender?.id === currentUserId;
@@ -535,13 +559,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                   {...bubbleProps}
                 >
                   {!isCurrentUser && (
-                    <Text
-                      size="xs"
-                      fw={600}
-                      c="dark.6"
-                      mb={4}
-                      className="sender-name"
-                    >
+                    <Text size="xs" fw={600} c="dark.6" mb={4} className="sender-name">
                       {msg.sender?.username}
                     </Text>
                   )}
@@ -557,7 +575,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     {msg.decryptedContent || msg.translatedForMe}
                   </Text>
 
-                  {/* 📷🖼️ Images grid */}
+                  {/* Images */}
                   {Array.isArray(msg.attachments) &&
                     msg.attachments.some((a) => a.kind === 'IMAGE') && (
                       <div
@@ -582,61 +600,39 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                                 borderRadius: 8,
                                 cursor: 'pointer',
                               }}
-                              onClick={() => {
-                                // TODO: open gallery viewer at this item
-                              }}
+                              onClick={() => {}}
                             />
                           ))}
                       </div>
                     )}
 
-                  {/* 🎬 Videos */}
+                  {/* Videos */}
                   {msg.attachments
                     ?.filter((a) => a.kind === 'VIDEO')
                     .map((a) => (
-                      <video
-                        key={a.id}
-                        controls
-                        preload="metadata"
-                        style={{ width: 260, marginTop: 6 }}
-                        src={a.url}
-                      />
+                      <video key={a.id} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
                     ))}
 
-                  {/* 🎧 Audios */}
+                  {/* Audios */}
                   {msg.attachments
                     ?.filter((a) => a.kind === 'AUDIO')
                     .map((a) => (
-                      <audio
-                        key={a.id}
-                        controls
-                        preload="metadata"
-                        style={{ width: 260, marginTop: 6 }}
-                        src={a.url}
-                      />
+                      <audio key={a.id} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
                     ))}
 
-                  {/* 🎤 Legacy per-message audio */}
+                  {/* Legacy per-message audio */}
                   {msg.audioUrl && (
-                    <audio
-                      controls
-                      preload="metadata"
-                      style={{ width: 260, marginTop: 6 }}
-                      src={msg.audioUrl}
-                    />
+                    <audio controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={msg.audioUrl} />
                   )}
 
-                  {/* 🏷️ Captions summary */}
+                  {/* Captions summary */}
                   {msg.attachments?.some((a) => a.caption) && (
                     <Text size="xs" mt={4}>
-                      {msg.attachments
-                        .map((a) => a.caption)
-                        .filter(Boolean)
-                        .join(' • ')}
+                      {msg.attachments.map((a) => a.caption).filter(Boolean).join(' • ')}
                     </Text>
                   )}
 
-                  {/* ⭐ Reactions */}
+                  {/* Reactions */}
                   <ReactionBar message={msg} currentUserId={currentUserId} />
 
                   {msg.translatedForMe && msg.rawContent && (
@@ -651,7 +647,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     </Text>
                   )}
 
-                  {/* 🟣 Auto-reply badge */}
                   {msg.isAutoReply && (
                     <Group justify="flex-end" mt={4}>
                       <Badge size="xs" variant="light" color="grape">
@@ -660,7 +655,6 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                     </Group>
                   )}
 
-                  {/* ✅ Read receipts (our messages only) */}
                   {renderReadBy(msg)}
                 </Paper>
               </Group>
@@ -691,24 +685,32 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             onChange={(e) => {
               const v = e.target.checked;
               setSmartEnabled(v);
-              setPref(PREF_SMART_REPLIES, v); // cache for next preload
+              setPref(PREF_SMART_REPLIES, v);
             }}
           />{' '}
-          Enable Smart Replies (sends last message to server for AI)
+        Enable Smart Replies (sends last message to server for AI)
         </label>
 
-        <SmartReplyBar
-          suggestions={suggestions}
-          onPick={(t) => sendSmartReply(t)}
-        />
+        <SmartReplyBar suggestions={suggestions} onPick={(t) => sendSmartReply(t)} />
       </div>
 
-      {/* 📅 Calendar suggestion bar (detect dates in recent messages) */}
-      <EventSuggestionBar
-        messages={messages}
-        currentUser={currentUser}
-        chatroom={chatroom}
-      />
+      {/* 📅 Calendar suggestion bar */}
+      <EventSuggestionBar messages={messages} currentUser={currentUser} chatroom={chatroom} />
+
+      {/* === Premium toolbar just above the composer === */}
+      <Group mt="sm" justify="space-between">
+        <PremiumGuard variant="inline">
+          <Button leftSection={<IconSparkles size={16} />} onClick={runPowerAi}>
+            Run AI Power Feature
+          </Button>
+        </PremiumGuard>
+
+        <PremiumGuard variant="inline">
+          <Button variant="light" leftSection={<IconClock size={16} />} onClick={openSchedulePrompt}>
+            Schedule Send
+          </Button>
+        </PremiumGuard>
+      </Group>
 
       {chatroom && (
         <Box mt="sm">
@@ -716,16 +718,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             chatroomId={chatroom.id}
             currentUser={currentUser}
             getLastInboundText={() => {
-              const lastInbound = messages
-                .slice()
-                .reverse()
-                .find((m) => m.sender?.id !== currentUserId);
-              return (
-                lastInbound?.decryptedContent || lastInbound?.content || ''
-              );
+              const lastInbound = messages.slice().reverse().find((m) => m.sender?.id !== currentUserId);
+              return lastInbound?.decryptedContent || lastInbound?.content || '';
             }}
             onMessageSent={(msg) => {
-              setMessages((prev) => [...prev, msg]); // append at bottom
+              setMessages((prev) => [...prev, msg]);
               addMessages(chatroom.id, [msg]).catch(() => {});
               scrollToBottom();
             }}
@@ -733,49 +730,12 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         </Box>
       )}
 
-      {/* ⚙️ Room settings modal */}
-      <RoomSettingsModal
-        opened={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        room={chatroom}
-        onUpdated={(updated) => {
-          // If parent keeps chatroom in state somewhere, merge this there.
-        }}
-      />
-
-      {/* ➕ Invite modal */}
-      <RoomInviteModal
-        opened={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        roomId={chatroom.id}
-      />
-
-      {/* ℹ️ About */}
-      <RoomAboutModal
-        opened={aboutOpen}
-        onClose={() => setAboutOpen(false)}
-        room={chatroom}
-        onSaved={(u) => {
-          // Merge room description up the tree if you hold it in state there
-        }}
-      />
-
-      {/* 🔎 Local search */}
-      <RoomSearchDrawer
-        opened={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        roomId={chatroom.id}
-        onJump={(messageId) => {
-          // Optional: implement scroll-to-message if your DOM tags messages with data-mid
-        }}
-      />
-
-      {/* 🖼️ Media gallery */}
-      <MediaGalleryModal
-        opened={galleryOpen}
-        onClose={() => setGalleryOpen(false)}
-        roomId={chatroom.id}
-      />
+      {/* Modals & drawers */}
+      <RoomSettingsModal opened={settingsOpen} onClose={() => setSettingsOpen(false)} room={chatroom} />
+      <RoomInviteModal opened={inviteOpen} onClose={() => setInviteOpen(false)} roomId={chatroom.id} />
+      <RoomAboutModal opened={aboutOpen} onClose={() => setAboutOpen(false)} room={chatroom} />
+      <RoomSearchDrawer opened={searchOpen} onClose={() => setSearchOpen(false)} roomId={chatroom.id} />
+      <MediaGalleryModal opened={galleryOpen} onClose={() => setGalleryOpen(false)} roomId={chatroom.id} />
     </Box>
   );
 }

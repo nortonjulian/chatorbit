@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePremium } from '../middleware/plan.js';
 import { audit } from '../middleware/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
@@ -177,7 +178,9 @@ router.post(
 
     // Shape response: replace PRIVATE refs with short-lived signed URLs (5 min)
     const toSigned = (rel, ownerId) =>
-      `/files?token=${encodeURIComponent(signDownloadToken({ path: rel, ownerId, ttlSec: 300 }))}`;
+      `/files?token=${encodeURIComponent(
+        signDownloadToken({ path: rel, ownerId, ttlSec: 300 })
+      )}`;
 
     const shaped = {
       ...saved,
@@ -198,6 +201,68 @@ router.post(
     // Emit shaped message (no raw/private paths leave the server)
     req.app.get('io')?.to(String(chatRoomId)).emit('receive_message', shaped);
     return res.status(201).json(shaped);
+  })
+);
+
+/**
+ * PREMIUM: schedule a message to send later
+ * POST /messages/:roomId/schedule
+ * Body: { content: string, scheduledAt: string | number (ISO or ms) }
+ */
+router.post(
+  '/:roomId/schedule',
+  requireAuth,
+  requirePremium,
+  asyncHandler(async (req, res) => {
+    const senderId = Number(req.user?.id);
+    const roomId = Number(req.params.roomId);
+    const { content, scheduledAt } = req.body || {};
+
+    if (!Number.isFinite(roomId)) throw Boom.badRequest('Invalid roomId');
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      throw Boom.badRequest('content is required');
+    }
+
+    // must be a participant
+    const membership = await prisma.participant.findFirst({
+      where: { chatRoomId: roomId, userId: senderId },
+      select: { id: true },
+    });
+    if (!membership) throw Boom.forbidden('Not a participant in this chat');
+
+    // validate timestamp
+    const ts =
+      typeof scheduledAt === 'string' || typeof scheduledAt === 'number'
+        ? new Date(scheduledAt)
+        : null;
+    if (!ts || Number.isNaN(ts.getTime())) {
+      throw Boom.badRequest('scheduledAt must be a valid ISO date or ms epoch');
+    }
+    const now = Date.now();
+    if (ts.getTime() <= now + 5_000) {
+      // small guard to avoid "immediately" scheduled items
+      throw Boom.badRequest('scheduledAt must be in the future (≥ 5s)');
+    }
+
+    // Persist into a scheduler table; a cron/worker will later materialize it
+    const scheduled = await prisma.scheduledMessage.create({
+      data: {
+        chatRoomId: roomId,
+        senderId,
+        content: content.trim(),
+        scheduledAt: ts,
+      },
+      select: {
+        id: true,
+        chatRoomId: true,
+        senderId: true,
+        content: true,
+        scheduledAt: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(201).json({ ok: true, scheduled });
   })
 );
 

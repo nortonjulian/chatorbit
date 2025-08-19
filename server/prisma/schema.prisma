@@ -185,6 +185,15 @@ model Message {
   @@index([chatRoomId, createdAt], map: "msg_room_time")
 }
 
+model ScheduledMessage {
+  id          Int      @id @default(autoincrement())
+  chatRoomId  Int
+  senderId    Int
+  content     String
+  scheduledAt DateTime
+  createdAt   DateTime @default(now())
+}
+
 // one row per (message, recipient)
 model MessageKey {
   messageId    Int

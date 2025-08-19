@@ -1,26 +1,31 @@
 import { useMemo, useState } from 'react';
-import { Group, Select, Slider, Button, Stack, Text } from '@mantine/core';
+import { Group, Select, Slider, Button, Stack, Text, Alert, Anchor } from '@mantine/core';
+import { useUser } from '../context/UserContext';
+import { playSound } from '../lib/sound';
 import {
-  MESSAGE_TONES,
-  RINGTONES,
+  listMessageTones,
+  listRingtones,
+  messageToneUrl,
+  ringtoneUrl,
   getMessageTone,
-  getRingtone,
   setMessageTone,
+  getRingtone,
   setRingtone,
   getVolume,
   setVolume,
-  messageToneUrl,
-  ringtoneUrl,
 } from '../lib/soundPrefs';
-import { playSound } from '../lib/sound';
+import PremiumGuard from './PremiumGuard';
 
 export default function SoundSettings() {
-  const [messageTone, setMessageToneState] = useState(getMessageTone());
-  const [ringtone, setRingtoneState] = useState(getRingtone());
-  const [volume, setVolumeState] = useState(getVolume());
+  const { currentUser } = useUser();
+  const plan = (currentUser?.plan || 'FREE').toUpperCase();
 
-  const messageOptions = useMemo(() => MESSAGE_TONES, []);
-  const ringOptions = useMemo(() => RINGTONES, []);
+  const [messageTone, setMsg] = useState(getMessageTone());
+  const [ringtone, setRing] = useState(getRingtone());
+  const [volume, setVol] = useState(getVolume());
+
+  const messageOptions = useMemo(() => listMessageTones(plan), [plan]);
+  const ringOptions = useMemo(() => listRingtones(plan), [plan]);
 
   const save = () => {
     setMessageTone(messageTone);
@@ -28,16 +33,30 @@ export default function SoundSettings() {
     setVolume(volume);
   };
 
+  const isFree = plan !== 'PREMIUM';
+
   return (
     <Stack gap="sm">
       <Text fw={600}>Notification Sounds</Text>
+
+      {isFree && (
+        <>
+          <Alert variant="light" color="blue">
+            You’re on Free—only 3 tones available.{' '}
+            <Anchor href="/settings/upgrade">Upgrade</Anchor> to unlock all.
+          </Alert>
+          <PremiumGuard variant="inline">
+            <Text size="sm">Unlock all tones and ringtones.</Text>
+          </PremiumGuard>
+        </>
+      )}
 
       <Group grow>
         <Select
           label="Message tone"
           data={messageOptions}
           value={messageTone}
-          onChange={(v) => v && setMessageToneState(v)}
+          onChange={(v) => v && setMsg(v)}
           searchable
           nothingFoundMessage="Add files in /public/sounds/Message_Tones"
         />
@@ -54,7 +73,7 @@ export default function SoundSettings() {
           label="Ringtone"
           data={ringOptions}
           value={ringtone}
-          onChange={(v) => v && setRingtoneState(v)}
+          onChange={(v) => v && setRing(v)}
           searchable
           nothingFoundMessage="Add files in /public/sounds/Ringtones"
         />
@@ -63,9 +82,7 @@ export default function SoundSettings() {
           onClick={() => {
             const el = playSound(ringtoneUrl(ringtone), { volume, loop: false });
             setTimeout(() => {
-              try {
-                el.pause();
-              } catch {}
+              try { el.pause(); } catch {}
             }, 3000);
           }}
         >
@@ -77,14 +94,7 @@ export default function SoundSettings() {
         <Text size="sm" mb={6}>
           Volume
         </Text>
-        <Slider
-          min={0}
-          max={1}
-          step={0.05}
-          value={volume}
-          onChange={setVolumeState}
-          marks={[{ value: 0 }, { value: 0.5 }, { value: 1 }]}
-        />
+        <Slider min={0} max={1} step={0.05} value={volume} onChange={setVol} />
       </div>
 
       <Group justify="flex-end">
