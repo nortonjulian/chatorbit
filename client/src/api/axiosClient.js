@@ -17,14 +17,24 @@ const axiosClient = axios.create({
 
 // ✅ No request interceptor adding Authorization headers — cookie-only auth
 
-// Optional: normalize 401 handling in one place
+// Optional: normalize 401/402 handling in one place
 axiosClient.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err?.response?.status === 401) {
+    const status = err?.response?.status;
+
+    if (status === 401) {
       // Broadcast a global event so the app can redirect to login, clear user state, etc.
       window.dispatchEvent(new CustomEvent('auth-unauthorized'));
     }
+
+    if (status === 402) {
+      // Premium required — send users to the upgrade page
+      window.location.assign('/settings/upgrade');
+      // Let the original caller fail; the redirect will take over.
+      // (Swallowing can mask issues; prefer reject to keep devtools visibility.)
+    }
+
     return Promise.reject(err);
   }
 );

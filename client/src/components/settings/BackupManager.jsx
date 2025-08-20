@@ -1,147 +1,167 @@
 import React, { useState } from 'react';
 import {
-  Button,
-  Card,
-  FileInput,
-  Group,
-  Stack,
-  Text,
-  PasswordInput,
-  Divider,
-} from '@mantine/core';
-import PremiumGuard from '../PremiumGuard.jsx';
-import {
   createEncryptedKeyBackup,
   restoreEncryptedKeyBackup,
+  createEncryptedChatBackup,
+  restoreEncryptedChatBackup,
 } from '../../utils/backupClient.js';
 
-export default function BackupManager() {
-  // Export state
-  const [unlockPasscode, setUnlockPasscode] = useState('');
+/**
+ * Utility for downloading a Blob
+ */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function ChatBackupManager({
+  currentUserId,
+  roomId,
+  fetchPage, // required for chat backup
+  fetchPublicKeys, // optional for chat backup
+}) {
+  const [status, setStatus] = useState('');
   const [backupPassword, setBackupPassword] = useState('');
-  const [busyExport, setBusyExport] = useState(false);
-  const [exportMsg, setExportMsg] = useState('');
+  const [localPasscode, setLocalPasscode] = useState('');
+  const [restoreFile, setRestoreFile] = useState(null);
 
-  // Import state
-  const [importPassword, setImportPassword] = useState('');
-  const [newLocalPasscode, setNewLocalPasscode] = useState('');
-  const [file, setFile] = useState(null);
-  const [busyImport, setBusyImport] = useState(false);
-  const [importMsg, setImportMsg] = useState('');
-
-  const onExport = async () => {
-    setBusyExport(true);
-    setExportMsg('');
+  // === KEY BACKUP ===
+  async function handleKeyBackup() {
     try {
+      setStatus('Creating key backup...');
       const { blob, filename } = await createEncryptedKeyBackup({
-        unlockPasscode,
+        unlockPasscode: localPasscode,
         backupPassword,
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setExportMsg('Backup created and downloaded ✓');
-    } catch (e) {
-      setExportMsg(`Error: ${e.message}`);
-    } finally {
-      setBusyExport(false);
+      downloadBlob(blob, filename);
+      setStatus(`Key backup saved as ${filename}`);
+    } catch (err) {
+      console.error(err);
+      setStatus(`Key backup failed: ${err.message}`);
     }
-  };
+  }
 
-  const onImport = async () => {
-    setBusyImport(true);
-    setImportMsg('');
+  async function handleKeyRestore() {
     try {
+      setStatus('Restoring key backup...');
       await restoreEncryptedKeyBackup({
-        file,
-        backupPassword: importPassword,
-        setLocalPasscode: newLocalPasscode,
+        file: restoreFile,
+        backupPassword,
+        setLocalPasscode: localPasscode,
       });
-      setImportMsg('Backup restored ✓ Keys installed and protected locally');
-    } catch (e) {
-      setImportMsg(`Error: ${e.message}`);
-    } finally {
-      setBusyImport(false);
+      setStatus('Key backup restored!');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Key restore failed: ${err.message}`);
     }
-  };
+  }
 
-  const exportDisabled =
-    !unlockPasscode || unlockPasscode.length < 6 ||
-    !backupPassword || backupPassword.length < 6;
+  // === CHAT BACKUP ===
+  async function handleChatBackup() {
+    try {
+      setStatus('Creating chat backup...');
+      const { blob, filename } = await createEncryptedChatBackup({
+        roomId,
+        currentUserId,
+        passcodeToUnlockKeys: localPasscode,
+        password: backupPassword,
+        fetchPage,
+        fetchPublicKeys,
+        includeMedia: true,
+      });
+      downloadBlob(blob, filename);
+      setStatus(`Chat backup saved as ${filename}`);
+    } catch (err) {
+      console.error(err);
+      setStatus(`Chat backup failed: ${err.message}`);
+    }
+  }
 
-  const importDisabled =
-    !file ||
-    !importPassword || importPassword.length < 6 ||
-    !newLocalPasscode || newLocalPasscode.length < 6;
+  async function handleChatRestore() {
+    try {
+      setStatus('Restoring chat backup...');
+      const result = await restoreEncryptedChatBackup({
+        file: restoreFile,
+        password: backupPassword,
+      });
+      console.log('Restored chat JSON:', result);
+      setStatus(`Chat backup restored with ${result?.messages?.length || 0} messages`);
+    } catch (err) {
+      console.error(err);
+      setStatus(`Chat restore failed: ${err.message}`);
+    }
+  }
 
   return (
-    <PremiumGuard>
-      <Card withBorder padding="lg" radius="md">
-        <Stack gap="md">
-          <Text fw={700}>Encrypted Backups</Text>
-          <Text c="dimmed">
-            Export your key bundle encrypted with a password only you know. Restore on a new device
-            without server assistance.
-          </Text>
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-semibold">Backup & Restore</h2>
 
-          <Divider label="Create backup" />
-          <PasswordInput
-            label="Unlock passcode (current device)"
-            value={unlockPasscode}
-            onChange={(e) => setUnlockPasscode(e.currentTarget.value)}
-            description="Used to decrypt your keys locally before exporting"
+      <div className="space-y-2">
+        <label className="block">
+          Local Passcode:
+          <input
+            type="password"
+            value={localPasscode}
+            onChange={(e) => setLocalPasscode(e.target.value)}
+            className="border p-1 ml-2"
           />
-          <PasswordInput
-            label="Backup password"
+        </label>
+        <label className="block">
+          Backup Password:
+          <input
+            type="password"
             value={backupPassword}
-            onChange={(e) => setBackupPassword(e.currentTarget.value)}
-            description="Used to encrypt the backup file"
+            onChange={(e) => setBackupPassword(e.target.value)}
+            className="border p-1 ml-2"
           />
-          <Group justify="flex-end">
-            <Button onClick={onExport} loading={busyExport} disabled={exportDisabled}>
-              Download encrypted backup
-            </Button>
-          </Group>
-          {exportMsg && (
-            <Text c={exportMsg.startsWith('Error') ? 'red' : 'green'}>
-              {exportMsg}
-            </Text>
-          )}
+        </label>
+      </div>
 
-          <Divider label="Restore backup" />
-          <FileInput
-            label="Backup file (.json)"
-            value={file}
-            onChange={setFile}
-            placeholder="Select backup file"
-            accept="application/json"
-          />
-          <PasswordInput
-            label="Backup password"
-            value={importPassword}
-            onChange={(e) => setImportPassword(e.currentTarget.value)}
-          />
-          <PasswordInput
-            label="New local passcode"
-            value={newLocalPasscode}
-            onChange={(e) => setNewLocalPasscode(e.currentTarget.value)}
-            description="Protect keys at rest on this device"
-          />
-          <Group justify="flex-end">
-            <Button onClick={onImport} loading={busyImport} disabled={importDisabled}>
-              Restore backup
-            </Button>
-          </Group>
-          {importMsg && (
-            <Text c={importMsg.startsWith('Error') ? 'red' : 'green'}>
-              {importMsg}
-            </Text>
-          )}
-        </Stack>
-      </Card>
-    </PremiumGuard>
+      <div className="space-y-2">
+        <button
+          onClick={handleKeyBackup}
+          className="bg-blue-600 text-white px-3 py-1 rounded"
+        >
+          Backup Keys
+        </button>
+        <button
+          onClick={handleKeyRestore}
+          className="bg-green-600 text-white px-3 py-1 rounded"
+          disabled={!restoreFile}
+        >
+          Restore Keys
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <button
+          onClick={handleChatBackup}
+          className="bg-purple-600 text-white px-3 py-1 rounded"
+        >
+          Backup Chat
+        </button>
+        <button
+          onClick={handleChatRestore}
+          className="bg-pink-600 text-white px-3 py-1 rounded"
+          disabled={!restoreFile}
+        >
+          Restore Chat
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <input
+          type="file"
+          accept=".json"
+          onChange={(e) => setRestoreFile(e.target.files[0])}
+        />
+      </div>
+
+      <div className="text-sm text-gray-700">{status}</div>
+    </div>
   );
 }

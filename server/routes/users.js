@@ -16,46 +16,6 @@ import fs from 'fs';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// ---------------------- ADMIN: paginated users list ----------------------
-// Mounted under /admin/users in index.js via app.use('/admin/users', adminUsersRouter)
-router.get(
-  '/',
-  requireAuth,
-  requireAdmin,
-  audit('users.list', {
-    resource: 'user',
-    redactor: (req, _res) => ({ query: req.query ?? {}, note: 'admin list' }),
-  }),
-  async (req, res) => {
-    try {
-      const limit = Math.min(Math.max(1, Number(req.query.limit ?? 50)), 200);
-      const cursor = req.query.cursor ? Number(req.query.cursor) : null;
-
-      const items = await prisma.user.findMany({
-        orderBy: { id: 'desc' },
-        take: limit,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          phoneNumber: true,
-          preferredLanguage: true,
-          createdAt: true,
-          role: true,
-        },
-      });
-
-      const nextCursor =
-        items.length === limit ? items[items.length - 1].id : null;
-      return res.json({ items, nextCursor });
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ error: 'Failed to fetch users' });
-    }
-  }
-);
-
 // ---------------------- PUBLIC: create user ----------------------
 router.post('/', async (req, res) => {
   const { username, email, password } = req.body;

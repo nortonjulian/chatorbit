@@ -1,12 +1,16 @@
 {
   "name": "chatorbit-client",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "type": "module",
   "main": "index.js",
+  "description": "",
   "scripts": {
-    "prestart": "node server/scripts/check-env.js",
-    "start": "node server/index.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "vitest",
+    "test:ci": "vitest --run",
     "test:watch": "vitest --watch",
     "deps:check": "npm outdated || true",
     "audit": "npm audit || true"
@@ -14,7 +18,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
     "@bandwidth/messaging": "^4.1.7",
     "@google-cloud/translate": "^9.2.0",
@@ -68,7 +71,6 @@
     "lint-staged": "^16.1.5",
     "prettier": "^3.6.2",
     "prisma": "^6.13.0",
-    "supertest": "^7.0.0",
     "vitest": "^3.2.4"
   }
 }

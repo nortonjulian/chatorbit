@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
+import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 import { generateKeyPair } from '../utils/encryption.js';
 
@@ -203,20 +204,33 @@ router.post('/logout', (_req, res) => {
 });
 
 // Who am I? (reads cookie)
-router.get('/me', async (req, res) => {
-  const decoded = readJwtFromCookies(req);
-  if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { id: true, username: true, role: true, plan: true, avatarUrl: true, preferredLanguage: true },
-    });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    res.json({ user });
-  } catch (e) {
-    res.status(500).json({ error: 'Failed to fetch user' });
-  }
+router.get('/me', requireAuth, async (req, res) => {
+  const me = await prisma.user.findUnique({
+    where: { id: Number(req.user.id) },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      role: true,
+      plan: true, // <-- important
+      preferredLanguage: true,
+      showOriginalWithTranslation: true,
+      allowExplicitContent: true,
+      enableAIResponder: true,
+      enableSmartReplies: true,
+      autoResponderMode: true,
+      autoResponderCooldownSec: true,
+      autoResponderActiveUntil: true,
+      autoResponderSignature: true,
+      autoDeleteSeconds: true,
+      showReadReceipts: true,
+      avatarUrl: true,
+      emojiTag: true,
+      // add any other fields you rely on in the UI
+    },
+  });
+  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  return res.json({ user: me });
 });
 
 // Forgot password

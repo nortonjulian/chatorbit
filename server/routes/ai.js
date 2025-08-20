@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { translateText } from '../utils/translateText.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePremium } from '../middleware/requirePremium.js';
 
 const router = express.Router();
 
@@ -96,7 +97,24 @@ async function callOpenAIForSuggestions({ snippets, locale }) {
     .slice(0, 3);
 }
 
-// POST /ai/suggest-replies
+// ============================
+// Premium-only: power feature
+// ============================
+router.post(
+  '/power-feature',
+  requireAuth,
+  requirePremium,
+  asyncHandler(async (req, res) => {
+    // TODO: replace with your real advanced AI logic
+    // You can safely assume the user is premium here
+    return res.json({
+      ok: true,
+      result: '✨ Premium AI result (replace with real logic)',
+    });
+  })
+);
+
+// POST /ai/suggest-replies (Free by default; you may gate later)
 router.post(
   '/suggest-replies',
   requireAuth,
@@ -110,7 +128,7 @@ router.post(
   })
 );
 
-// POST /ai/translate
+// POST /ai/translate (Free by default; you may gate later)
 router.post(
   '/translate',
   requireAuth,

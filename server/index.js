@@ -11,7 +11,7 @@ import compression from 'compression';
 import { initDeleteExpired } from './cron/deleteExpiredMessages.js';
 
 import adminReportsRouter from './routes/adminReports.js';
-import adminUsersRouter from './routes/users.js';
+import adminUsersRouter from './routes/adminUsers.js';
 import adminAuditRouter from './routes/adminAudit.js';
 import chatroomsRouter from './routes/chatrooms.js';
 import messagesRouter from './routes/messages.js';
@@ -190,6 +190,8 @@ app.use(express.json());
 // --- Lightweight CSRF header check for state-changing requests ---
 app.use((req, res, next) => {
   const method = req.method.toUpperCase();
+  const url = req.originalUrl || req.url || '';
+  if (url.startsWith('/socket.io/')) return next();
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     const ok = req.headers['x-requested-with'] === 'XMLHttpRequest';
     if (!ok) return res.status(403).json({ error: 'CSRF check failed' });
@@ -226,7 +228,7 @@ app.use(groupInvitesRouter);
 app.use('/billing', billingRouter);
 
 // ✅ Example premium-only endpoint (put your premium logic here)
-app.get('/power-feature', requireAuth, requirePremium, (req, res) => {
+app.get('/ai/power-feature', requireAuth, requirePremium, (req, res) => {
   res.json({ ok: true });
 });
 

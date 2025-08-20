@@ -1,169 +1,147 @@
-import React, { useState } from 'react';
-import { Button, Card, Group, PasswordInput, Stack, Text } from '@mantine/core';
+import { useState } from 'react';
 import {
-  createEncryptedChatBackup,
-  restoreEncryptedChatBackup,
-} from '../utils/backupClient.js';
-import { unlockKeyBundle } from '../utils/encryptionClient.js';
+  Button,
+  Card,
+  FileInput,
+  Group,
+  Stack,
+  Text,
+  PasswordInput,
+  Divider,
+} from '@mantine/core';
+import PremiumGuard from '../PremiumGuard.jsx';
+import {
+  createEncryptedKeyBackup,
+  restoreEncryptedKeyBackup,
+} from '../../utils/backupClient.js';
 
-/**
- * Props:
- * - fetchAllMessages: () => Promise<Message[]>  // encrypted messages from backend
- * - currentUserId: number                       // used by your decrypt pipeline if needed
- * - senderPublicKeys?: Record<senderId, base64PublicKey> // optional (your decrypt pipeline may use it)
- *
- * Notes:
- * - This component unlocks the key itself (asks for passcode).
- * - It expects your fetchAllMessages() to return the same encrypted message shape
- *   you’ve been using elsewhere (the one your decrypt pipeline consumes).
- * - We keep the UI minimal; you can style to taste.
- */
-export default function ChatBackupManager({
-  fetchAllMessages,
-  currentUserId,
-  senderPublicKeys = {},
-}) {
-  const [unlockPass, setUnlockPass] = useState('');
+export default function ChatBackupManager() {
+  // Export state
+  const [unlockPasscode, setUnlockPasscode] = useState('');
   const [backupPassword, setBackupPassword] = useState('');
-  const [restorePassword, setRestorePassword] = useState('');
+  const [busyExport, setBusyExport] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
+
+  // Import state
+  const [importPassword, setImportPassword] = useState('');
+  const [newLocalPasscode, setNewLocalPasscode] = useState('');
   const [file, setFile] = useState(null);
-  const [status, setStatus] = useState('');
+  const [busyImport, setBusyImport] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
 
   const onExport = async () => {
-    setStatus('Preparing…');
+    setBusyExport(true);
+    setExportMsg('');
     try {
-      // 1) Unlock local key bundle (decrypt-at-rest)
-      if (!unlockPass || unlockPass.length < 6)
-        throw new Error('Enter your unlock passcode (min 6 chars)');
-      const { privateKey } = await unlockKeyBundle(unlockPass);
-
-      // 2) Fetch ALL messages the user can see (encrypted)
-      const encryptedMessages = await fetchAllMessages();
-
-      // 3) Decrypt for export, using your existing decrypt pipeline
-      // Reuse your decryptFetchedMessages() from encryptionClient.js if you want:
-      const { decryptFetchedMessages } = await import(
-        '../utils/encryptionClient.js'
-      );
-      const decrypted = await decryptFetchedMessages(
-        encryptedMessages,
-        privateKey,
-        senderPublicKeys,
-        currentUserId
-      );
-
-      // 4) Normalize to a light export shape
-      const normalized = decrypted.map((m) => ({
-        id: m.id,
-        chatId: m.chatRoomId || m.chatId,
-        senderId: m.sender?.id,
-        createdAt: m.createdAt,
-        text: m.decryptedContent || '',
-      }));
-
-      // 5) Build encrypted backup
-      if (!backupPassword || backupPassword.length < 6) {
-        throw new Error('Backup password must be at least 6 characters');
-      }
-      const { blob, filename } = await createEncryptedChatBackup({
-        decryptedMessages: normalized,
+      const { blob, filename } = await createEncryptedKeyBackup({
+        unlockPasscode,
         backupPassword,
-        label: 'all-chats',
       });
-
-      // 6) Download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-      setStatus('Backup downloaded ✓');
+      setExportMsg('Key backup created and downloaded ✓');
     } catch (e) {
-      setStatus(`Error: ${e.message}`);
+      setExportMsg(`Error: ${e.message}`);
+    } finally {
+      setBusyExport(false);
     }
   };
 
   const onImport = async () => {
-    setStatus('Restoring…');
+    setBusyImport(true);
+    setImportMsg('');
     try {
-      if (!file) throw new Error('Choose a backup file first');
-      if (!restorePassword || restorePassword.length < 6) {
-        throw new Error('Backup password must be at least 6 characters');
-      }
-      await restoreEncryptedChatBackup({
+      await restoreEncryptedKeyBackup({
         file,
-        backupPassword: restorePassword,
+        backupPassword: importPassword,
+        setLocalPasscode: newLocalPasscode,
       });
-      setStatus('Archive restored locally ✓ (read-only)');
+      setImportMsg('Key backup restored ✓ Keys installed locally');
     } catch (e) {
-      setStatus(`Error: ${e.message}`);
+      setImportMsg(`Error: ${e.message}`);
+    } finally {
+      setBusyImport(false);
     }
   };
 
+  const exportDisabled =
+    !unlockPasscode || unlockPasscode.length < 6 ||
+    !backupPassword || backupPassword.length < 6;
+
+  const importDisabled =
+    !file ||
+    !importPassword || importPassword.length < 6 ||
+    !newLocalPasscode || newLocalPasscode.length < 6;
+
   return (
-    <Card withBorder radius="md" p="lg">
-      <Stack gap="md">
-        <Text fw={700}>Chat Backups (encrypted)</Text>
-        <Text c="dimmed">
-          Export your decrypted messages into an encrypted file
-          (password-protected). Restore loads an archive locally for read-only
-          viewing.
-        </Text>
+    <PremiumGuard>
+      <Card withBorder padding="lg" radius="md">
+        <Stack gap="md">
+          <Text fw={700}>Encrypted Key Backups</Text>
+          <Text c="dimmed">
+            Export your key bundle encrypted with a password only you know. Restore on a new device
+            without server assistance.
+          </Text>
 
-        {/* Export section */}
-        <PasswordInput
-          label="Unlock passcode (to decrypt keys)"
-          value={unlockPass}
-          onChange={(e) => setUnlockPass(e.currentTarget.value)}
-          description="Your device passcode (min 6 chars)"
-        />
-        <PasswordInput
-          label="Backup password (for the export file)"
-          value={backupPassword}
-          onChange={(e) => setBackupPassword(e.currentTarget.value)}
-          description="This will encrypt the downloaded file (min 6 chars)"
-        />
-        <Group justify="flex-end">
-          <Button
-            onClick={onExport}
-            disabled={
-              !unlockPass ||
-              unlockPass.length < 6 ||
-              !backupPassword ||
-              backupPassword.length < 6
-            }
-          >
-            Download chat backup
-          </Button>
-        </Group>
+          <Divider label="Create key backup" />
+          <PasswordInput
+            label="Unlock passcode (current device)"
+            value={unlockPasscode}
+            onChange={(e) => setUnlockPasscode(e.currentTarget.value)}
+            description="Used to decrypt your keys locally before exporting"
+          />
+          <PasswordInput
+            label="Backup password"
+            value={backupPassword}
+            onChange={(e) => setBackupPassword(e.currentTarget.value)}
+            description="Used to encrypt the backup file"
+          />
+          <Group justify="flex-end">
+            <Button onClick={onExport} loading={busyExport} disabled={exportDisabled}>
+              Download encrypted key backup
+            </Button>
+          </Group>
+          {exportMsg && (
+            <Text c={exportMsg.startsWith('Error') ? 'red' : 'green'}>
+              {exportMsg}
+            </Text>
+          )}
 
-        {/* Import section */}
-        <input
-          type="file"
-          accept="application/json"
-          onChange={(e) => setFile(e.currentTarget.files?.[0] || null)}
-        />
-        <PasswordInput
-          label="Backup password (to restore)"
-          value={restorePassword}
-          onChange={(e) => setRestorePassword(e.currentTarget.value)}
-          description="The password you used when exporting"
-        />
-        <Group justify="flex-end">
-          <Button
-            onClick={onImport}
-            disabled={!file || !restorePassword || restorePassword.length < 6}
-          >
-            Restore backup
-          </Button>
-        </Group>
-
-        {status && (
-          <Text c={status.startsWith('Error') ? 'red' : 'green'}>{status}</Text>
-        )}
-      </Stack>
-    </Card>
+          <Divider label="Restore key backup" />
+          <FileInput
+            label="Backup file (.json)"
+            value={file}
+            onChange={setFile}
+            placeholder="Select backup file"
+            accept="application/json"
+          />
+          <PasswordInput
+            label="Backup password"
+            value={importPassword}
+            onChange={(e) => setImportPassword(e.currentTarget.value)}
+          />
+          <PasswordInput
+            label="New local passcode"
+            value={newLocalPasscode}
+            onChange={(e) => setNewLocalPasscode(e.currentTarget.value)}
+            description="Protect keys at rest on this device"
+          />
+          <Group justify="flex-end">
+            <Button onClick={onImport} loading={busyImport} disabled={importDisabled}>
+              Restore key backup
+            </Button>
+          </Group>
+          {importMsg && (
+            <Text c={importMsg.startsWith('Error') ? 'red' : 'green'}>
+              {importMsg}
+            </Text>
+          )}
+        </Stack>
+      </Card>
+    </PremiumGuard>
   );
 }

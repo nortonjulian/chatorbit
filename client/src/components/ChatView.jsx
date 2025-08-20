@@ -376,7 +376,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   // === Premium toolbar actions ===
   const runPowerAi = async () => {
     try {
-      const { data } = await axiosClient.get('/ai/power-feature');
+      const { data } = await axiosClient.post('/ai/power-feature', { context: [] });
       // handle result / toast
       console.log('AI power result', data);
     } catch (e) {
