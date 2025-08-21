@@ -9,9 +9,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:ci": "vitest --run",
-    "test:watch": "vitest --watch",
+    "test": "jest --passWithNoTests",
+    "test:watch": "jest --watch",
+    "test:ui": "jest -t .",
     "deps:check": "npm outdated || true",
     "audit": "npm audit || true"
   },
@@ -59,8 +59,10 @@
     "validator": "^13.15.15"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.0",
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
+    "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "babel-jest": "^29.7.0",
@@ -74,7 +76,6 @@
     "jsdom": "^26.1.0",
     "lint-staged": "^16.1.5",
     "prettier": "^3.6.2",
-    "prisma": "^6.13.0",
-    "vitest": "^3.2.4"
+    "prisma": "^6.13.0"
   }
 }

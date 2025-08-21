@@ -21,7 +21,6 @@ jest.mock('../src/components/StatusViewer.jsx', () => ({
   default: ({ opened }) => (opened ? <div data-testid="viewer-open" /> : null),
 }));
 
-import ChatHome from '../src/components/ChatHome.jsx';
 
 test('opens composer when clicking New Status', async () => {
   renderWithRouter(<ChatHome currentUser={{ id: 1 }} />);

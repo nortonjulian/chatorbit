@@ -6,7 +6,7 @@ import ForgotPassword from '../src/components/ForgotPassword.jsx';
 
 // axiosClient mock — safe name prefix
 const mockPost = jest.fn();
-jest.mock('../api/axiosClient', () => ({
+jest.mock('../src/api/axiosClient', () => ({
   __esModule: true,
   default: { post: (...args) => mockPost(...args) },
 }));

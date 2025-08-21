@@ -10,7 +10,6 @@ jest.mock('../src/api/axiosClient', () => ({
   default: { post: (...a) => mockPost(...a) },
 }));
 
-import ReactionBar from '../src/components/ReactionBar.jsx';
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -16,7 +16,7 @@ jest.mock('react-router-dom', () => {
 });
 
 const mockPost = jest.fn();
-jest.mock('../api/axiosClient', () => ({
+jest.mock('../src/api/axiosClient', () => ({
   __esModule: true,
   default: { post: (...args) => mockPost(...args) },
 }));

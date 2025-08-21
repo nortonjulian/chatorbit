@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, jest } from '@jest/globals';
 
 // Provide atob/btoa for Node
 if (typeof globalThis.atob !== 'function') {

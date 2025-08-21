@@ -43,7 +43,6 @@ jest.mock('../src/hooks/useSmartReplies.js', () => ({
   useSmartReplies: () => ({ suggestions: [], clear: () => {} }),
 }));
 
-import ChatView from '../src/components/ChatView.jsx';
 
 beforeEach(() => {
   jest.clearAllMocks();

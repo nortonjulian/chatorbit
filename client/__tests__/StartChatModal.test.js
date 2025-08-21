@@ -18,8 +18,6 @@ jest.mock('../src/api/axiosClient', () => ({
   },
 }));
 
-// Import the component *after* mocks
-import StartChatModal from '../src/components/StartChatModal.jsx';
 
 beforeEach(() => {
   jest.clearAllMocks();

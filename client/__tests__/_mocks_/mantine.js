@@ -21,15 +21,14 @@ exports.Image = (p) => React.createElement('img', p);
 exports.TextInput = (p) => React.createElement('input', { type: 'text', ...p });
 exports.Textarea  = (p) => React.createElement('textarea', p);
 exports.FileInput = (p) => React.createElement('input', { type: 'file', ...p });
-exports.Select = ({ data = [], value, onChange, ...rest }) => (
+exports.Select = ({ data = [], value, onChange, ...rest }) =>
   React.createElement(
     'select',
     { value, onChange: (e) => onChange?.(e.target.value), ...rest },
     data.map((d) =>
       React.createElement('option', { key: d.value ?? d, value: d.value ?? d }, d.label ?? String(d))
     )
-  )
-);
+  );
 
 exports.Button = (p) => React.createElement('button', p);
 exports.ActionIcon = (p) => React.createElement('button', p);

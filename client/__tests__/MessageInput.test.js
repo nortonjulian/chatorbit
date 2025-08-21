@@ -26,7 +26,6 @@ jest.mock('../src/components/StickerPicker.jsx', () => ({
     ) : null,
 }));
 
-import MessageInput from '../src/components/MessageInput.jsx';
 
 beforeEach(() => {
   jest.clearAllMocks();

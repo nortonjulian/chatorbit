@@ -10,8 +10,6 @@ jest.mock('../src/api/axiosClient', () => ({
   default: { get: (...a) => mockGet(...a) },
 }));
 
-// Import after mocks
-import StickerPicker from '../src/components/StickerPicker.jsx';
 
 beforeEach(() => {
   jest.clearAllMocks();

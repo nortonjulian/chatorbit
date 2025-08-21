@@ -9,7 +9,7 @@ const mockPost = jest.fn();
 const mockPatch = jest.fn();
 const mockDelete = jest.fn();
 
-jest.mock('../api/axiosClient', () => ({
+jest.mock('../src/api/axiosClient', () => ({
   __esModule: true,
   default: { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete },
 }));

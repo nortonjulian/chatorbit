@@ -37,7 +37,6 @@ beforeEach(() => {
   mockPost.mockReset();
 });
 
-import EventSuggestionBar from '../src/components/EventSuggestionBar.jsx';
 
 const messages = [
   { id: 1, decryptedContent: 'Let’s meet Jan 1st 10am' },
