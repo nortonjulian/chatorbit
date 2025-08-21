@@ -1,4 +1,3 @@
-// src/components/VoiceRecorder.jsx
 import { useEffect, useRef, useState } from 'react';
 import { ActionIcon, Tooltip } from '@mantine/core';
 import { IconMicrophone, IconPlayerStop } from '@tabler/icons-react';

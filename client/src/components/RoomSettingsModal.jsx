@@ -1,4 +1,3 @@
-// src/components/RoomSettingsModal.jsx
 import { useEffect, useState } from 'react';
 import {
   Modal,
