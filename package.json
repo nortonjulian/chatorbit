@@ -7,16 +7,20 @@
     "lint:fix": "eslint \"{client,server}/**/*.{js,jsx}\" --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+
     "test": "npm -w client run -s test:ci && npm -w chatorbit-server run -s test",
     "test:client": "npm -w client run -s test:ci",
-    "test:server": "npm -w chatorbit-server run -s test"
+    "test:server": "npm -w chatorbit-server run -s test",
+
+    "test:e2e": "playwright test",
+
+    "test:all": "npm run test && npm run test:e2e"
   },
   "devDependencies": {
-    "eslint": "^9.33.0",
-    "prettier": "^3.6.2",
-    "supertest": "^7.1.4",
-    "vitest": "^3.2.4",
+    "@playwright/test": "^1.47.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
-    "@vitest/coverage-v8": "^3.2.4"
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2"
   }
 }

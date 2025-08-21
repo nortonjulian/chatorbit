@@ -438,7 +438,7 @@ router.patch(
   requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
+    if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id'); 
 
     const room = await prisma.chatRoom.findUnique({
       where: { id },

@@ -1,0 +1,35 @@
+# server/tests/perf/messages.yml
+config:
+  target: "http://localhost:3000"
+  phases:
+    - name: warmup
+      duration: 10
+      arrivalRate: 2
+    - name: ramp
+      duration: 30
+      arrivalRate: 5
+    - name: peak
+      duration: 30
+      arrivalRate: 15
+  ensure:
+    - "http.response_time.p95 < 150"
+    - "http.response_time.p99 < 250"
+    - "http.codes.404 == 0"     # <— important
+
+scenarios:
+  - name: login + read messages
+    flow:
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ $randomString() }}"
+            password: "pw123456"
+          capture:
+            - json: "$.user.id"
+              as: "userId"
+          expect:
+            - statusCode: 200
+      - get:
+          url: "/messages/{{ roomId }}?limit=20"
+          expect:
+            - statusCode: 200
