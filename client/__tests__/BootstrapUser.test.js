@@ -1,9 +1,8 @@
-import React from 'react';
+// client/__tests__/BootstrapUser.test.js
 import { jest } from '@jest/globals';
-import { screen } from '@testing-library/react';
-import { renderWithRouter } from '../src/test-utils';
+import { render, screen, waitFor } from '@testing-library/react';
 
-// --- axiosClient mock (TOP, safe names that start with "mock") ---
+// --- axiosClient mock ---
 const mockGet = jest.fn();
 const mockPost = jest.fn();
 const mockPatch = jest.fn();
@@ -14,19 +13,23 @@ jest.mock('../src/api/axiosClient', () => ({
   default: { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete },
 }));
 
-// --- Mock KeySetupModal to a simple marker element we can assert on ---
-jest.mock('./KeySetupModal', () => ({
+// --- KeySetupModal mock (leave off extension so resolver can pick .jsx/.js) ---
+jest.mock('../src/components/KeySetupModal', () => ({
   __esModule: true,
-  default: ({ opened, haveServerPubKey }) =>
-    opened ? <div data-testid="key-modal">{String(haveServerPubKey)}</div> : null,
+  default: ({ opened, haveServerPubKey }) => {
+    const React = require('react');
+    return opened
+      ? React.createElement('div', { 'data-testid': 'key-modal' }, String(haveServerPubKey))
+      : null;
+  },
 }));
 
-// --- Mocks for key utils (safe mock* names) ---
+// --- key utils mocks ---
 const mockLoadKeysLocal = jest.fn();
 const mockSaveKeysLocal = jest.fn();
 const mockGenerateKeypair = jest.fn(() => ({ publicKey: 'PUB', privateKey: 'PRIV' }));
 
-jest.mock('../utils/keys', () => ({
+jest.mock('../src/utils/keys', () => ({
   __esModule: true,
   loadKeysLocal: mockLoadKeysLocal,
   saveKeysLocal: mockSaveKeysLocal,
@@ -34,58 +37,62 @@ jest.mock('../utils/keys', () => ({
 }));
 
 // --- keyStore mock ---
-jest.mock('../utils/keyStore', () => ({
+jest.mock('../src/utils/keyStore', () => ({
   __esModule: true,
   migrateLocalToIDBIfNeeded: () => Promise.resolve(),
 }));
 
-// --- Context mock (dynamic per test) ---
+// Mock the UserContext used by the component (path without extension)
 function mockCtx(user, setCurrentUser = jest.fn()) {
-  jest.doMock('../context/UserContext', () => ({
+  jest.doMock('../src/context/UserContext', () => ({
+    __esModule: true,
     useUser: () => ({ currentUser: user, setCurrentUser }),
-  }), { virtual: true });
+  }));
   return setCurrentUser;
 }
 
 afterEach(() => {
-  jest.resetModules();
+  jest.resetModules();   // allow re-mocking before re-importing the component
   jest.clearAllMocks();
   localStorage.clear();
 });
 
-test('restores user from localStorage when context empty', async () => {
+test('restores user from localStorage when context is empty', async () => {
   localStorage.setItem('user', JSON.stringify({ id: 9, username: 'restored' }));
-  mockCtx(null);
-  const BootstrapUser = (await import('./BootstrapUser')).default;
-  renderWithRouter(<BootstrapUser />);
+  const setCurrentUser = mockCtx(null, jest.fn());
 
-  // If no throw, the effect ran; full assertion would require spying setCurrentUser via returned mock
-  // Quick sanity: modal is not open because we still have no currentUser keys flow yet
-  expect(screen.queryByTestId('key-modal')).not.toBeInTheDocument();
+  const { default: BootstrapUser } = await import('../src/components/BootstrapUser.jsx');
+  render(<BootstrapUser />);
+
+  await waitFor(() =>
+    expect(setCurrentUser).toHaveBeenCalledWith({ id: 9, username: 'restored' })
+  );
+  expect(screen.queryByTestId('key-modal')).toBeNull();
 });
 
-test('opens modal when user has server pubKey but no local private key', async () => {
+test('opens modal when server has a pubKey but this device lacks a private key', async () => {
   mockLoadKeysLocal.mockResolvedValueOnce({ publicKey: null, privateKey: null });
-
   mockCtx({ id: 1, username: 'a', publicKey: 'SERVER_PUB' });
-  const BootstrapUser = (await import('./BootstrapUser')).default;
-  renderWithRouter(<BootstrapUser />);
 
-  // Modal rendered with haveServerPubKey=true (string "true")
+  const { default: BootstrapUser } = await import('../src/components/BootstrapUser.jsx');
+  render(<BootstrapUser />);
+
   expect(await screen.findByTestId('key-modal')).toHaveTextContent('true');
 });
 
-test('silently creates + uploads pub key for new accounts without server pubKey', async () => {
+test('silently generates + uploads pubKey when user has no server pubKey', async () => {
   mockLoadKeysLocal.mockResolvedValueOnce({ publicKey: null, privateKey: null });
   mockPost.mockResolvedValueOnce({}); // /users/keys
 
   const setCurrentUser = mockCtx({ id: 1, username: 'a', publicKey: null }, jest.fn());
-  const BootstrapUser = (await import('./BootstrapUser')).default;
-  renderWithRouter(<BootstrapUser />);
 
-  // Should attempt to upload keys once
-  expect(mockGenerateKeypair).toHaveBeenCalled();
-  expect(mockSaveKeysLocal).toHaveBeenCalled();
-  expect(mockPost).toHaveBeenCalledWith('/users/keys', { publicKey: 'PUB' });
-  expect(setCurrentUser).toHaveBeenCalled(); // user patched with publicKey
+  const { default: BootstrapUser } = await import('../src/components/BootstrapUser.jsx');
+  render(<BootstrapUser />);
+
+  await waitFor(() => {
+    expect(mockGenerateKeypair).toHaveBeenCalled();
+    expect(mockSaveKeysLocal).toHaveBeenCalledWith({ publicKey: 'PUB', privateKey: 'PRIV' });
+    expect(mockPost).toHaveBeenCalledWith('/users/keys', { publicKey: 'PUB' });
+    expect(setCurrentUser).toHaveBeenCalled();
+  });
 });

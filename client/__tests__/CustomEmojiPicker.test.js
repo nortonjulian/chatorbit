@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../src/test-utils.js';
+import CustomEmojiPicker from '../src/components/CustomEmojiPicker.jsx';
 
 // Mock the third-party picker to a simple button that "picks" 😀
 jest.mock('emoji-picker-react', () => ({
@@ -10,8 +11,6 @@ jest.mock('emoji-picker-react', () => ({
     <button onClick={() => onEmojiClick({ emoji: '😀' })}>PickEmoji</button>
   ),
 }));
-
-import CustomEmojiPicker from '../src/components/CustomEmojiPicker.jsx';
 
 test('opens popover and selects emoji', async () => {
   const onSelect = jest.fn();
