@@ -11,7 +11,7 @@
     "lint:fix": "eslint \"{client,server}/**/*.{js,jsx}\" --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test": "npm run -w client test && npm run -w server test",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:server": "NODE_OPTIONS=--experimental-vm-modules jest -c jest.server.config.js --runInBand",
     "test:client": "NODE_OPTIONS=--experimental-vm-modules jest -c jest.client.config.js --runInBand",
