@@ -1,9 +1,27 @@
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithRouter } from '../src/test-utils.js';
 import ChatHome from '../src/components/ChatHome.jsx';
 
-// Mock Status* trio to simple markers
+// Minimal Mantine mock incl. MantineProvider to avoid test-utils imports
+jest.mock('@mantine/core', () => {
+  const React = require('react');
+  const strip = ({ variant, size, p, justify, ...rest } = {}) => rest;
+  const Div = React.forwardRef((props, ref) =>
+    React.createElement('div', { ...strip(props), ref }, props.children)
+  );
+  const Button = React.forwardRef((props, ref) =>
+    React.createElement('button', { ...strip(props), ref }, props.children)
+  );
+  const MantineProvider = ({ children }) => <>{children}</>;
+  return {
+    __esModule: true,
+    Group: Div,
+    Button,
+    MantineProvider,
+  };
+});
+
+// Mock Status* components
 jest.mock('../src/components/StatusBar.jsx', () => ({
   __esModule: true,
   default: ({ onOpenViewer }) => (
@@ -12,24 +30,25 @@ jest.mock('../src/components/StatusBar.jsx', () => ({
     </button>
   ),
 }));
+
 jest.mock('../src/components/StatusComposer.jsx', () => ({
   __esModule: true,
   default: ({ opened }) => (opened ? <div data-testid="composer-open" /> : null),
 }));
+
 jest.mock('../src/components/StatusViewer.jsx', () => ({
   __esModule: true,
   default: ({ opened }) => (opened ? <div data-testid="viewer-open" /> : null),
 }));
 
-
 test('opens composer when clicking New Status', async () => {
-  renderWithRouter(<ChatHome currentUser={{ id: 1 }} />);
+  render(<ChatHome currentUser={{ id: 1 }} />);
   await userEvent.click(screen.getByRole('button', { name: /new status/i }));
   expect(screen.getByTestId('composer-open')).toBeInTheDocument();
 });
 
 test('opens viewer when StatusBar triggers onOpenViewer', async () => {
-  renderWithRouter(<ChatHome currentUser={{ id: 1 }} />);
+  render(<ChatHome currentUser={{ id: 1 }} />);
   await userEvent.click(screen.getByRole('button', { name: /openviewer/i }));
   expect(screen.getByTestId('viewer-open')).toBeInTheDocument();
 });

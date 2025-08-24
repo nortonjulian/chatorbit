@@ -1,21 +1,32 @@
 import { render } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
 
-// When using the Mantine mock above, importing from '@mantine/core' will give us a stub MantineProvider
-import { MantineProvider } from '@mantine/core';
+let MemoryRouter;
+try {
+  // Lazily require so tests that don't have react-router-dom don't fail
+  ({ MemoryRouter } = require('react-router-dom'));
+} catch {
+  // Fallback: just render children
+  MemoryRouter = ({ children }) => <>{children}</>;
+}
 
-export function renderWithProviders(
-  ui,
-  { route = '/', router = true, ...options } = {}
-) {
-  const Wrapper = ({ children }) => {
-    const content = router
-      ? <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-      : children;
+let MantineProvider;
+try {
+  ({ MantineProvider } = require('@mantine/core'));
+} catch {
+  MantineProvider = ({ children }) => <>{children}</>;
+}
 
-    // Always wrap with MantineProvider (mocked one is cheap)
-    return <MantineProvider>{content}</MantineProvider>;
-  };
+export function renderWithRouter(ui, options) {
+  const routerProps = options?.router || {};
+  return render(
+    <MantineProvider>
+      <MemoryRouter {...routerProps}>{ui}</MemoryRouter>
+    </MantineProvider>,
+    options
+  );
+}
 
-  return render(ui, { wrapper: Wrapper, ...options });
+// If you want a consistent provider wrapper without a router:
+export function renderWithProviders(ui, options) {
+  return render(<MantineProvider>{ui}</MantineProvider>, options);
 }

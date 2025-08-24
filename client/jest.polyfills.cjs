@@ -13,7 +13,9 @@
 
 // Polyfills that JSDOM/Jest don’t supply by default
 
-// 1) TextEncoder/TextDecoder (fixes your original failures)
+// jest.polyfills.cjs
+
+// 1) TextEncoder/TextDecoder (fixes original failures)
 const { TextEncoder, TextDecoder } = require('node:util');
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
@@ -31,4 +33,13 @@ if (typeof URL.createObjectURL !== 'function') {
 }
 if (typeof URL.revokeObjectURL !== 'function') {
   URL.revokeObjectURL = () => {};
+}
+
+// 4) ResizeObserver stub (needed for Mantine ScrollArea / Select portals)
+if (!global.ResizeObserver) {
+  global.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
 }

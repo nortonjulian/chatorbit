@@ -27,7 +27,10 @@ export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
         return;
       }
       const res = await searchRoom(roomId, q);
-      if (alive) setResults(res.slice(-200)); // cap to avoid UI overload
+      if (alive) {
+        const arr = Array.isArray(res) ? res : [];
+        setResults(arr.slice(-200)); // cap to avoid UI overload
+      }
     })();
     return () => {
       alive = false;

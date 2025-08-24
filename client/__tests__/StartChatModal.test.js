@@ -1,8 +1,18 @@
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MantineProvider } from '@mantine/core';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import StartChatModal from '../src/components/StartChatModal.jsx';
 
-// axiosClient mock (top-level)
+// --- Stub ContactList to avoid extra network/portals during these tests
+jest.mock('../src/components/ContactList.jsx', () => ({
+  __esModule: true,
+  default: function ContactListStub() {
+    return null;
+  },
+}));
+
+// --- axiosClient mock (top-level)
 const mockGet = jest.fn();
 const mockPost = jest.fn();
 const mockPatch = jest.fn();
@@ -18,34 +28,59 @@ jest.mock('../src/api/axiosClient', () => ({
   },
 }));
 
+// --- Local render helper: Mantine + Router
+function renderWithProviders(ui) {
+  return render(
+    <MantineProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={ui} />
+          {/* Route used by navigate(`/chat/:id`) in StartChatModal */}
+          <Route path="/chat/:id" element={<div>Chat Page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </MantineProvider>
+  );
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
-  // initial contacts load
-  mockGet.mockResolvedValueOnce({ data: [] }); // GET /contacts/:id
+  // Initial contacts load in useEffect: GET /contacts/:id
+  mockGet.mockResolvedValueOnce({ data: [] });
 });
 
 test('searches users, saves contact and starts chat', async () => {
-  // search returns a user (id 2)
-  mockGet.mockResolvedValueOnce({ data: [{ id: 2, username: 'alice' }] }); // GET /users/search
-  // refresh contacts after save
-  mockGet.mockResolvedValueOnce({ data: [{ userId: 2, alias: '' }] }); // GET /contacts/:id
-  // create chatroom
-  mockPost.mockResolvedValueOnce({ data: { id: 123 } }); // POST /chatrooms/direct/2
+  const user = userEvent.setup();
+
+  // Next calls in order:
+  // 1) GET /users/search
+  mockGet.mockResolvedValueOnce({ data: [{ id: 2, username: 'alice' }] });
+  // 2) POST /contacts (save)
+  mockPost.mockResolvedValueOnce({ data: {} });
+  // 3) GET /contacts/:id (refresh)
+  mockGet.mockResolvedValueOnce({ data: [{ userId: 2, alias: '' }] });
+  // 4) POST /chatrooms/direct/2
+  mockPost.mockResolvedValueOnce({ data: { id: 123 } });
 
   const onClose = jest.fn();
-  const { render } = require('../src/test-utils');
-  render(<StartChatModal currentUserId={1} onClose={onClose} />);
+  renderWithProviders(<StartChatModal currentUserId={1} onClose={onClose} />);
 
-  await userEvent.type(screen.getByPlaceholderText(/search by username/i), 'alice');
-  await userEvent.click(screen.getByRole('button', { name: /search/i }));
+  await user.type(
+    screen.getByPlaceholderText(/search by username or phone/i),
+    'alice'
+  );
+  await user.click(screen.getByRole('button', { name: /search/i }));
 
   await waitFor(() =>
-    expect(mockGet).toHaveBeenCalledWith('/users/search', { params: { query: 'alice' } })
+    expect(mockGet).toHaveBeenCalledWith('/users/search', {
+      params: { query: 'alice' },
+    })
   );
+
   expect(await screen.findByText(/alice/i)).toBeInTheDocument();
 
-  await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+  // Click the "Save" button in the result card (not "Save Contact")
+  await user.click(screen.getByRole('button', { name: /^save$/i }));
   await waitFor(() =>
     expect(mockPost).toHaveBeenCalledWith('/contacts', {
       ownerId: 1,
@@ -54,33 +89,54 @@ test('searches users, saves contact and starts chat', async () => {
     })
   );
 
-  await userEvent.click(screen.getByRole('button', { name: /^start$/i }));
-  await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/chatrooms/direct/2'));
-
-  expect(onClose).toHaveBeenCalled(); // navigates after start
+  // Start chat → POST /chatrooms/direct/2 → navigate → onClose called
+  await user.click(screen.getByRole('button', { name: /^start$/i }));
+  await waitFor(() =>
+    expect(mockPost).toHaveBeenCalledWith('/chatrooms/direct/2')
+  );
+  expect(onClose).toHaveBeenCalled();
 });
 
 test('Add Contact (direct) path falls back to external contact', async () => {
-  // search for the direct input yields no user
-  mockGet.mockResolvedValueOnce({ data: [] }); // GET /users/search (for addContactDirect)
-  // saving external contact + invite
-  mockPost.mockResolvedValueOnce({}); // POST /contacts (external)
-  mockPost.mockResolvedValueOnce({}); // POST /invites (fire and forget)
-  // refresh contacts
-  mockGet.mockResolvedValueOnce({ data: [] }); // GET /contacts/:id
+  const user = userEvent.setup();
 
-  const { render } = require('../src/test-utils');
-  render(<StartChatModal currentUserId={1} onClose={() => {}} />);
+  // Calls in order for add-contact-direct:
+  // 1) GET /users/search (no existing user)
+  mockGet.mockResolvedValueOnce({ data: [] });
+  // 2) POST /contacts (external)
+  mockPost.mockResolvedValueOnce({});
+  // 3) POST /invites (fire-and-forget)
+  mockPost.mockResolvedValueOnce({});
+  // 4) GET /contacts/:id (refresh)
+  mockGet.mockResolvedValueOnce({ data: [] });
 
-  await userEvent.click(screen.getByRole('button', { name: /add/i }));
-  await userEvent.type(screen.getByPlaceholderText(/username or phone/i), '555-555-5555');
-  await userEvent.type(screen.getByPlaceholderText(/alias \(optional\)/i), 'Bob');
-  await userEvent.click(screen.getByRole('button', { name: /save contact/i }));
+  renderWithProviders(<StartChatModal currentUserId={1} onClose={() => {}} />);
+
+  await user.click(screen.getByRole('button', { name: /add/i }));
+  // Anchor placeholders to avoid matching the search field ("Search by username or phone")
+  await user.type(
+    screen.getByPlaceholderText(/^username or phone$/i),
+    '555-555-5555'
+  );
+  await user.type(
+    screen.getByPlaceholderText(/^alias \(optional\)$/i),
+    'Bob'
+  );
+  await user.click(screen.getByRole('button', { name: /save contact/i }));
 
   await waitFor(() =>
     expect(mockPost).toHaveBeenCalledWith(
       '/contacts',
-      expect.objectContaining({ externalPhone: '555-555-5555' })
+      expect.objectContaining({
+        ownerId: 1,
+        externalPhone: '555-555-5555',
+        externalName: 'Bob',
+        alias: 'Bob',
+      })
     )
   );
+  expect(mockPost).toHaveBeenCalledWith('/invites', {
+    phone: '555-555-5555',
+    name: 'Bob',
+  });
 });

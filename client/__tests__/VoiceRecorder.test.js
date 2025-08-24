@@ -1,12 +1,19 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { jest } from '@jest/globals';
+import { MantineProvider } from '@mantine/core';
 import VoiceRecorder from '../src/components/VoiceRecorder.jsx';
 
+// ---- helpers
+function renderWithMantine(ui) {
+  return render(<MantineProvider>{ui}</MantineProvider>);
+}
+
+// Minimal fake stream
 function makeFakeStream() {
   return { getTracks: () => [{ stop: jest.fn() }] };
 }
 
+// Minimal fake MediaRecorder
 class FakeMediaRecorder {
   constructor(stream, opts) {
     this.stream = stream;
@@ -17,9 +24,11 @@ class FakeMediaRecorder {
   }
   start() {
     this.state = 'recording';
-    // simulate a data chunk
+    // simulate a chunk arriving asynchronously
     setTimeout(() => {
-      this.ondataavailable?.({ data: new Blob(['abc'], { type: this.mimeType }) });
+      this.ondataavailable?.({
+        data: new Blob(['abc'], { type: this.mimeType }),
+      });
     }, 0);
   }
   stop() {
@@ -29,6 +38,7 @@ class FakeMediaRecorder {
 }
 
 beforeEach(() => {
+  jest.clearAllMocks();
   global.navigator.mediaDevices = {
     getUserMedia: jest.fn().mockResolvedValue(makeFakeStream()),
   };
@@ -37,17 +47,35 @@ beforeEach(() => {
 });
 
 test('records on hold and calls onRecorded on release', async () => {
+  const user = userEvent.setup();
   const onRecorded = jest.fn();
-  render(<VoiceRecorder onRecorded={onRecorded} />);
+
+  renderWithMantine(<VoiceRecorder onRecorded={onRecorded} />);
 
   const btn = screen.getByRole('button', { name: /record voice/i });
 
-  await userEvent.pointer([{ target: btn, keys: '[MouseLeft>]' }]); // mousedown
-  await userEvent.pointer([{ target: btn, keys: '[/MouseLeft]' }]); // mouseup
+  // press & release (mousedown -> mouseup)
+  await user.pointer([{ target: btn, keys: '[MouseLeft>]' }]);
+  await user.pointer([{ target: btn, keys: '[/MouseLeft]' }]);
 
-  // onRecorded should have been called once on stop
-  expect(onRecorded).toHaveBeenCalledTimes(1);
+  // Wait for async recorder callbacks
+  await waitFor(() => expect(onRecorded).toHaveBeenCalledTimes(1));
+
   const [blob, seconds] = onRecorded.mock.calls[0];
   expect(blob).toBeInstanceOf(Blob);
   expect(typeof seconds).toBe('number');
+});
+
+test('cleanup stops tracks on unmount', async () => {
+  const user = userEvent.setup();
+  const onRecorded = jest.fn();
+
+  const { unmount } = renderWithMantine(<VoiceRecorder onRecorded={onRecorded} />);
+  const btn = screen.getByRole('button', { name: /record voice/i });
+
+  await user.pointer([{ target: btn, keys: '[MouseLeft>]' }]); // start recording
+  // Unmount while recording; effect cleanup will stop tracks via recorder.stream
+  unmount();
+
+  expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalled();
 });

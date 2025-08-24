@@ -11,14 +11,11 @@
     "start:mini": "node scripts/miniserver.js",
     "test": "vitest --run",
     "test:watch": "vitest",
-
     "test:unit": "vitest run --dir tests/unit",
     "test:contract": "vitest run --dir tests/contract",
     "test:security": "vitest run --dir tests/security",
     "test:perf": "artillery run tests/perf/messages.yml",
-
     "perf:smoke": "npm run -w chatorbit-server start:mini & sleep 2 && npm run -w chatorbit-server test:perf -- --target http://localhost:3000",
-
     "deps:check": "npm outdated || true",
     "audit": "npm audit || true"
   },
@@ -43,6 +40,7 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "express-rate-limit": "^8.0.1",
+    "fast-xml-parser": "^5.2.5",
     "helmet": "^7.0.0",
     "ics": "^3.8.1",
     "idb": "^8.0.3",

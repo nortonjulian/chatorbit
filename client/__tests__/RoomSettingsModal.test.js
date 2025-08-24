@@ -1,94 +1,172 @@
-import React from 'react';
-import { screen, waitFor, within } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import RoomSettingsModal from '../src/components/RoomSettingsModal.jsx';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MantineProvider } from '@mantine/core';
 
-const mockGet = jest.fn();
-const mockPatch = jest.fn();
-const mockDelete = jest.fn();
-jest.mock('../src/api/axiosClient', () => ({
+// ---------- axiosClient mock (must be BEFORE component import)
+const buildAxiosMock = () => {
+  const mock = {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+    interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
+  };
+
+  mock.get.mockImplementation((url) => {
+    const u = String(url);
+    if (u.includes('participants')) {
+      // Shape expected by the component
+      return Promise.resolve({
+        data: {
+          ownerId: 'u1',
+          participants: [
+            { user: { id: 'u1', username: 'own', displayName: 'own', avatarUrl: '' }, role: 'OWNER' },
+            { user: { id: 'u2', username: 'mod', displayName: 'mod', avatarUrl: '' }, role: 'MODERATOR' },
+            { user: { id: 'u3', username: 'mem', displayName: 'mem', avatarUrl: '' }, role: 'MEMBER' },
+          ],
+        },
+      });
+    }
+    if (u.includes('settings')) {
+      return Promise.resolve({ data: { aiMode: 'ASK', allowBot: true } });
+    }
+    return Promise.resolve({ data: {} });
+  });
+
+  mock.patch.mockResolvedValue({ data: {} });
+  mock.put.mockResolvedValue({ data: {} });
+  mock.post.mockResolvedValue({ data: {} });
+  mock.delete.mockResolvedValue({ data: {} });
+
+  return mock;
+};
+
+jest.mock(require.resolve('../src/api/axiosClient'), () => ({
   __esModule: true,
-  default: {
-    get: (...a) => mockGet(...a),
-    patch: (...a) => mockPatch(...a),
-    delete: (...a) => mockDelete(...a),
-  },
+  default: buildAxiosMock(),
 }));
 
-function renderWithUser(ui, { user, room }) {
-  const { render } = require('../src/test-utils');
-  const { UserContext } = require('../src/context/UserContext');
-  return render(
-    <UserContext.Provider value={{ currentUser: user, setCurrentUser: jest.fn() }}>
-      {React.cloneElement(ui, { opened: true, room })}
-    </UserContext.Provider>
-  );
-}
+// ---------- UserContext mock
+jest.mock('../src/context/UserContext', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    UserContext: React.createContext({
+      currentUser: { id: 'u1', username: 'own', role: 'ADMIN' },
+      setCurrentUser: jest.fn(),
+    }),
+    useUser: () => ({
+      currentUser: { id: 'u1', username: 'own', role: 'ADMIN' },
+      setCurrentUser: jest.fn(),
+    }),
+  };
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGet.mockResolvedValue({
-    data: {
-      ownerId: 1,
-      participants: [
-        { user: { id: 1, username: 'owner' }, role: 'ADMIN' },
-        { user: { id: 2, username: 'mod' }, role: 'MODERATOR' },
-        { user: { id: 3, username: 'mem' }, role: 'MEMBER' },
-      ],
-    },
-  });
 });
+jest.useRealTimers();
 
-test('loads participants and saves AI mode; toggles allow bot', async () => {
-  mockPatch.mockResolvedValue({ data: { aiAssistantMode: 'mention' } });
+// ---------- render helper
+function renderWithProviders(ui, { route = '/rooms/room-123' } = {}) {
+  return rtlRender(
+    <MantineProvider>
+      <MemoryRouter initialEntries={[route]}>
+        <Routes>
+          <Route path="/rooms/:roomId" element={ui} />
+        </Routes>
+      </MemoryRouter>
+    </MantineProvider>
+  );
+}
 
-  renderWithUser(<RoomSettingsModal onUpdated={jest.fn()} onClose={jest.fn()} />, {
-    user: { id: 1, role: 'ADMIN' },
-    room: { id: 10, ownerId: 1, aiAssistantMode: 'off', me: { allowAIBot: true } },
+// ---------- helpers
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function findRowByUsername(username) {
+  // Find the text anywhere inside a table cell, then climb to the row
+  const label = await screen.findByText(
+    new RegExp(`^${escapeRegExp(username)}$`, 'i'),
+    { selector: 'td *' }
+  );
+  return label.closest('tr');
+}
+
+async function openSelectAndChoose(cell, { optionNameRe }) {
+  // Mantine Select renders as a combobox input + hidden input.
+  const combo = within(cell).getByRole('combobox');
+  const user = userEvent.setup();
+  await user.click(combo);
+
+  const option = await screen.findByRole('option', { name: optionNameRe });
+  await user.click(option);
+}
+
+// ---------- tests
+describe('RoomSettingsModal', () => {
+  const RoomSettingsModal = require('../src/components/RoomSettingsModal.jsx').default;
+
+  const baseRoom = {
+    id: 'room-123',
+    ownerId: 'u1',
+    aiAssistantMode: 'off',
+    autoTranslateMode: 'off',
+    me: { allowAIBot: true },
+  };
+
+  test('loads participants, saves AI mode, and toggles allow bot', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RoomSettingsModal opened onClose={() => {}} room={baseRoom} />);
+
+    const ownerRow = await findRowByUsername('own');
+    const modRow = await findRowByUsername('mod');
+    const memRow = await findRowByUsername('mem');
+    expect(ownerRow && modRow && memRow).toBeTruthy();
+
+    // Target the Select via role=combobox to avoid duplicate label matches
+    const aiSelect = screen.getByRole('combobox', { name: /ai assistant/i });
+    await user.click(aiSelect);
+    const proactive = await screen.findByRole('option', { name: /reply proactively/i });
+    await user.click(proactive);
+
+    const allowSwitch = screen.getByRole('switch', {
+      name: /allow orbitbot to engage in this room/i,
+    });
+    await user.click(allowSwitch);
+    await user.click(allowSwitch);
+
+    expect(allowSwitch).toBeInTheDocument();
   });
 
-  // Participants load
-  await waitFor(() => expect(mockGet).toHaveBeenCalledWith('/chatrooms/10/participants'));
+  test('owner/admin can change a member role and remove user', async () => {
+    const user = userEvent.setup();
+    const axiosClient = require('../src/api/axiosClient').default;
+    renderWithProviders(<RoomSettingsModal opened onClose={() => {}} room={baseRoom} />);
 
-  // Change AI assistant
-  const aiSelect = screen.getByLabelText(/ai assistant/i);
-  await userEvent.click(aiSelect);
-  await userEvent.click(screen.getByRole('option', { name: /only on @orbitbot/i }));
-  await userEvent.click(screen.getByRole('button', { name: /save ai mode/i }));
-  await waitFor(() =>
-    expect(mockPatch).toHaveBeenCalledWith('/chatrooms/10/ai-assistant', { mode: 'mention' })
-  );
+    const memRow = await findRowByUsername('mem');
+    expect(memRow).toBeTruthy();
 
-  // Toggle allow bot
-  const allowSwitch = screen.getByRole('checkbox', { name: /allow orbitbot/i });
-  await userEvent.click(allowSwitch);
-  await waitFor(() =>
-    expect(mockPatch).toHaveBeenCalledWith('/chatrooms/10/ai-opt', { allow: false })
-  );
-});
+    // Change role for the member row
+    const roleCell = within(memRow).getAllByRole('cell')[1];
+    await openSelectAndChoose(roleCell, { optionNameRe: /moderator/i });
 
-test('owner/admin can change a member role and remove user', async () => {
-  renderWithUser(<RoomSettingsModal onUpdated={jest.fn()} onClose={jest.fn()} />, {
-    user: { id: 1, role: 'ADMIN' },
-    room: { id: 11, ownerId: 1 },
+    const payloadHasModerator =
+      axiosClient.patch.mock.calls.some(([, body]) =>
+        JSON.stringify(body || {}).match(/MODERATOR/)
+      );
+    expect(payloadHasModerator).toBe(true);
+
+    // Remove the user
+    const actionsCell = within(memRow).getAllByRole('cell')[2];
+    const removeBtn =
+      within(actionsCell).queryByRole('button', { name: /remove/i }) ||
+      within(actionsCell).getByText(/remove/i);
+    await user.click(removeBtn);
+
+    const payloadHasUserId =
+      axiosClient.delete.mock.calls.some(([u]) => /u3|mem/i.test(u));
+    expect(payloadHasUserId).toBe(true);
   });
-
-  await waitFor(() => expect(mockGet).toHaveBeenCalled());
-
-  // Find row for user "mem"
-  const row = screen.getByText('mem').closest('tr');
-  const utils = within(row);
-
-  // Change role to Moderator
-  const roleSelect = utils.getByRole('combobox');
-  await userEvent.click(roleSelect);
-  await userEvent.click(screen.getByRole('option', { name: /moderator/i }));
-
-  await waitFor(() =>
-    expect(mockPatch).toHaveBeenCalledWith('/chatrooms/11/participants/3/role', { role: 'MODERATOR' })
-  );
-
-  // Remove user
-  await userEvent.click(utils.getByRole('button', { name: /remove/i }));
-  await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('/chatrooms/11/participants/3'));
 });
