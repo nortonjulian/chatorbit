@@ -1,6 +1,15 @@
+// --- Polyfill (Mantine sometimes calls this) -------------------------------
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = function () {};
+}
+
+// --- Testing libs -----------------------------------------------------------
 import { render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+
+// IMPORTANT: we will mock Mantine Select below, so import MantineProvider after the mock
+// but we still need to reference it here for types
 import { MantineProvider } from '@mantine/core';
 
 // ---------- axiosClient mock (must be BEFORE component import)
@@ -17,7 +26,6 @@ const buildAxiosMock = () => {
   mock.get.mockImplementation((url) => {
     const u = String(url);
     if (u.includes('participants')) {
-      // Shape expected by the component
       return Promise.resolve({
         data: {
           ownerId: 'u1',
@@ -64,6 +72,38 @@ jest.mock('../src/context/UserContext', () => {
   };
 });
 
+// ---------- Mantine Select mock (replace with a simple native <select>) -----
+jest.mock('@mantine/core', () => {
+  const actual = jest.requireActual('@mantine/core');
+  const React = require('react');
+
+  function MockSelect({ label, data = [], value, onChange, ...rest }) {
+    // Map Mantine's {value,label} to native options
+    return (
+      <label>
+        {label ? <span>{label}</span> : null}
+        <select
+          aria-label={label || ''}
+          value={value ?? ''}
+          onChange={(e) => onChange?.(e.target.value)}
+          {...rest}
+        >
+          {data.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  return {
+    ...actual,
+    Select: MockSelect, // only override Select; keep everything else real
+  };
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -86,7 +126,6 @@ function renderWithProviders(ui, { route = '/rooms/room-123' } = {}) {
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 async function findRowByUsername(username) {
-  // Find the text anywhere inside a table cell, then climb to the row
   const label = await screen.findByText(
     new RegExp(`^${escapeRegExp(username)}$`, 'i'),
     { selector: 'td *' }
@@ -95,13 +134,11 @@ async function findRowByUsername(username) {
 }
 
 async function openSelectAndChoose(cell, { optionNameRe }) {
-  // Mantine Select renders as a combobox input + hidden input.
-  const combo = within(cell).getByRole('combobox');
+  // With our mock, the Select is a native <select> (role=combobox)
+  const selectEl = within(cell).getByRole('combobox');
+  const optionEl = within(cell).getByRole('option', { name: optionNameRe });
   const user = userEvent.setup();
-  await user.click(combo);
-
-  const option = await screen.findByRole('option', { name: optionNameRe });
-  await user.click(option);
+  await user.selectOptions(selectEl, optionEl);
 }
 
 // ---------- tests
@@ -125,12 +162,12 @@ describe('RoomSettingsModal', () => {
     const memRow = await findRowByUsername('mem');
     expect(ownerRow && modRow && memRow).toBeTruthy();
 
-    // Target the Select via role=combobox to avoid duplicate label matches
+    // AI assistant select (mocked to native select)
     const aiSelect = screen.getByRole('combobox', { name: /ai assistant/i });
-    await user.click(aiSelect);
-    const proactive = await screen.findByRole('option', { name: /reply proactively/i });
-    await user.click(proactive);
+    // Choose by visible label "Reply proactively" -> value should update to 'always'
+    await user.selectOptions(aiSelect, within(aiSelect).getByRole('option', { name: /reply proactively/i }));
 
+    // Toggle the switch twice
     const allowSwitch = screen.getByRole('switch', {
       name: /allow orbitbot to engage in this room/i,
     });

@@ -1,10 +1,31 @@
 /**
  * We run in plain Node (for stable WebCrypto) and avoid any File/Blob quirks
  * by passing a "fake file" with a .text() method.
- * @vitest-environment node
+ * @jest-environment node
  */
 
 import { describe, it, expect, jest } from '@jest/globals';
+import { webcrypto as nodeWebcrypto } from 'node:crypto';
+
+// Vitest → Jest compatibility shim (must come before any vi.* calls)
+globalThis.vi ||= {
+  fn: jest.fn.bind(jest),
+  spyOn: jest.spyOn.bind(jest),
+  mock: jest.mock.bind(jest),
+  unmock: jest.unmock?.bind(jest) ?? (() => {}),
+  clearAllMocks: jest.clearAllMocks.bind(jest),
+  resetAllMocks: jest.resetAllMocks.bind(jest),
+  restoreAllMocks: jest.restoreAllMocks.bind(jest),
+  useFakeTimers: jest.useFakeTimers.bind(jest),
+  useRealTimers: jest.useRealTimers.bind(jest),
+  advanceTimersByTime: jest.advanceTimersByTime.bind(jest),
+  runAllTimers: jest.runAllTimers.bind(jest),
+};
+
+// Ensure WebCrypto API (crypto.subtle) exists in Node/Jest
+if (!globalThis.crypto || !globalThis.crypto.subtle) {
+  globalThis.crypto = nodeWebcrypto;
+}
 
 // Provide atob/btoa for Node
 if (typeof globalThis.atob !== 'function') {
@@ -31,13 +52,31 @@ import {
   restoreEncryptedKeyBackup,
 } from '../utils/backupClient.js';
 
-// Helper to turn Blob into a string in Node 18+/20+
-async function blobToTextPortable(blob) {
-  if (blob && typeof blob.text === 'function') {
-    return blob.text();
+// Helper to reliably turn a Blob/File/ArrayBuffer/etc into a UTF-8 string
+async function bodyToString(body) {
+  if (!body) return '';
+
+  // 1) Blob/File: prefer .text(), else .arrayBuffer()
+  if (typeof body.text === 'function') {
+    try { return await body.text(); } catch {}
   }
-  // Fallback: as a last resort construct a Response (undici is present in Node 18+)
-  return new Response(blob).text();
+  if (typeof body.arrayBuffer === 'function') {
+    try {
+      const ab = await body.arrayBuffer();
+      return Buffer.from(ab).toString('utf8');
+    } catch {}
+  }
+
+  // 2) If it's already a string
+  if (typeof body === 'string') return body;
+
+  // 3) Fallback via Response if available (Node 18+ / jsdom)
+  if (typeof Response !== 'undefined') {
+    try { return await new Response(body).text(); } catch {}
+  }
+
+  // 4) Last resort
+  return String(body);
 }
 
 describe('backupClient key backup', () => {
@@ -51,7 +90,7 @@ describe('backupClient key backup', () => {
     expect(filename).toMatch(/chatorbit-key-backup-/);
 
     // Convert the Blob -> JSON string
-    const jsonString = await blobToTextPortable(blob);
+    const jsonString = await bodyToString(blob);
 
     // Sanity check we actually have JSON
     const parsed = JSON.parse(jsonString);
