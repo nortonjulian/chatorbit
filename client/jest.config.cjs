@@ -8,19 +8,25 @@ module.exports = {
 
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'json'],
 
-  // Run the WebCrypto shim before any test files load, then your other polyfills
   setupFiles: [
     '<rootDir>/src/tests/setup-webcrypto.js',
     '<rootDir>/jest.polyfills.cjs',
+    '<rootDir>/src/tests/setup-webrtc.js',
   ],
 
-  // Test helpers, assertions, etc. that should run after env is ready
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
+  setupFilesAfterEnv: [
+    '<rootDir>/jest.setup.cjs',
+  ],
 
   moduleNameMapper: {
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
     '\\.(jpg|jpeg|png|gif|svg|webp|mp3|mp4)$': '<rootDir>/__tests__/__mocks__/fileMock.js',
     '^@src/(.*)$': '<rootDir>/src/$1',
+    '^@src/config$': '<rootDir>/__tests__/__mocks__/config.js',
+
+    '^@mantine/core$': '<rootDir>/__tests__/__mocks__/@mantine/core.js',
+    '^@mantine/spotlight$': '<rootDir>/__tests__/__mocks__/@mantine/spotlight.js',
+    '^@mantine/hooks$': '<rootDir>/__tests__/__mocks__/@mantine/hooks.js',
   },
 
   testMatch: [

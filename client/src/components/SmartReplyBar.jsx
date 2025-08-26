@@ -1,4 +1,3 @@
-import React from 'react';
 import { Group, Button } from '@mantine/core';
 
 export default function SmartReplyBar({ suggestions = [], onPick }) {

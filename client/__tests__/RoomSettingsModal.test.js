@@ -72,37 +72,6 @@ jest.mock('../src/context/UserContext', () => {
   };
 });
 
-// ---------- Mantine Select mock (replace with a simple native <select>) -----
-jest.mock('@mantine/core', () => {
-  const actual = jest.requireActual('@mantine/core');
-  const React = require('react');
-
-  function MockSelect({ label, data = [], value, onChange, ...rest }) {
-    // Map Mantine's {value,label} to native options
-    return (
-      <label>
-        {label ? <span>{label}</span> : null}
-        <select
-          aria-label={label || ''}
-          value={value ?? ''}
-          onChange={(e) => onChange?.(e.target.value)}
-          {...rest}
-        >
-          {data.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
-  }
-
-  return {
-    ...actual,
-    Select: MockSelect, // only override Select; keep everything else real
-  };
-});
 
 beforeEach(() => {
   jest.clearAllMocks();

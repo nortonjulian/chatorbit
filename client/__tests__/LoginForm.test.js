@@ -1,55 +1,6 @@
 /** @jest-environment jsdom */
 import { jest } from '@jest/globals';
 
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-  const strip = (props = {}) => {
-    const { loading, p, px, py, m, mx, my, c, ta, bg, fs, fw, mt, mb, ml, mr, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      centered, position, withArrow, ...rest } = props;
-    return rest;
-  };
-  const Div = (p) => React.createElement('div', strip(p), p.children);
-  const MantineProvider = ({ children }) => React.createElement(React.Fragment, null, children);
-  const Button = ({ children, type = 'button', onClick, ...rest }) =>
-    React.createElement('button', { type, onClick, ...strip(rest) }, children);
-  const TextInput = ({ label, placeholder, type = 'text', value, onChange, ...rest }) =>
-    React.createElement('label', null, label ?? '',
-      React.createElement('input', {
-        'aria-label': label ?? placeholder ?? '',
-        placeholder, type, value, onChange, ...strip(rest),
-      })
-    );
-  const Alert = ({ children, ...rest }) =>
-    React.createElement('div', { role: 'alert', ...strip(rest) }, children);
-  const Text = ({ children, ...rest }) => React.createElement('p', strip(rest), children);
-  const Title = ({ children, order = 3, ...rest }) =>
-    React.createElement(`h${order}`, strip(rest), children);
-  const Image = ({ src, alt = '', ...rest }) =>
-    React.createElement('img', { src, alt, ...strip(rest) });
-  const Anchor = ({ children, to, href, ...rest }) =>
-    React.createElement('a', { href: href ?? to, ...strip(rest) }, children);
-  const Center = Div, Container = Div, Paper = Div, Stack = Div, Group = Div;
-
-  return {
-    __esModule: true,
-    MantineProvider,
-    Button,
-    TextInput,
-    Alert,
-    Text,
-    Title,
-    Image,
-    Anchor,
-    Center,
-    Container,
-    Paper,
-    Stack,
-    Group,
-  };
-});
-
-
 // ---- UserContext mock (match LoginForm’s import path resolution) ----
 const mockSetCurrentUser = jest.fn();
 jest.mock('../src/context/UserContext', () => ({

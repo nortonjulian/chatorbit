@@ -5,47 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithRouter } from '../src/test-utils.js';
 
-// --- Light Mantine mock (now includes MantineProvider) ---
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-
-  const strip = (props = {}) => {
-    const {
-      // styling/extra props we don't want on DOM
-      p, px, py, m, mx, my, mt, mb, ml, mr, c, ta, bg, fs, fw, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      centered, position, withArrow, padding, color, fullWidth, autosize,
-      // anything else should pass through
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const MantineProvider = ({ children }) => <>{children}</>;
-  const Group = (p) => React.createElement('div', strip(p), p.children);
-  const Button = (p) =>
-    React.createElement('button', { type: 'button', ...strip(p) }, p.children);
-  const Textarea = (p) =>
-    React.createElement('textarea', strip(p), p.children);
-  const Modal = ({ opened, children, title, ...rest }) =>
-    opened
-      ? React.createElement(
-          'div',
-          { role: 'dialog', 'aria-label': title || 'Modal', ...strip(rest) },
-          children
-        )
-      : null;
-
-  return {
-    __esModule: true,
-    MantineProvider, // <-- important for renderWithRouter
-    Group,
-    Button,
-    Textarea,
-    Modal,
-  };
-});
-
 // --- axios mock ---
 const mockPatch = jest.fn();
 jest.mock('../src/api/axiosClient', () => ({

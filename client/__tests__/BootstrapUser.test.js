@@ -1,5 +1,7 @@
-// --- Mocks that must be declared BEFORE any imports that use them ---
+/** @jest-environment jsdom */
+import { render, screen, waitFor } from '@testing-library/react';
 
+// Keep the axios client lean and spy-able
 jest.mock('../src/api/axiosClient', () => ({
   __esModule: true,
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
@@ -17,100 +19,59 @@ jest.mock('../src/utils/keyStore', () => ({
   migrateLocalToIDBIfNeeded: jest.fn().mockResolvedValue(undefined),
 }));
 
-// Mock Mantine components so we don't need the real library
-jest.mock('@mantine/core', () => {
-  const React = require('react');
+// Mock user context hook EXACTLY as the component imports it
+const mockCtx = { currentUser: null, setCurrentUser: jest.fn() };
+jest.mock('../src/context/UserContext', () => ({
+  __esModule: true,
+  useUser: () => mockCtx,
+}));
 
-  const strip = (props = {}) => {
-    const {
-      opened, onClose, centered, withinPortal, fullScreen, radius, shadow,
-      withBorder, withAsterisk, variant, color, size,
-      rightSection, leftSection, loading,
-      mt, mb, ml, mr, mx, my, gap, align, justify,
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const Div = React.forwardRef((props, ref) =>
-    React.createElement('div', { ...strip(props), ref }, props.children)
-  );
-
-  const Button = React.forwardRef((props, ref) =>
-    React.createElement('button', { ...strip(props), ref, type: 'button' }, props.children)
-  );
-
-  const Input = React.forwardRef((props, ref) =>
-    React.createElement('input', { ...strip(props), ref }, props.children)
-  );
-
-  const Modal = ({ opened, children }) =>
-    React.createElement('div', { 'data-testid': 'key-modal', 'data-opened': !!opened }, children);
-
-  const exports = {
-    __esModule: true,
-    Modal,
-    Button,
-    TextInput: Input,
-    PasswordInput: Input,
-    FileInput: Input,
-    Checkbox: Input,
-    Group: Div,
-    Stack: Div,
-    Text: Div,
-    Title: Div,
-    Alert: Div,
-  };
-
-  return new Proxy(exports, {
-    get(target, prop) {
-      if (prop in target) return target[prop];
-      return Div;
-    },
-  });
-});
-
-// Mock Tabler icons (SVG passthrough)
+// Icons → noop svg
 jest.mock('@tabler/icons-react', () => {
   const React = require('react');
   return new Proxy({}, { get: () => (props) => React.createElement('svg', props) });
 });
 
-// Mock the EXACT user hook path the component imports
-const mockCtx = { currentUser: null, setCurrentUser: jest.fn() };
-jest.mock('../src/context/UserContext', () => ({
-  useUser: () => mockCtx,
+// IMPORTANT: mock KeySetupModal so tests can query by test id
+jest.mock('../src/components/KeySetupModal.jsx', () => ({
+  __esModule: true,
+  default: ({ opened, haveServerPubKey }) => (
+    <div data-testid="key-modal" data-opened={String(!!opened)} data-server={String(!!haveServerPubKey)} />
+  ),
 }));
 
-// --- Imports for testing ---
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+// ---- After mocks, import the SUT and helpers
 import axiosClient from '../src/api/axiosClient';
-import { loadKeysLocal, generateKeypair } from '../src/utils/keys';
+import { loadKeysLocal, generateKeypair, saveKeysLocal } from '../src/utils/keys';
 import BootstrapUser from '../src/components/BootstrapUser.jsx';
 
-// Silence just the act() deprecation warning
-const origError = console.error;
-beforeAll(() => {
-  jest.spyOn(console, 'error').mockImplementation((msg, ...rest) => {
-    if (typeof msg === 'string' && msg.includes('ReactDOMTestUtils.act is deprecated')) return;
-    origError(msg, ...rest);
-  });
-});
-afterAll(() => {
-  console.error.mockRestore?.();
-});
-
-// helpers to make fetch return { ok, json() { return data } }
 const mockFetchJson = (data, ok = true) =>
   jest.fn().mockResolvedValue({ ok, json: async () => data });
 
-// --- Test lifecycle ---
+/**
+ * setCurrentUser spy that records the *resolved object* even when the SUT
+ * calls it with an updater function (prev => next). This makes assertions like
+ * toHaveBeenCalledWith(expect.objectContaining({ publicKey: 'PUB' })) pass.
+ */
+function makeSetCurrentUserSpy() {
+  const spy = jest.fn((arg) => {
+    if (typeof arg === 'function') {
+      const next = arg(mockCtx.currentUser);
+      // Overwrite the just-recorded call (which currently has the function arg)
+      const i = spy.mock.calls.length - 1;
+      if (i >= 0) spy.mock.calls[i] = [next];
+      mockCtx.currentUser = next;
+    } else {
+      mockCtx.currentUser = arg;
+    }
+  });
+  return spy;
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
 
-  // localStorage spies used by multiple tests
+  // LocalStorage spies (common across tests)
   jest
     .spyOn(window.localStorage.__proto__, 'getItem')
     .mockImplementation((k) =>
@@ -118,10 +79,10 @@ beforeEach(() => {
     );
   jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation(() => {});
 
-  // Default device: no keys present so component takes the key-setup paths.
+  // By default, device has no keys → component takes key-setup paths
   loadKeysLocal.mockResolvedValue({ publicKey: null, privateKey: null });
 
-  // Default fetch (tests will override per scenario). Keep defined so component can call it.
+  // Provide a fetch fallback if code touches it (we don’t rely on it though)
   global.fetch = mockFetchJson({ publicKey: null });
 });
 
@@ -130,11 +91,9 @@ afterEach(() => {
   delete global.fetch;
 });
 
-// --- Tests ---
-
 test('restores user from localStorage when context is empty', async () => {
   mockCtx.currentUser = null;
-  mockCtx.setCurrentUser = jest.fn();
+  mockCtx.setCurrentUser = makeSetCurrentUserSpy();
 
   render(<BootstrapUser />);
 
@@ -144,78 +103,47 @@ test('restores user from localStorage when context is empty', async () => {
 });
 
 test('opens modal when server has a pubKey but this device lacks a private key', async () => {
-  mockCtx.currentUser = { id: 9, username: 'restored' };
-  mockCtx.setCurrentUser = jest.fn();
+  mockCtx.currentUser = { id: 9, username: 'restored', publicKey: 'SERVER_HAS_ONE' };
+  mockCtx.setCurrentUser = makeSetCurrentUserSpy();
 
-  // Device: keep no keys
+  // Still no local private key
   loadKeysLocal.mockResolvedValue({ publicKey: null, privateKey: null });
 
-  // Support BOTH transports
-  axiosClient.get.mockResolvedValue({ data: { publicKey: 'SERVER_HAS_ONE' } });
-  global.fetch = mockFetchJson({ publicKey: 'SERVER_HAS_ONE' });
+  // Axios path is what the component actually uses
+  axiosClient.post.mockResolvedValue({ data: {} });
 
   render(<BootstrapUser />);
 
   const modal = await screen.findByTestId('key-modal');
   expect(modal.getAttribute('data-opened')).toBe('true');
+  // optional: ensure test reflects server pubkey flag
+  expect(modal.getAttribute('data-server')).toBe('true');
 });
 
 test('silently generates + uploads pubKey when user has no server pubKey', async () => {
-  mockCtx.currentUser = { id: 9, username: 'restored' };
-  mockCtx.setCurrentUser = jest.fn();
+  mockCtx.currentUser = { id: 9, username: 'restored', publicKey: null };
+  mockCtx.setCurrentUser = makeSetCurrentUserSpy();
 
-  // Server has NO publicKey; component should generate and upload one
-  const fetchGet = jest.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ publicKey: null }),
-  });
+  // Component uses axiosClient; make sure GET/POST succeed
+  axiosClient.post.mockResolvedValue({ data: { ok: true } });
 
-  const fetchPost = jest.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ ok: true }),
-  });
-
-  // Chain GET then POST if the component uses fetch
-  global.fetch = jest
-    .fn()
-    .mockImplementationOnce(fetchGet)   // first call: GET
-    .mockImplementationOnce(fetchPost); // second call: POST
-
-  // If the component uses axiosClient instead of fetch, make sure POST has a `.data`
-  // so `resp.data.publicKey` won't throw.
-  const axiosClient = (await import('../src/api/axiosClient')).default;
-  axiosClient.get.mockResolvedValue({ data: { publicKey: null } });
-  axiosClient.post.mockResolvedValue({ data: { publicKey: 'PUB' } });
-
-  // Crypto mock
-  const { generateKeypair } = await import('../src/utils/keys');
-  generateKeypair.mockResolvedValue({ publicKey: 'PUB', privateKey: 'PRIV' });
+  // Keypair generation path
+  generateKeypair.mockReturnValue({ publicKey: 'PUB', privateKey: 'PRIV' });
+  saveKeysLocal.mockResolvedValue();
 
   render(<BootstrapUser />);
 
   await waitFor(() => {
-    // We generated a keypair
     expect(generateKeypair).toHaveBeenCalled();
-
-    // At least one transport (fetch or axios) must have posted
-    const usedAxios = axiosClient.post.mock.calls.length > 0;
-    const usedFetch = fetchPost.mock.calls.length > 0;
-
-    expect(usedAxios || usedFetch).toBe(true);
-
-    if (usedAxios) {
-      const [url /*, payload*/] = axiosClient.post.mock.calls[0];
-      // Accept your real endpoint (/users/keys) or any 'publicKey' endpoint
-      expect(url).toMatch(/(users\/keys|publicKey)/i);
-      // No assertion on payload contents—impl detail varies
-    } else {
-      // Fetch path: second call is the POST
-      const [, postCall] = global.fetch.mock.calls;
-      const [url, opts] = postCall;
-
-      expect(url).toMatch(/(users\/keys|publicKey)/i);
-      expect(opts).toEqual(expect.objectContaining({ method: 'POST' }));
-      // Body shape varies across impls; we don't assert it
-    }
+    expect(axiosClient.post).toHaveBeenCalledWith('/users/keys', { publicKey: 'PUB' });
   });
+
+  // persists user with new pubkey
+  expect(mockCtx.setCurrentUser).toHaveBeenCalledWith(
+    expect.objectContaining({ publicKey: 'PUB' })
+  );
+  expect(window.localStorage.setItem).toHaveBeenCalledWith(
+    'user',
+    expect.stringContaining('"publicKey":"PUB"')
+  );
 });

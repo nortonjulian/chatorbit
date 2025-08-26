@@ -38,11 +38,10 @@ class FakeMediaRecorder {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  global.navigator.mediaDevices = {
-    getUserMedia: jest.fn().mockResolvedValue(makeFakeStream()),
-  };
-  // @ts-ignore
+  Object.defineProperty(global.navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop: jest.fn() }] }) },
+  });
   global.MediaRecorder = FakeMediaRecorder;
 });
 

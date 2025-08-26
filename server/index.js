@@ -29,6 +29,9 @@ import featuresRouter from './routes/features.js';
 import filesRouter from './routes/files.js';
 import backupsRouter from './routes/backups.js';
 
+import { registerCallHandlers } from './sockets/calls.js';
+import iceRouter from './routes/ice.js';
+
 // ✅ Billing (customer portal, checkout, and webhook)
 import billingRouter from './routes/billing.js';
 import billingWebhook from './routes/billingWebhook.js';
@@ -215,6 +218,8 @@ app.use('/random-chats', randomChatsRouter);
 app.use('/contacts', contactRoutes);
 app.use('/invites', invitesRouter);
 app.use('/media', mediaRouter);
+
+app.use('/ice-servers', iceRouter);
 
 if (process.env.STATUS_ENABLED === 'true') {
   app.use('/status', statusRoutes);
@@ -451,6 +456,8 @@ io.on('connection', (socket) => {
       byUserId: socket.user?.id,
     });
   });
+
+  registerCallHandlers({ io, socket, prisma });
 });
 
 // Expose io if any other module still needs it:

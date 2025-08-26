@@ -5,57 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { renderWithRouter } from '../src/test-utils';
 
-// ---- Inline mock for @mantine/core ----
-// Ensure your jest.config does NOT remap @mantine/core; otherwise this inline mock won’t be used.
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-
-  const strip = (props = {}) => {
-    const {
-      p, px, py, m, mx, my, c, ta, bg, fs, fw, mt, mb, ml, mr, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      centered, position, withArrow, padding, color,
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const Card = ({ children, ...rest }) =>
-    React.createElement('div', { 'data-testid': 'card', ...strip(rest) }, children);
-
-  const Stack = ({ children, ...rest }) =>
-    React.createElement('div', { ...strip(rest) }, children);
-
-  const Text = ({ children, ...rest }) =>
-    React.createElement('p', { ...strip(rest) }, children);
-
-  const Button = ({ children, onClick, type = 'button', ...rest }) =>
-    React.createElement('button', { type, onClick, ...strip(rest) }, children);
-
-  const Alert = ({ children, ...rest }) =>
-    React.createElement('div', { role: 'alert', ...strip(rest) }, children);
-
-  const Anchor = ({ children, href, ...rest }) =>
-    React.createElement('a', { href, ...strip(rest) }, children);
-
-  const MantineProvider = ({ children }) => React.createElement(React.Fragment, null, children);
-
-  const Group = ({ children, ...rest }) =>
-    React.createElement('div', { ...strip(rest) }, children);
-
-  return {
-    __esModule: true,
-    MantineProvider,
-    Card,
-    Stack,
-    Text,
-    Button,
-    Alert,
-    Anchor,
-    Group,
-  };
-});
-
 // ---- Mock react-router navigate ----
 const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => {

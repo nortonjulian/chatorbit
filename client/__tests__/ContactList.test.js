@@ -2,71 +2,8 @@
  * @file ContactList.test.js
  * Tests for client/src/components/ContactList.jsx
  */
-import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-
-/* ---- Minimal Mantine mock (keeps DOM clean + interactive) ---- */
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-
-  const strip = (props = {}) => {
-    const {
-      // layout / style props we don't want on DOM nodes
-      p, px, py, m, mx, my, c, ta, bg, fs, fw, mt, mb, ml, mr, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      maw, mxw, // etc
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const Div = React.forwardRef((props, ref) =>
-    React.createElement('div', { ...strip(props), ref }, props.children)
-  );
-
-  const Input = React.forwardRef(({ value, defaultValue, onChange, placeholder, ...rest }, ref) =>
-    React.createElement('input', {
-      ...strip(rest),
-      ref,
-      value,
-      defaultValue,
-      placeholder,
-      onChange: (e) => onChange?.(e),
-    })
-  );
-
-  const Button = React.forwardRef(({ children, onClick, ...rest }, ref) =>
-    React.createElement('button', { ...strip(rest), ref, type: 'button', onClick }, children)
-  );
-
-  // Mantine NavLink surfaces a click target; we model it as a <button>
-  const NavLink = ({ label, rightSection, onClick, ...rest }) =>
-    React.createElement(
-      'button',
-      { ...strip(rest), type: 'button', onClick },
-      label,
-      rightSection
-    );
-
-  const Title = ({ children }) => React.createElement('h4', null, children);
-  const Text = ({ children, ...rest }) => React.createElement('span', strip(rest), children);
-  const Group = Div;
-  const Stack = Div;
-  const Box = Div;
-
-  return {
-    __esModule: true,
-    Box,
-    Title,
-    TextInput: Input,
-    Stack,
-    NavLink,
-    Text,
-    Button,
-    Group,
-  };
-});
 
 /* ---- Router: mock useNavigate ---- */
 const mockNavigate = jest.fn();
@@ -75,7 +12,7 @@ jest.mock('react-router-dom', () => {
   return { ...real, useNavigate: () => mockNavigate, MemoryRouter: real.MemoryRouter };
 });
 
-/* ---- axiosClient mock (safe factory; no TDZ) ---- */
+/* ---- axiosClient mock (path MUST match the component import) ---- */
 jest.mock('../src/api/axiosClient', () => {
   const get = jest.fn();
   const post = jest.fn();
@@ -90,19 +27,6 @@ import axiosClient from '../src/api/axiosClient';
 
 /* ---- SUT (after mocks) ---- */
 import ContactList from '../src/components/ContactList.jsx';
-
-/* ---- Quiet ReactDOMTestUtils warning (optional) ---- */
-let origError;
-beforeAll(() => {
-  origError = console.error;
-  jest.spyOn(console, 'error').mockImplementation((msg, ...rest) => {
-    if (typeof msg === 'string' && msg.includes('ReactDOMTestUtils.act is deprecated')) return;
-    origError(msg, ...rest);
-  });
-});
-afterAll(() => {
-  console.error.mockRestore?.();
-});
 
 beforeEach(() => {
   jest.clearAllMocks();

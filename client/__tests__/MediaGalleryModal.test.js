@@ -4,60 +4,6 @@ import { jest } from '@jest/globals';
 import userEvent from '@testing-library/user-event';
 import { screen, within } from '@testing-library/react';
 
-// --- Inline mock for @mantine/core ---
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-
-  const strip = (props = {}) => {
-    const {
-      p, px, py, m, mx, my, c, ta, bg, fs, fw, mt, mb, ml, mr, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      centered, position, withArrow, padding, loading, withCloseButton,
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const Div = (p) => React.createElement('div', strip(p), p.children);
-  const MantineProvider = ({ children, ...rest }) =>
-    React.createElement(React.Fragment, strip(rest), children);
-
-  const Modal = ({ opened, title, children, ...rest }) => {
-    if (!opened) return null;
-    return React.createElement(
-      'div',
-      {
-        role: 'dialog',
-        'aria-label': typeof title === 'string' ? title : undefined,
-        ...strip(rest),
-      },
-      title ? React.createElement('h2', null, title) : null,
-      children
-    );
-  };
-
-  const SimpleGrid = (p) => React.createElement('div', strip(p), p.children);
-  const Image = ({ src, alt = '', onClick, ...rest }) =>
-    React.createElement('img', { src, alt, onClick, ...strip(rest) });
-  const Text = ({ children, ...rest }) => React.createElement('p', strip(rest), children);
-  const Group = (p) => React.createElement('div', strip(p), p.children);
-  const Button = ({ children, component, href, download, onClick, type = 'button', ...rest }) => {
-    if (component === 'a') return React.createElement('a', { href, download, onClick, ...strip(rest) }, children);
-    return React.createElement('button', { type, onClick, ...strip(rest) }, children);
-  };
-
-  return {
-    __esModule: true,
-    MantineProvider,
-    Modal,
-    SimpleGrid,
-    Image,
-    Text,
-    Group,
-    Button,
-  };
-});
-
 // ---- messagesStore mock ----
 const mockGetMediaInRoom = jest.fn();
 jest.mock('../src/utils/messagesStore', () => ({

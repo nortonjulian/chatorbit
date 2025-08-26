@@ -44,8 +44,9 @@ import socket from './lib/socket';
 import { fetchFeatures } from './lib/features';
 import StatusFeed from './pages/StatusFeed.jsx';
 
-// 🔔 Calls
-import CallManager from './components/CallManager';
+// 🔔 Calls (modal that listens for 'call:ring', and in-call UI)
+import IncomingCallModal from './components/IncomingCallModal.jsx';
+import VideoCall from './components/VideoCall.jsx';
 
 // 🔐 HTTP client for logout
 import axiosClient from './api/axiosClient';
@@ -57,6 +58,18 @@ export default function App() {
   const { currentUser, setCurrentUser } = useUser();
 
   const [features, setFeatures] = useState({ status: false });
+
+  // ⬇️ global in-app call state for conditional rendering of VideoCall
+  const [activeCall, setActiveCall] = useState(null);
+  // shape example:
+  // {
+  //   callId,
+  //   partnerId,            // user id of the other party
+  //   mode: 'VIDEO'|'AUDIO',
+  //   chatId: number|null,
+  //   inbound: true|false,  // did we receive the invite?
+  //   offerSdp?: string     // if inbound, initial offer from server ring event
+  // }
 
   useEffect(() => {
     fetchFeatures()
@@ -78,6 +91,30 @@ export default function App() {
     } finally {
       setCurrentUser(null);
     }
+  };
+
+  // Accept incoming call → mount VideoCall
+  const handleAcceptIncoming = (payload) => {
+    // payload matches what your server emits on 'call:ring'
+    // { callId, fromUserId, chatId, mode, sdp, createdAt }
+    setActiveCall({
+      callId: payload.callId,
+      partnerId: payload.fromUserId,
+      chatId: payload.chatId ?? null,
+      mode: payload.mode || 'VIDEO',
+      inbound: true,
+      offerSdp: payload.sdp, // pass down so VideoCall can setRemoteDescription(offer) then createAnswer
+    });
+  };
+
+  // Reject incoming → no active call
+  const handleRejectIncoming = () => {
+    setActiveCall(null);
+  };
+
+  // End the active call (VideoCall will call this on hangup)
+  const handleEndCall = () => {
+    setActiveCall(null);
   };
 
   const AuthedLayout = () => (
@@ -104,12 +141,33 @@ export default function App() {
             currentUser={currentUser}
             setSelectedRoom={setSelectedRoom}
             features={features}
+            // Optional: expose a way for ChatView/Sidebar to start an outbound call
+            // onStartCall={(partnerId, mode='VIDEO', chatId=null) => {
+            //   setActiveCall({ partnerId, mode, chatId, inbound: false });
+            // }}
           />
         </ScrollArea.Autosize>
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <CallManager />
+        {/* 🔔 Always-mounted modal that listens for 'call:ring' internally.
+            When user clicks "Accept", it calls onAccept(payload). */}
+        <IncomingCallModal
+          onAccept={handleAcceptIncoming}
+          onReject={handleRejectIncoming}
+        />
+
+        {/* 🎥 Only render the call UI when a call is active (inbound or outbound) */}
+        {activeCall && (
+          <VideoCall
+            call={activeCall}
+            currentUser={currentUser}
+            onEnd={handleEndCall}
+            // You can pass socket in if your VideoCall expects its own instance,
+            // but typically it will import the shared /lib/socket the same way as here.
+          />
+        )}
+
         <Outlet />
       </AppShell.Main>
     </AppShell>
@@ -145,6 +203,10 @@ export default function App() {
                         chatroom={selectedRoom}
                         currentUserId={currentUser.id}
                         currentUser={currentUser}
+                        // If you want to start an outbound call from inside ChatView:
+                        // onStartCall={(partnerId, mode='VIDEO') => {
+                        //   setActiveCall({ partnerId, mode, chatId: selectedRoom.id, inbound: false });
+                        // }}
                       />
                     </Card>
                   ) : (
@@ -160,7 +222,7 @@ export default function App() {
 
             <Route path="people" element={<PeoplePage />} />
             <Route path="settings/backups" element={<SettingsBackups />} />
-            <Route path="settings/upgrade" element={<UpgradePage />} /> 
+            <Route path="settings/upgrade" element={<UpgradePage />} />
             <Route path="/join/:code" element={<JoinInvitePage />} />
 
             {features.status && (

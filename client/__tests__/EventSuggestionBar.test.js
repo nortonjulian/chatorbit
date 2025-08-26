@@ -4,67 +4,6 @@ import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../src/test-utils.js';
 import EventSuggestionBar from '../src/components/EventSuggestionBar.jsx';
 
-/* ---------- Mantine: keep DOM simple, include MantineProvider ---------- */
-jest.mock('@mantine/core', () => {
-  const React = require('react');
-
-  const strip = (props = {}) => {
-    const {
-      p, px, py, m, mx, my, c, ta, bg, fs, fw, mt, mb, ml, mr, mah, h, w,
-      radius, withBorder, shadow, variant, size, gap, align, justify, wrap,
-      centered, position, withArrow,
-      ...rest
-    } = props;
-    return rest;
-  };
-
-  const Div = (p) => React.createElement('div', strip(p), p.children);
-  const Button = ({ children, onClick, ...rest }) =>
-    React.createElement('button', { type: 'button', onClick, ...strip(rest) }, children);
-
-  const Modal = ({ opened, title, children }) =>
-    opened
-      ? React.createElement(
-          'div',
-          { 'data-testid': 'modal' },
-          title ? React.createElement('h2', null, title) : null,
-          children
-        )
-      : null;
-
-  const TextInput = ({ label, value, onChange, placeholder }) => (
-    <label>
-      {label}
-      <input
-        aria-label={label}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-      />
-    </label>
-  );
-
-  const Textarea = ({ label, value, onChange }) => (
-    <label>
-      {label}
-      <textarea aria-label={label} value={value} onChange={onChange} />
-    </label>
-  );
-
-  // Required by src/test-utils.js
-  const MantineProvider = ({ children }) => <>{children}</>;
-
-  return {
-    __esModule: true,
-    Group: Div,
-    Button,
-    Modal,
-    TextInput,
-    Textarea,
-    MantineProvider,
-  };
-});
-
 /* ---------- Tabler icons: simple <svg> ---------- */
 jest.mock('@tabler/icons-react', () => {
   const React = require('react');
