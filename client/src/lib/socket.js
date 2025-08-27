@@ -9,7 +9,7 @@ const URL =
 // Create a single shared client
 const socket = io(URL, {
   autoConnect: true,
-  transports: ['websocket'], // helps avoid long-polling quirks
+  transports: ['websocket', 'polling'], // helps avoid long-polling quirks
   withCredentials: true, // ✅ send HttpOnly cookie on WS
 });
 

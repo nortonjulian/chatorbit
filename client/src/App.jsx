@@ -14,7 +14,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
 import SettingsBackups from './pages/SettingsBackups.jsx';
-import UpgradePage from './pages/UpgradePage.jsx'; // ✅ new import
+import UpgradePl from './pages/UpgradePlan'
 
 import { useUser } from './context/UserContext';
 import BootstrapUser from './components/BootstrapUser';

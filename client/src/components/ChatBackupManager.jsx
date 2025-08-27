@@ -9,11 +9,11 @@ import {
   PasswordInput,
   Divider,
 } from '@mantine/core';
-import PremiumGuard from '../PremiumGuard.jsx';
+import PremiumGuard from './PremiumGuard.jsx';
 import {
   createEncryptedKeyBackup,
   restoreEncryptedKeyBackup,
-} from '../../utils/backupClient.js';
+} from '../utils/backupClient.js';
 
 export default function ChatBackupManager() {
   // Export state
