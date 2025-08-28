@@ -14,7 +14,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
 import SettingsBackups from './pages/SettingsBackups.jsx';
-import UpgradePl from './pages/UpgradePlan'
+import UpgradePage from './pages/UpgradePlan';
 
 import { useUser } from './context/UserContext';
 import BootstrapUser from './components/BootstrapUser';
@@ -50,6 +50,11 @@ import VideoCall from './components/VideoCall.jsx';
 
 // 🔐 HTTP client for logout
 import axiosClient from './api/axiosClient';
+
+// 🌟 New: marketing/auth split layout for public routes
+import AuthLayout from './components/AuthLayout';
+
+import Download from './pages/Download.jsx';
 
 export default function App() {
   const [opened, { toggle }] = useDisclosure();
@@ -103,7 +108,7 @@ export default function App() {
       chatId: payload.chatId ?? null,
       mode: payload.mode || 'VIDEO',
       inbound: true,
-      offerSdp: payload.sdp, // pass down so VideoCall can setRemoteDescription(offer) then createAnswer
+      offerSdp: payload.sdp,
     });
   };
 
@@ -141,30 +146,23 @@ export default function App() {
             currentUser={currentUser}
             setSelectedRoom={setSelectedRoom}
             features={features}
-            // Optional: expose a way for ChatView/Sidebar to start an outbound call
-            // onStartCall={(partnerId, mode='VIDEO', chatId=null) => {
-            //   setActiveCall({ partnerId, mode, chatId, inbound: false });
-            // }}
           />
         </ScrollArea.Autosize>
       </AppShell.Navbar>
 
       <AppShell.Main>
-        {/* 🔔 Always-mounted modal that listens for 'call:ring' internally.
-            When user clicks "Accept", it calls onAccept(payload). */}
+        {/* 🔔 Listens for 'call:ring' internally */}
         <IncomingCallModal
           onAccept={handleAcceptIncoming}
           onReject={handleRejectIncoming}
         />
 
-        {/* 🎥 Only render the call UI when a call is active (inbound or outbound) */}
+        {/* 🎥 Show in-call UI when a call is active */}
         {activeCall && (
           <VideoCall
             call={activeCall}
             currentUser={currentUser}
             onEnd={handleEndCall}
-            // You can pass socket in if your VideoCall expects its own instance,
-            // but typically it will import the shared /lib/socket the same way as here.
           />
         )}
 
@@ -180,10 +178,14 @@ export default function App() {
 
       {!currentUser ? (
         <Routes>
-          <Route path="/" element={<LoginForm />} />
-          <Route path="/register" element={<Registration />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+          {/* Public routes rendered inside the marketing/auth layout */}
+          <Route element={<AuthLayout />}>
+            <Route path="/" element={<LoginForm />} />
+            <Route path="/register" element={<Registration />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/download" element={<Download />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       ) : (
@@ -203,10 +205,6 @@ export default function App() {
                         chatroom={selectedRoom}
                         currentUserId={currentUser.id}
                         currentUser={currentUser}
-                        // If you want to start an outbound call from inside ChatView:
-                        // onStartCall={(partnerId, mode='VIDEO') => {
-                        //   setActiveCall({ partnerId, mode, chatId: selectedRoom.id, inbound: false });
-                        // }}
                       />
                     </Card>
                   ) : (

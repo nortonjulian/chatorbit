@@ -3,8 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import axiosClient from '../api/axiosClient';
 import {
-  Center,
-  Container,
   Paper,
   Title,
   TextInput,
@@ -44,24 +42,16 @@ export default function Registration() {
     setLoading(true);
     try {
       const res = await axiosClient.post('/auth/register', {
-        username,
-        email,
-        password,
+        username, email, password,
       });
       const { token, user } = res.data;
-
-      // Persist + update global context
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setCurrentUser(user);
-
-      // Optional flash message
       setMessage(`Welcome, ${user.username}!`);
       setType('success');
-
       navigate('/');
     } catch (error) {
-      console.error('Registration error:', error);
       const apiErr =
         error?.response?.data?.error || 'Registration failed. Try again.';
       setMessage(apiErr);
@@ -72,66 +62,63 @@ export default function Registration() {
   };
 
   return (
-    <Center style={{ minHeight: '100vh' }}>
-      <Container size="xs" px="md" style={{ width: '100%', maxWidth: 440 }}>
-        <Paper withBorder shadow="sm" radius="xl" p="lg">
-          <Title order={3} mb="md">
-            Create an Account
-          </Title>
+    <Paper withBorder shadow="sm" radius="xl" p="lg" style={{ width: '100%' }}>
+      <Title order={3} mb="md">Create an Account</Title>
 
-          <form onSubmit={handleSubmit}>
-            <Stack gap="sm">
-              <TextInput
-                label="Username"
-                placeholder="yourusername"
-                value={username}
-                onChange={(e) => setUsername(e.currentTarget.value)}
-                required
-              />
-              <TextInput
-                type="email"
-                label="Email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-                required
-              />
-              <PasswordInput
-                label="Password"
-                placeholder="Create a password"
-                value={password}
-                onChange={(e) => setPassword(e.currentTarget.value)}
-                required
-                visibilityToggle={false}
-              />
+      <form onSubmit={handleSubmit} noValidate>
+        <Stack gap="sm">
+          <TextInput
+            label="Username"
+            placeholder="yourusername"
+            value={username}
+            onChange={(e) => setUsername(e.currentTarget.value)}
+            required
+            autoComplete="username"
+          />
+          <TextInput
+            type="email"
+            label="Email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
+            required
+            autoComplete="email"
+          />
+          <PasswordInput
+            label="Password"
+            placeholder="Create a password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            required
+            visibilityToggle
+            autoComplete="new-password"
+          />
 
-              {message && (
-                <Alert
-                  color={messageType === 'error' ? 'red' : 'green'}
-                  variant="light"
-                >
-                  {message}
-                </Alert>
-              )}
+          {message && (
+            <Alert
+              color={messageType === 'error' ? 'red' : 'green'}
+              variant="light"
+            >
+              {message}
+            </Alert>
+          )}
 
-              <Button type="submit" loading={loading} fullWidth>
-                {loading ? 'Registering...' : 'Register'}
-              </Button>
+          <Button type="submit" loading={loading} fullWidth>
+            {loading ? 'Registering…' : 'Register'}
+          </Button>
 
-              <Text size="xs" c="dimmed" ta="center">
-                By continuing you agree to our Terms and Privacy Policy.
-              </Text>
-            </Stack>
-          </form>
+          <Text size="xs" c="dimmed" ta="center">
+            By continuing you agree to our Terms and Privacy Policy.
+          </Text>
 
-          <Text ta="center" mt="md">
+          <Text ta="center" mt="xs">
             Already have an account?{' '}
             <Anchor component={Link} to="/">
               Log in
             </Anchor>
           </Text>
-        </Paper>
-      </Container>
-    </Center>
+        </Stack>
+      </form>
+    </Paper>
   );
 }
