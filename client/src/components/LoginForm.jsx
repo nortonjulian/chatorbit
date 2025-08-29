@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import {
   Paper, Title, Text, TextInput, PasswordInput, Button, Anchor, Alert,
-  Stack, Group, Divider, Checkbox, Box,
+  Stack, Group, Divider, Checkbox,
 } from '@mantine/core';
 import { IconBrandGoogle, IconBrandApple } from '@tabler/icons-react';
 
@@ -26,7 +26,8 @@ export default function LoginForm({ onLoginSuccess }) {
       const { user } = res.data;
       setCurrentUser(user);
       onLoginSuccess?.(user);
-      setUsername(''); setPassword('');
+      setUsername('');
+      setPassword('');
       navigate('/');
     } catch {
       setError('Invalid username or password');
@@ -35,8 +36,8 @@ export default function LoginForm({ onLoginSuccess }) {
     }
   };
 
-  const handleGoogle = () => window.location.assign('/api/auth/google'); // wire when ready
-  const handleApple = () => window.location.assign('/api/auth/apple');   // wire when ready
+  const handleGoogle = () => window.location.assign('/api/auth/google');
+  const handleApple  = () => window.location.assign('/api/auth/apple');
 
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg">
@@ -91,16 +92,15 @@ export default function LoginForm({ onLoginSuccess }) {
             {loading ? 'Logging in…' : 'Log In'}
           </Button>
 
-          <Box ta="center">
-            <Text size="sm">
-              New here? <Anchor component={Link} to="/register">Create an account</Anchor>
-            </Text>
-            <Text size="xs" c="dimmed" mt={4}>
-              Protected by end-to-end encryption. By continuing you agree to our{' '}
-              <Anchor href="/legal/terms" target="_blank">Terms</Anchor> &{' '}
-              <Anchor href="/legal/privacy" target="_blank">Privacy</Anchor>.
-            </Text>
-          </Box>
+          <Text ta="center" size="sm">
+            New here? <Anchor component={Link} to="/register">Create an account</Anchor>
+          </Text>
+
+          <Text size="xs" c="dimmed" ta="center" mt={4}>
+            Protected by end-to-end encryption. By continuing you agree to our{' '}
+            <Anchor href="/legal/terms" target="_blank" rel="noopener noreferrer">Terms</Anchor> &{' '}
+            <Anchor href="/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy</Anchor>.
+          </Text>
         </Stack>
       </form>
     </Paper>

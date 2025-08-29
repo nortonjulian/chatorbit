@@ -9,6 +9,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { UserProvider } from './context/UserContext.jsx'; // <-- ensure this really exports UserProvider
 // import { UserProvider } from './context/UserContextInstance.jsx'; // use this path if needed
 import App from './App.jsx';
+import './styles.css';
 import ErrorBoundary from './ErrorBoundary';
 import './i18n';
 

@@ -17,24 +17,37 @@ import {
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
 
-// 🔗 Smart links (replace with your real domains or provider links)
-const APP_GENERIC = 'https://go.chatorbit.com/app';      // QR uses this (auto-route based on device)
-const APP_IOS     = 'https://go.chatorbit.com/ios';      // Force App Store
-const APP_ANDROID = 'https://go.chatorbit.com/android';  // Force Google Play
+// Smart links (update to your live URLs when ready)
+const APP_GENERIC = 'https://go.chatorbit.com/app';      // QR (auto-routes)
+const APP_IOS     = 'https://go.chatorbit.com/ios';      // App Store
+const APP_ANDROID = 'https://go.chatorbit.com/android';  // Google Play
 
-// Reusable row shown under the auth forms (QR + store badges)
-function DownloadAppRow() {
-  // Responsive sizes:
-  // - badges: 52–72px tall depending on viewport
-  // - QR: a bit larger than the badge
+// Mobile-only brand bar (shown when the left hero is hidden)
+function MobileTopBar() {
+  return (
+    <Group
+      hiddenFrom="md"
+      gap="xs"
+      align="center"
+      wrap="nowrap"
+      className="brand-lockup"
+      py="sm"
+    >
+      <Image src="/logo-chatorbit.png" alt="ChatOrbit" h={28} />
+      <Title order={4} c="orbit.8" style={{ margin: 0 }}>ChatOrbit</Title>
+    </Group>
+  );
+}
+
+function GetAppCard() {
   const BADGE_H = 'clamp(52px, 6vw, 72px)';
   const QR_SIZE = 'calc(1.1 * (clamp(52px, 6vw, 72px)))';
 
   return (
-    <Box mt="lg">
-      <Divider my="sm" label="Get the app" />
+    <Paper withBorder shadow="xs" radius="xl" p="md">
+      <Divider mb="md" label="Get the app" />
       <Group justify="space-between" wrap="nowrap" align="center">
-        {/* QR: desktop/tablet only */}
+        {/* QR: show on tablet/desktop */}
         <Group gap="sm" align="center" visibleFrom="sm">
           <Anchor
             href={APP_GENERIC}
@@ -51,13 +64,13 @@ function DownloadAppRow() {
               radius="md"
             />
           </Anchor>
-          <Text size="sm" c="dimmed" maw={260}>
+          <Text size="sm" c="dimmed" maw={240}>
             On desktop? Scan with your phone to get the app.
           </Text>
         </Group>
 
-        {/* Store badges: always visible & larger */}
-        <Group gap="md" wrap="wrap" align="center" style={{ rowGap: 12 }}>
+        {/* Badges: always visible & large hit targets */}
+        <Stack gap="sm" align="stretch" style={{ minWidth: 260 }}>
           <Anchor
             href={APP_IOS}
             target="_blank"
@@ -67,14 +80,13 @@ function DownloadAppRow() {
             style={{ display: 'inline-flex', padding: 6, borderRadius: 12 }}
           >
             <Image
-              src="/badges/app-store-badge.png"  // or your SVG import
+              src="/badges/app-store-badge.png"
               h={BADGE_H}
               fit="contain"
               alt="Download on the App Store"
               style={{ width: 'auto' }}
             />
           </Anchor>
-
           <Anchor
             href={APP_ANDROID}
             target="_blank"
@@ -91,9 +103,9 @@ function DownloadAppRow() {
               style={{ width: 'auto' }}
             />
           </Anchor>
-        </Group>
+        </Stack>
       </Group>
-    </Box>
+    </Paper>
   );
 }
 
@@ -107,32 +119,46 @@ export default function AuthLayout() {
       }}
     >
       <Container size="lg" py="xl">
+        {/* Mobile brand bar */}
+        <MobileTopBar />
+
         <Grid gutter="xl" align="start">
-          {/* Left: Brand + Features (ONE logo here) */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Stack gap="md" maw={520}>
-              <Group gap="sm" align="center">
+          {/* Left: Brand + Marketing (desktop/tablet only) */}
+          <Grid.Col
+            span={{ base: 12, md: 6, lg: 7 }}   // <-- add md split
+            visibleFrom="md"
+          >
+            <Stack gap="md" maw={620}>
+              <Group gap="sm" align="center" wrap="nowrap" className="brand-lockup">
                 <Image
-                  src="/ChatOrbit (possible).png"
+                  src="/logo-chatorbit.png"
                   alt="ChatOrbit logo"
                   h={44}
                   fit="contain"
-                  radius="md"
                 />
                 <Title order={3} c="orbit.8" style={{ marginBottom: 0 }}>
                   ChatOrbit
                 </Title>
               </Group>
 
-              <Title order={1} style={{ lineHeight: 1.1 }}>
+              <Title
+                order={1}
+                style={{
+                  lineHeight: 1.05,
+                  fontWeight: 800,
+                  letterSpacing: -0.2,
+                  fontSize: 'clamp(34px, 5vw, 56px)',
+                }}
+              >
                 Secure, global messaging with{' '}
                 <span style={{ color: 'var(--mantine-color-orbit-6)' }}>
                   instant translation
                 </span>
               </Title>
 
-              <Text c="dimmed" size="lg">
-                End-to-end encryption, AI-powered translation, disappearing messages, and voice/video calling.
+              <Text c="dimmed" size="lg" style={{ maxWidth: 560 }}>
+                End-to-end encryption, AI-powered translation, disappearing
+                messages, and voice/video calling.
               </Text>
 
               <List spacing="sm" size="sm" center>
@@ -151,7 +177,7 @@ export default function AuthLayout() {
               </List>
 
               <Group gap="sm">
-                <Button component={Link} to="/register" size="md">
+                <Button component={Link} to="/register" size="md" radius="xl">
                   Create free account
                 </Button>
                 <Anchor component={Link} to="/status" c="dimmed">
@@ -170,14 +196,14 @@ export default function AuthLayout() {
             </Stack>
           </Grid.Col>
 
-          {/* Right: Auth form + Download section */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Stack gap="lg" style={{ maxWidth: 420, marginLeft: 'auto' }}>
-              {/* Form content from the child route (login / register / forgot / reset) */}
-              <Outlet />
-
-              {/* App download row (QR + badges) */}
-              <DownloadAppRow />
+          {/* Right: Auth form + Get app */}
+          <Grid.Col
+            span={{ base: 12, md: 6, lg: 5 }}   // <-- add md split
+            style={{ alignSelf: 'start' }}
+          >
+            <Stack gap="lg" style={{ maxWidth: 440, marginLeft: 'auto' }}>
+              <Outlet />   {/* Login / Register / Forgot / Reset (card-only) */}
+              <GetAppCard />
             </Stack>
           </Grid.Col>
         </Grid>

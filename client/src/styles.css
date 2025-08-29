@@ -1,0 +1,13 @@
+/* Keep logo + wordmark tight and left-aligned */
+.brand-lockup {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.5rem !important;
+  width: max-content !important;   /* prevents full-width stretching */
+}
+
+/* If you ever flip the page to RTL */
+html[dir="rtl"] .brand-lockup {
+  flex-direction: row-reverse !important;
+}
