@@ -17,16 +17,6 @@ datasource db {
 // =======================================================
 // ChatOrbit Prisma Schema (ordered + normalized)
 // =======================================================
-// Table of contents
-//  0) Global Enums
-//  1) Core User & Access
-//  2) Conversation & Participation
-//  3) Messaging
-//  4) Contacts, Reports, Auditing
-//  5) Status / Stories
-//  6) Bots & Automation
-//  7) Calls
-// =======================================================
 
 // ===================== 0) Global Enums =====================
 
@@ -84,13 +74,19 @@ enum AIAssistantMode {
   ALWAYS
 }
 
+enum AgeBand {
+  TEEN_13_17
+  ADULT_18_24
+  ADULT_25_34
+  ADULT_35_49
+  ADULT_50_PLUS
+}
+
 enum ContentScope {
   COMMANDS
   MENTIONS
   ALL
 }
-
-// ✅ Calls
 
 enum CallMode {
   AUDIO
@@ -107,6 +103,22 @@ enum CallStatus {
   ENDED
 }
 
+enum NumberStatus {
+  AVAILABLE
+  RESERVED
+  ASSIGNED
+  HOLD
+  RELEASING
+}
+
+enum PortStatus {
+  NONE
+  PORT_IN_PENDING
+  PORTED_IN
+  PORT_OUT_PENDING
+  PORTED_OUT
+}
+
 // ===================== 1) Core User & Access =====================
 
 model User {
@@ -121,52 +133,79 @@ model User {
   role                        String  @default("USER")
   enableAIResponder           Boolean @default(false)
   enableSmartReplies          Boolean @default(false)
+  theme                       String @default("light")
 
   autoResponderMode        AutoResponderMode @default(DM)
   autoResponderCooldownSec Int               @default(120)
   autoResponderActiveUntil DateTime?
   autoResponderSignature   String?
 
+  // Billing
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String?
+
   publicKey  String?
   privateKey String?
 
   // Relations
-  messages              Message[]         @relation("UserMessages")
-  participants          Participant[]
-  reports               Report[]          @relation("UserReports")
-  randomChatRooms       RandomChatRoom[]  @relation("RandomChatParticipants")
-  readMessages          Message[]         @relation("ReadMessages")
-  contactsOwned         Contact[]         @relation("ContactsOwned")
-  contactsSaved         Contact[]         @relation("ContactsSaved")
-  auditLogs             AuditLog[]        @relation("AuditActor")
-  messageKeys           MessageKey[]
-  devices               Device[]
-  deviceRevocations     Device[]          @relation("DeviceRevokedBy")
-  createdInvites        ChatRoomInvite[]  @relation("InviteCreator")
-  messageReactions      MessageReaction[]
-  statusesAuthored      Status[]
-  statusKeys            StatusKey[]
-  statusViews           StatusView[]
-  statusReactions       StatusReaction[]
-  botsOwned             Bot[]             @relation("BotsOwned")
-  botsAsService         Bot[]             @relation("BotServiceUser")
-  provisionLinks        ProvisionLink[]   @relation("ProvisionLinkUser")
-  provisionLinksCreated ProvisionLink[]   @relation("ProvisionLinkCreator")
-
-  // NEW/IMPORTANT: opposite sides
+  messages                   Message[]           @relation("UserMessages")
+  participants               Participant[]
+  reports                    Report[]            @relation("UserReports")
+  randomChatRooms            RandomChatRoom[]    @relation("RandomChatParticipants")
+  readMessages               Message[]           @relation("ReadMessages")
+  contactsOwned              Contact[]           @relation("ContactsOwned")
+  contactsSaved              Contact[]           @relation("ContactsSaved")
+  auditLogs                  AuditLog[]          @relation("AuditActor")
+  messageKeys                MessageKey[]
+  devices                    Device[]
+  deviceRevocations          Device[]            @relation("DeviceRevokedBy")
+  createdInvites             ChatRoomInvite[]    @relation("InviteCreator")
+  messageReactions           MessageReaction[]
+  statusesAuthored           Status[]
+  statusKeys                 StatusKey[]
+  statusViews                StatusView[]
+  statusReactions            StatusReaction[]
+  botsOwned                  Bot[]               @relation("BotsOwned")
+  botsAsService              Bot[]               @relation("BotServiceUser")
+  provisionLinks             ProvisionLink[]     @relation("ProvisionLinkUser")
+  provisionLinksCreated      ProvisionLink[]     @relation("ProvisionLinkCreator")
   callsPlaced                Call[]              @relation("CallCaller")
   callsReceived              Call[]              @relation("CallCallee")
   scheduledMessagesAuthored  ScheduledMessage[]  @relation("ScheduledMessageSender")
   messageSessionKeysReceived MessageSessionKey[] @relation("MsgSessionKeys_Recipient")
+  assignedNumbers            PhoneNumber[]
+  numberReservations         NumberReservation[] @relation("UserNumberReservations")
+  transcripts                Transcript[]
+
+  // Usage/analytics
+  sttUsage STTUsage[] @relation("UserSTTUsage")
 
   // Settings
-  plan              Plan    @default(FREE)
-  autoDeleteSeconds Int?
-  showReadReceipts  Boolean @default(true)
-  avatarUrl         String?
-  emojiTag          String?
-  messageTone       String? @default("default.mp3")
-  ringtone          String? @default("classic.mp3")
+  plan                      Plan    @default(FREE)
+  autoDeleteSeconds         Int?
+  showReadReceipts          Boolean @default(true)
+  avatarUrl                 String?
+  emojiTag                  String?
+  messageTone               String? @default("default.mp3")
+  ringtone                  String? @default("classic.mp3")
+
+  privacyBlurEnabled        Boolean @default(false)
+  privacyHoldToReveal       Boolean @default(false)
+  notifyOnCopy              Boolean @default(false)
+
+  ageBand                   AgeBand?
+  ageAttestedAt             DateTime?
+  wantsAgeFilter            Boolean   @default(true)
+  randomChatAllowedBands    Json?
+
+  // Accessibility preferences (hearing-impaired support)
+  a11yVisualAlerts          Boolean @default(true)  // banners/title-blink instead of relying on sound
+  a11yVibrate               Boolean @default(true)
+  a11yFlashOnCall           Boolean @default(false) // optional screen flash on incoming call
+  a11yLiveCaptions          Boolean @default(false) // premium toggle for live call captions
+  a11yVoiceNoteSTT          Boolean @default(true)  // auto-transcribe voice notes
+  a11yCaptionFont           String  @default("lg")  // sm|md|lg|xl
+  a11yCaptionBg             String  @default("dark") // light|dark|transparent
 }
 
 model Device {
@@ -186,7 +225,6 @@ model Device {
   revokedById Int?
   revokedBy   User? @relation("DeviceRevokedBy", fields: [revokedById], references: [id])
 
-  // NEW: opposite side
   messageSessionKeys MessageSessionKey[] @relation("MsgSessionKeys_Device")
 
   @@index([userId])
@@ -195,17 +233,16 @@ model Device {
 model ProvisionLink {
   id String @id @default(cuid())
 
-  // normalized to Int and related to User
   userId Int
   user   User @relation("ProvisionLinkUser", fields: [userId], references: [id], onDelete: Cascade)
 
-  createdById Int
-  createdBy   User @relation("ProvisionLinkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById Int?
+  createdBy   User? @relation("ProvisionLinkCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  secret    String // random 32 bytes (base64)
+  secret    String
   expiresAt DateTime
   usedAt    DateTime?
-  sasCode   String // 6-digit code
+  sasCode   String
   createdAt DateTime  @default(now())
 
   @@index([userId])
@@ -227,10 +264,8 @@ model ChatRoom {
   autoTranslateMode AutoTranslateMode @default(OFF)
   allowOrbitBot     Boolean           @default(false)
 
-  invites     ChatRoomInvite[] @relation("RoomInvites")
-  botInstalls BotInstall[]     @relation("BotInstallRoom")
-
-  // NEW: opposite side
+  invites           ChatRoomInvite[]   @relation("RoomInvites")
+  botInstalls       BotInstall[]       @relation("BotInstallRoom")
   scheduledMessages ScheduledMessage[] @relation("ScheduledMessageRoom")
 
   @@index([updatedAt, id], map: "room_updated_id")
@@ -262,7 +297,7 @@ model ChatRoomInvite {
   createdById Int
   createdBy   User @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
-  maxUses   Int       @default(0) // 0 = unlimited
+  maxUses   Int       @default(0)
   uses      Int       @default(0)
   expiresAt DateTime?
   createdAt DateTime  @default(now())
@@ -310,7 +345,6 @@ model Message {
   readBy      User[]   @relation("ReadMessages")
   isAutoReply Boolean  @default(false)
 
-  // NEW: opposite side
   sessionKeys MessageSessionKey[] @relation("MsgSessionKeys_Message")
 
   @@index([expiresAt])
@@ -325,7 +359,6 @@ model MessageSessionKey {
   recipientUserId   Int
   recipientDeviceId String
 
-  // NAMED relations match the opposites we added:
   message         Message @relation("MsgSessionKeys_Message", fields: [messageId], references: [id], onDelete: Cascade)
   recipientUser   User    @relation("MsgSessionKeys_Recipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
   recipientDevice Device  @relation("MsgSessionKeys_Device", fields: [recipientDeviceId], references: [id], onDelete: Cascade)
@@ -388,15 +421,15 @@ model ScheduledMessage {
   scheduledAt DateTime
   createdAt   DateTime @default(now())
 
-  // NAMED to match opposites in ChatRoom and User
   chatRoom ChatRoom @relation("ScheduledMessageRoom", fields: [chatRoomId], references: [id], onDelete: Cascade)
   sender   User     @relation("ScheduledMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([chatRoomId])
   @@index([senderId])
+  @@index([scheduledAt])  // ⬅️ new
 }
 
-// ========== 4) Contacts, Reports, Auditing ==========
+// ===================== 4) Contacts, Reports, Auditing =====================
 
 model Contact {
   id Int @id @default(autoincrement())
@@ -427,7 +460,7 @@ model Report {
   decryptedContent String
   createdAt        DateTime @default(now())
 
-  status     String    @default("OPEN") // "OPEN" | "RESOLVED" | "ACTIONED"
+  status     String    @default("OPEN")
   resolvedAt DateTime?
   notes      String?
 
@@ -442,13 +475,13 @@ model AuditLog {
   actorId Int
   actor   User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
 
-  action     String // e.g., "users.list", "users.ban", "messages.delete"
-  resource   String? // e.g., "user", "message", "chatroom"
-  resourceId String? // string so we can store UUIDs or composite keys
-  status     Int // HTTP status code of the request when logged
+  action     String
+  resource   String?
+  resourceId String?
+  status     Int
   ip         String?
   userAgent  String?
-  metadata   Json? // optional redacted/structured context
+  metadata   Json?
   createdAt  DateTime @default(now())
 
   @@index([actorId, createdAt])
@@ -575,7 +608,7 @@ model BotEventLog {
   eventId       String    @unique @default(cuid())
   type          String
   payload       Json
-  status        String    @default("pending") // pending|delivered|failed
+  status        String    @default("pending")
   attempts      Int       @default(0)
   nextAttemptAt DateTime?
   lastError     String?
@@ -589,7 +622,6 @@ model BotEventLog {
 
 // ===================== 7) Calls =====================
 
-// ✅ Updated Call model per your spec: named relations, default status, and indexes
 model Call {
   id         String     @id @default(uuid())
   callerId   Int
@@ -607,4 +639,78 @@ model Call {
   @@index([callerId])
   @@index([calleeId])
   @@index([createdAt])
+}
+
+// ===================== 8) Phone Numbers =====================
+
+model PhoneNumber {
+  id             Int          @id @default(autoincrement())
+  e164           String       @unique
+  provider       String // 'telnyx' | 'bandwidth'
+  areaCode       String?
+  vanity         Boolean      @default(false)
+  status         NumberStatus @default(AVAILABLE)
+  assignedUserId Int?
+  assignedAt     DateTime?
+  lastOutboundAt DateTime?
+  keepLocked     Boolean      @default(false)
+  holdUntil      DateTime?
+  releaseAfter   DateTime?
+  portStatus     PortStatus   @default(NONE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  assignedUser User?               @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  reservations NumberReservation[] @relation("PhoneNumberReservations")
+
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([provider, areaCode, status])
+}
+
+model NumberReservation {
+  id            Int      @id @default(autoincrement())
+  phoneNumberId Int
+  userId        Int
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  phone PhoneNumber @relation("PhoneNumberReservations", fields: [phoneNumberId], references: [id])
+  user  User        @relation("UserNumberReservations", fields: [userId], references: [id])
+
+  @@index([expiresAt])
+}
+
+// ===================== 9) Accessibility Transcripts =====================
+
+model Transcript {
+  id        String   @id @default(uuid())
+  userId    Int
+  callId    String?  // if generated during a call
+  messageId Int?     // if generated from a voice note
+  language  String?  // e.g., "en-US"
+  segments  Json     // [{start,end,text}, ...]
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([callId])
+  @@index([messageId])
+}
+
+
+model STTUsage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  monthKey  String   // e.g., '2025-08'
+  seconds   Int      @default(0) // consumed STT seconds (voice notes + live captions)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  user User @relation("UserSTTUsage", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthKey])
+  @@index([monthKey])
+  @@index([userId, updatedAt])
 }

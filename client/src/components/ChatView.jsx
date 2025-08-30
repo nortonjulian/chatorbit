@@ -23,6 +23,7 @@ import {
   IconClock,
   IconSparkles,
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import MessageInput from './MessageInput';
 import ReactionBar from './ReactionBar.jsx';
 import EventSuggestionBar from './EventSuggestionBar.jsx';
@@ -48,7 +49,9 @@ import RoomSearchDrawer from './RoomSearchDrawer.jsx';
 import MediaGalleryModal from './MediaGalleryModal.jsx';
 
 import { playSound } from '../lib/sound.js';
-import PremiumGuard from './PremiumGuard.jsx';
+
+// 🔒 Premium check
+import useIsPremium from '@/hooks/useIsPremium';
 
 function getTimeLeftString(expiresAt) {
   const now = Date.now();
@@ -117,6 +120,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   const messagesEndRef = useRef(null);
   const scrollViewportRef = useRef(null);
   const now = useNow();
+
+  const navigate = useNavigate();
+  const isPremium = useIsPremium();
 
   const handleEditMessage = async (msg) => {
     const newText = prompt('Edit:', msg.rawContent || msg.content);
@@ -373,11 +379,11 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     clear();
   };
 
-  // === Premium toolbar actions ===
+  // === Premium toolbar actions (handler-level guard) ===
   const runPowerAi = async () => {
+    if (!isPremium) return navigate('/settings/upgrade'); // ⬅️ instant redirect
     try {
       const { data } = await axiosClient.post('/ai/power-feature', { context: [] });
-      // handle result / toast
       console.log('AI power result', data);
     } catch (e) {
       console.error(e);
@@ -386,6 +392,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   };
 
   const openSchedulePrompt = async () => {
+    if (!isPremium) return navigate('/settings/upgrade'); // ⬅️ instant redirect
     const iso = window.prompt('Schedule time (ISO or YYYY-MM-DD HH:mm):');
     if (!iso || !chatroom?.id) return;
     let scheduledAt;
@@ -688,7 +695,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
               setPref(PREF_SMART_REPLIES, v);
             }}
           />{' '}
-        Enable Smart Replies (sends last message to server for AI)
+          Enable Smart Replies (sends last message to server for AI)
         </label>
 
         <SmartReplyBar suggestions={suggestions} onPick={(t) => sendSmartReply(t)} />
@@ -697,19 +704,21 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       {/* 📅 Calendar suggestion bar */}
       <EventSuggestionBar messages={messages} currentUser={currentUser} chatroom={chatroom} />
 
-      {/* === Premium toolbar just above the composer === */}
+      {/* === Premium toolbar just above the composer (visible to everyone; guarded on click) === */}
       <Group mt="sm" justify="space-between">
-        <PremiumGuard variant="inline">
+        <Group gap="xs">
           <Button leftSection={<IconSparkles size={16} />} onClick={runPowerAi}>
             Run AI Power Feature
           </Button>
-        </PremiumGuard>
+          {!isPremium && <Badge size="sm" variant="light" color="yellow">Premium</Badge>}
+        </Group>
 
-        <PremiumGuard variant="inline">
+        <Group gap="xs">
           <Button variant="light" leftSection={<IconClock size={16} />} onClick={openSchedulePrompt}>
             Schedule Send
           </Button>
-        </PremiumGuard>
+          {!isPremium && <Badge size="sm" variant="light" color="yellow">Premium</Badge>}
+        </Group>
       </Group>
 
       {chatroom && (

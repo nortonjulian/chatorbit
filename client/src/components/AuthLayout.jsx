@@ -13,7 +13,6 @@ import {
   Button,
   Paper,
   Divider,
-  Box,
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
 

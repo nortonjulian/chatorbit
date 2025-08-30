@@ -1,8 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { audit } from '../middleware/audit.js';
+import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
 // 🔐 secure upload utilities
@@ -16,7 +15,7 @@ import fs from 'fs';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// ---------------------- PUBLIC: create user ----------------------
+/* ---------------------- PUBLIC: create user ---------------------- */
 router.post('/', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -50,7 +49,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ---------------------- USER SEARCH ----------------------
+/* ---------------------- USER SEARCH ---------------------- */
 router.get('/search', requireAuth, async (req, res) => {
   try {
     const qRaw = String(req.query.query || '').trim();
@@ -93,7 +92,8 @@ router.get('/search', requireAuth, async (req, res) => {
   }
 });
 
-// ---------------------- UPDATE (self or admin) ----------------------
+/* ---------------------- UPDATE (self or admin) ---------------------- */
+// Limited update by ID (self or admin)
 router.patch('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const {
@@ -123,8 +123,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ---------------------- AVATAR UPLOAD (hardened) ----------------------
-// Use the avatar bucket and stricter limits
+/* ---------------------- AVATAR UPLOAD (hardened) ---------------------- */
 const uploadAvatar = makeUploader({
   maxFiles: 1,
   maxBytes: 5 * 1024 * 1024,
@@ -139,7 +138,7 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      // Optional AV check (non-blocking stub can be replaced with real ClamAV)
+      // Optional AV check
       const abs = req.file.path;
       const av = await scanFile(abs);
       if (!av.ok) {
@@ -147,7 +146,7 @@ router.post(
         return res.status(400).json({ error: 'File failed security scan' });
       }
 
-      // Store only a private relative filename (no public /uploads path)
+      // Store only a private relative filename
       const rel = path.basename(req.file.path);
 
       await prisma.user.update({
@@ -171,7 +170,7 @@ router.post(
   }
 );
 
-// ---------------------- PUBLIC KEY UPLOAD ----------------------
+/* ---------------------- PUBLIC KEY UPLOAD ---------------------- */
 router.post('/keys', requireAuth, async (req, res) => {
   const { publicKey } = req.body;
   if (!publicKey) return res.status(400).json({ error: 'Missing publicKey' });
@@ -189,7 +188,7 @@ router.post('/keys', requireAuth, async (req, res) => {
   }
 });
 
-// ---------------------- EMOJI TAG ----------------------
+/* ---------------------- EMOJI TAG ---------------------- */
 router.patch('/emoji', requireAuth, async (req, res) => {
   const { emoji } = req.body;
   const userId = req.user.id;
@@ -207,7 +206,7 @@ router.patch('/emoji', requireAuth, async (req, res) => {
   }
 });
 
-// ---------------------- PROFILE (me) ----------------------
+/* ---------------------- PROFILE (me) ---------------------- */
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const me = await prisma.user.findUnique({
@@ -218,10 +217,24 @@ router.get('/me', requireAuth, async (req, res) => {
         email: true,
         phoneNumber: true,
         preferredLanguage: true,
-        avatarUrl: true, // now stores a private filename; use POST /avatar response for signed URL
+        avatarUrl: true, // private filename; use POST /avatar response for signed URL
         emojiTag: true,
         role: true,
+        plan: true,
+
+        // prefs & toggles used by UI
         enableSmartReplies: true,
+        showReadReceipts: true,
+        allowExplicitContent: true,
+        privacyBlurEnabled: true,
+        privacyHoldToReveal: true,
+        notifyOnCopy: true,
+
+        // NEW: age prefs for Random Chat
+        ageBand: true,
+        ageAttestedAt: true,
+        wantsAgeFilter: true,
+        randomChatAllowedBands: true,
       },
     });
     res.json(me);
@@ -231,14 +244,69 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-// ---------------------- UPDATE (me) ----------------------
+/* ---------------------- UPDATE (me) ---------------------- */
 router.patch('/me', requireAuth, async (req, res) => {
   try {
-    const { enableSmartReplies } = req.body ?? {};
+    const {
+      // Existing prefs
+      enableSmartReplies,
+      showReadReceipts,
+      allowExplicitContent,
+      privacyBlurEnabled,
+      privacyHoldToReveal,
+      notifyOnCopy,
+      preferredLanguage,
+
+      // NEW: age prefs
+      ageBand,
+      wantsAgeFilter,
+      randomChatAllowedBands,
+    } = req.body ?? {};
+
     const data = {};
 
-    if (typeof enableSmartReplies === 'boolean') {
-      data.enableSmartReplies = enableSmartReplies;
+    // existing toggles...
+    if (typeof enableSmartReplies === 'boolean') data.enableSmartReplies = enableSmartReplies;
+    if (typeof showReadReceipts === 'boolean') data.showReadReceipts = showReadReceipts;
+    if (typeof allowExplicitContent === 'boolean') data.allowExplicitContent = allowExplicitContent;
+    if (typeof privacyBlurEnabled === 'boolean') data.privacyBlurEnabled = privacyBlurEnabled;
+    if (typeof privacyHoldToReveal === 'boolean') data.privacyHoldToReveal = privacyHoldToReveal;
+    if (typeof notifyOnCopy === 'boolean') data.notifyOnCopy = notifyOnCopy;
+    if (typeof preferredLanguage === 'string' && preferredLanguage.trim()) {
+      data.preferredLanguage = preferredLanguage.trim().slice(0, 16);
+    }
+
+    // NEW: ageBand + filter prefs (safety rules)
+    const AGE_VALUES = ['TEEN_13_17','ADULT_18_24','ADULT_25_34','ADULT_35_49','ADULT_50_PLUS'];
+
+    if (typeof ageBand === 'string' && AGE_VALUES.includes(ageBand)) {
+      data.ageBand = ageBand;
+      data.ageAttestedAt = new Date(); // remember attestation time
+    }
+
+    if (typeof wantsAgeFilter === 'boolean') {
+      data.wantsAgeFilter = wantsAgeFilter;
+    }
+
+    // randomChatAllowedBands must be valid strings; adults cannot include teens; teens forced to teen-only
+    if (Array.isArray(randomChatAllowedBands)) {
+      const cleaned = randomChatAllowedBands
+        .map(String)
+        .filter((v) => AGE_VALUES.includes(v));
+
+      const meBand = ageBand || (
+        await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { ageBand: true },
+        })
+      )?.ageBand;
+
+      if (meBand === 'TEEN_13_17') {
+        data.randomChatAllowedBands = ['TEEN_13_17']; // force teen-only
+        data.wantsAgeFilter = true; // ensure on
+      } else {
+        data.randomChatAllowedBands = cleaned.filter((v) => v !== 'TEEN_13_17'); // adults: never include teens
+      }
     }
 
     if (Object.keys(data).length === 0) {
@@ -248,7 +316,22 @@ router.patch('/me', requireAuth, async (req, res) => {
     const updated = await prisma.user.update({
       where: { id: Number(req.user.id) },
       data,
-      select: { id: true, enableSmartReplies: true },
+      select: {
+        id: true,
+        enableSmartReplies: true,
+        showReadReceipts: true,
+        allowExplicitContent: true,
+        privacyBlurEnabled: true,
+        privacyHoldToReveal: true,
+        notifyOnCopy: true,
+        preferredLanguage: true,
+
+        // return the age prefs too
+        ageBand: true,
+        ageAttestedAt: true,
+        wantsAgeFilter: true,
+        randomChatAllowedBands: true,
+      },
     });
 
     res.json(updated);

@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { provisionLimiter, deviceOpsLimiter } from '../rateLimit.js';
 import { randomBytes, toB64 } from '../utils/cryptoProvision.js';
+import { assertDeviceLimit } from '../middleware/limits.js';
 
 const router = express.Router();
 
@@ -12,9 +13,13 @@ const nowPlusMinutes = (m) => new Date(Date.now() + m * 60 * 1000);
 
 /* -----------------------------
    Devices: list / rename / revoke / heartbeat
+   NOTE: This router is mounted at /devices in index.js,
+         so all paths below are RELATIVE (no /devices prefix here).
 --------------------------------*/
+
+/** GET /devices  (mounted → GET /devices) */
 router.get(
-  '/devices',
+  '/',
   requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
@@ -35,8 +40,9 @@ router.get(
   })
 );
 
+/** POST /devices/rename/:deviceId  (mounted → POST /devices/rename/:deviceId) */
 router.post(
-  '/devices/rename/:deviceId',
+  '/rename/:deviceId',
   requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
@@ -60,8 +66,9 @@ router.post(
   })
 );
 
+/** POST /devices/revoke/:deviceId  (mounted → POST /devices/revoke/:deviceId) */
 router.post(
-  '/devices/revoke/:deviceId',
+  '/revoke/:deviceId',
   requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
@@ -83,8 +90,9 @@ router.post(
   })
 );
 
+/** POST /devices/heartbeat  (mounted → POST /devices/heartbeat) */
 router.post(
-  '/devices/heartbeat',
+  '/heartbeat',
   requireAuth,
   deviceOpsLimiter,
   asyncHandler(async (req, res) => {
@@ -115,14 +123,16 @@ router.post(
    5) register (new device registers)
 --------------------------------*/
 
-// 1) PRIMARY: create link + QR payload
+/** POST /devices/provision/start  (mounted → POST /devices/provision/start) */
 router.post(
-  '/devices/provision/start',
+  '/provision/start',
   requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const secret = toB64(randomBytes(32));
-    const sas = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}`;
+    const sas = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(
+      100 + Math.random() * 900
+    )}`;
 
     const link = await prisma.provisionLink.create({
       data: {
@@ -150,17 +160,15 @@ router.post(
   })
 );
 
-// 2) NEW DEVICE: announce ephemeral pubkey + device info (unauthenticated)
+/** POST /devices/provision/client-init  (mounted → POST /devices/provision/client-init) */
 router.post(
-  '/devices/provision/client-init',
+  '/provision/client-init',
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, secret, ePub, deviceName, platform } = req.body ?? {};
     if (!linkId || !secret || !ePub) throw Boom.badRequest('Missing fields');
 
-    const link = await prisma.provisionLink.findUnique({
-      where: { id: linkId },
-    });
+    const link = await prisma.provisionLink.findUnique({ where: { id: linkId } });
     if (!link) throw Boom.notFound('Link not found');
     if (link.usedAt) throw Boom.gone('Link already used');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
@@ -187,9 +195,9 @@ router.post(
   })
 );
 
-// 3) PRIMARY: approve + relay ciphertext
+/** POST /devices/provision/approve  (mounted → POST /devices/provision/approve) */
 router.post(
-  '/devices/provision/approve',
+  '/provision/approve',
   requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
@@ -218,9 +226,9 @@ router.post(
   })
 );
 
-// 4) NEW DEVICE: poll for ciphertext (unauthenticated)
+/** GET /devices/provision/poll  (mounted → GET /devices/provision/poll) */
 router.get(
-  '/devices/provision/poll',
+  '/provision/poll',
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId } = req.query ?? {};
@@ -246,21 +254,33 @@ router.get(
   })
 );
 
-// 5) NEW DEVICE: register device
+/** POST /devices/register  (mounted → POST /devices/register) */
 router.post(
-  '/devices/register',
+  '/register',
   requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, publicKey, deviceName, platform } = req.body ?? {};
     if (!linkId || !publicKey) throw Boom.badRequest('Missing fields');
 
-    const link = await prisma.provisionLink.findUnique({
-      where: { id: linkId },
-    });
+    const link = await prisma.provisionLink.findUnique({ where: { id: linkId } });
     if (!link) throw Boom.notFound('Link not found');
     if (link.usedAt) throw Boom.gone('Link already used');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
+
+    // ✅ Premium enforcement: FREE users limited by plan
+    try {
+      await assertDeviceLimit(req.user.id);
+    } catch (err) {
+      if (err?.code === 'PREMIUM_REQUIRED' || err?.status === 402) {
+        return res.status(402).json({
+          code: 'PREMIUM_REQUIRED',
+          reason: 'DEVICE_LIMIT',
+          message: 'Device limit reached. Upgrade to add more devices.',
+        });
+      }
+      throw err;
+    }
 
     const created = await prisma.device.create({
       data: {
@@ -268,7 +288,7 @@ router.post(
         publicKey,
         name: deviceName ?? link.tempDeviceName ?? 'New device',
         platform: platform ?? link.tempPlatform ?? null,
-        isPrimary: false,
+        isPrimary: false, // You can set true if first device, or provide a toggle endpoint
       },
       select: { id: true, name: true, platform: true, createdAt: true },
     });

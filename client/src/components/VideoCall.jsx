@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import socket from '../lib/socket';           
-import { API_BASE } from '@src/config';       
+import { API_BASE } from "@/config";    
 
 export default function VideoCall({ partnerId }) {
   const localVideo = useRef(null);

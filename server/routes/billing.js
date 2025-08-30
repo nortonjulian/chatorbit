@@ -5,9 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
-
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Map your logical plan names to Stripe price IDs
 function mapPlanToPrice(plan) {
@@ -19,69 +17,77 @@ function mapPlanToPrice(plan) {
   }
 }
 
-// Create a Stripe Checkout session
 router.post('/checkout', requireAuth, async (req, res) => {
   try {
-    if (!stripe) return res.status(500).json({ error: 'Billing not configured' });
-
-    const { plan } = req.body || {};
-    const priceId = mapPlanToPrice(plan);
+    const priceId = mapPlanToPrice(req.body?.plan);
     if (!priceId) return res.status(400).json({ error: 'Unknown plan' });
+
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, stripeCustomerId: true },
+    });
+
+    // Ensure single Stripe customer per user
+    let customerId = me?.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: me?.email || undefined,
+        metadata: { userId: String(req.user.id) },
+      });
+      customerId = customer.id;
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { stripeCustomerId: customerId },
+      });
+    }
 
     const webUrl = process.env.WEB_URL || 'http://localhost:5173';
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${webUrl}/settings/upgrade?status=success`,
       cancel_url: `${webUrl}/settings/upgrade?status=cancel`,
+
+      // Redundant user mapping
       client_reference_id: String(req.user.id),
-      // Optionally collect billing address, tax, etc.
+      metadata: { userId: String(req.user.id) },
+      subscription_data: { metadata: { userId: String(req.user.id) } },
+
+      // Optional niceties
+      allow_promotion_codes: true,
+      // automatic_tax: { enabled: true }, // if you’ve set up Stripe Tax
     });
 
-    return res.json({ checkoutUrl: session.url });
+    res.json({ checkoutUrl: session.url });
   } catch (e) {
     console.error('Checkout error', e);
-    return res.status(500).json({ error: 'Failed to create checkout' });
+    res.status(500).json({ error: 'Failed to create checkout' });
   }
 });
 
-// Webhook: mark user as PREMIUM when Stripe confirms payment/subscription
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+// (Optional) Customer Portal now reliably works because we have customerId
+router.post('/portal', requireAuth, async (req, res) => {
   try {
-    if (!stripe) return res.status(500).end();
-
-    const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET; // optional but recommended
-    let event = req.body;
-
-    if (endpointSecret) {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { stripeCustomerId: true },
+    });
+    if (!me?.stripeCustomerId) {
+      return res.status(409).json({ error: 'No billing profile yet. Start a checkout first.' });
     }
 
-    // Handle a couple of key events — you can expand this:
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const userId = Number(session.client_reference_id);
-      if (Number.isFinite(userId)) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { plan: 'PREMIUM' },
-        });
-      }
-    }
+    const webUrl = process.env.WEB_URL || 'http://localhost:5173';
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: me.stripeCustomerId,
+      return_url: `${webUrl}/settings/upgrade`,
+    });
 
-    if (event.type === 'customer.subscription.deleted') {
-      // Optional: downgrade on cancel/expire
-      const sub = event.data.object;
-      // You’d look up the user via sub.customer metadata you set, or store mapping on create.
-      // await prisma.user.update({ where: { id }, data: { plan: 'FREE' } });
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Webhook error', err);
-    res.status(400).send(`Webhook Error`);
+    res.json({ portalUrl: portal.url });
+  } catch (e) {
+    console.error('Portal error', e);
+    res.status(500).json({ error: 'Failed to create portal session' });
   }
 });
 

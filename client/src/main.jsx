@@ -1,17 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MantineProvider /*, createTheme*/ } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
-
-import { BrowserRouter } from 'react-router-dom';
-import { UserProvider } from './context/UserContext.jsx'; // <-- ensure this really exports UserProvider
-// import { UserProvider } from './context/UserContextInstance.jsx'; // use this path if needed
-import App from './App.jsx';
 import './styles.css';
-import ErrorBoundary from './ErrorBoundary';
 import './i18n';
+
+import ErrorBoundary from './ErrorBoundary';
+import App from './App.jsx';
+
 
 // Optional: use createTheme(...) instead; object also works
 const theme = {
@@ -29,14 +25,7 @@ const theme = {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <MantineProvider theme={theme} defaultColorScheme="light">
-        <Notifications position="top-right" />
-        <BrowserRouter>
-          <UserProvider>
-            <App />
-          </UserProvider>
-        </BrowserRouter>
-      </MantineProvider>
+      <App />
     </ErrorBoundary>
   </React.StrictMode>
 );
