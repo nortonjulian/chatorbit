@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MantineProvider } from '@mantine/core';
 
 // Tabler icons -> svg
 jest.mock('@tabler/icons-react', () => {
@@ -23,7 +24,10 @@ import EmojiPicker from '../src/components/EmojiPicker.jsx';
 
 test('selects emoji from dropdown', async () => {
   const onSelect = jest.fn();
-  render(<EmojiPicker onSelect={onSelect} />);
+  render(<MantineProvider>
+            <EmojiPicker onSelect={onSelect} />
+           </MantineProvider>
+    );
 
   // No need to click the trigger because Popover mock always renders the dropdown
   await userEvent.click(screen.getByRole('button', { name: /pickemoji/i }));

@@ -14,19 +14,22 @@ module.exports = {
     '<rootDir>/src/tests/setup-webrtc.js',
   ],
 
-  setupFilesAfterEnv: [
-    '<rootDir>/jest.setup.cjs',
-  ],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
 
   moduleNameMapper: {
+    // styles & assets
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
     '\\.(jpg|jpeg|png|gif|svg|webp|mp3|mp4)$': '<rootDir>/__tests__/__mocks__/fileMock.js',
+
+    // aliases
+    '^@/(.*)$': '<rootDir>/src/$1',
     '^@src/(.*)$': '<rootDir>/src/$1',
     '^@src/config$': '<rootDir>/__tests__/__mocks__/config.js',
 
-    '^@mantine/core$': '<rootDir>/__tests__/__mocks__/@mantine/core.js',
-    '^@mantine/spotlight$': '<rootDir>/__tests__/__mocks__/@mantine/spotlight.js',
-    '^@mantine/hooks$': '<rootDir>/__tests__/__mocks__/@mantine/hooks.js',
+    // ❌ DO NOT map @mantine/* to test mocks anymore
+    // '^@mantine/core$': '<rootDir>/__tests__/__mocks__/@mantine/core.js',
+    // '^@mantine/spotlight$': '<rootDir>/__tests__/__mocks__/@mantine/spotlight.js',
+    // '^@mantine/hooks$': '<rootDir>/__tests__/__mocks__/@mantine/hooks.js',
   },
 
   testMatch: [

@@ -47,6 +47,7 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
       );
       setTimeout(finish, 800);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(e);
       setErr('Import failed. Wrong password or file is invalid.');
     } finally {
@@ -68,6 +69,7 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
       );
       setTimeout(finish, 800);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(e);
       setErr('Failed to generate/upload keys.');
     } finally {
@@ -107,7 +109,9 @@ export default function KeySetupModal({ opened, onClose, haveServerPubKey }) {
             accept="application/json"
             placeholder="Select backup file"
           />
+          {/* Add a visible label so tests can query by label text */}
           <PasswordInput
+            label="Backup password"
             placeholder="Backup password"
             value={pwd}
             onChange={(e) => setPwd(e.currentTarget.value)}

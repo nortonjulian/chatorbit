@@ -2,11 +2,10 @@
  * @file __tests__/VideoCall.test.js
  */
 
-import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 
 // --- Mock config so the component never touches import.meta ---
-jest.mock('@src/config', () => ({
+jest.mock('@/config', () => ({
   __esModule: true,
   API_BASE: 'http://localhost:5001',
   SOCKET_URL: 'http://localhost:5001',
@@ -102,10 +101,10 @@ describe('VideoCall', () => {
 
     // GUM called
     await waitFor(() =>
-        expect(navigator.mediaDevices.getUserMedia)
-            .toHaveBeenCalledWith({ video: true, audio: true })
+      expect(navigator.mediaDevices.getUserMedia)
+        .toHaveBeenCalledWith({ video: true, audio: true })
     );
-    
+
     // Two <video> elements should appear
     await waitFor(() =>
       expect(document.querySelectorAll('video').length).toBeGreaterThanOrEqual(2)

@@ -28,7 +28,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
   const [startingId, setStartingId] = useState(null);
   const [error, setError] = useState('');
 
-  // NEW: inline add-contact UI state
+  // Add Contact (direct) UI
   const [addOpen, setAddOpen] = useState(false);
   const [addValue, setAddValue] = useState('');
   const [addAlias, setAddAlias] = useState('');
@@ -36,7 +36,6 @@ export default function StartChatModal({ currentUserId, onClose }) {
 
   const navigate = useNavigate();
 
-  // Build quick lookup for "is this user already saved?"
   const savedMap = useMemo(() => {
     const map = new Map();
     contacts.forEach((c) => map.set(c.userId, c));
@@ -44,16 +43,12 @@ export default function StartChatModal({ currentUserId, onClose }) {
   }, [contacts]);
 
   useEffect(() => {
-    // Load saved contacts so we know what's already saved
-    const load = async () => {
+    (async () => {
       try {
         const res = await axiosClient.get(`/contacts/${currentUserId}`);
         setContacts(res.data || []);
-      } catch (e) {
-        // non-blocking
-      }
-    };
-    load();
+      } catch {}
+    })();
   }, [currentUserId]);
 
   const search = async () => {
@@ -66,21 +61,17 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: query.trim() },
       });
-      const arr = Array.isArray(res.data)
-        ? res.data
-        : res.data
-          ? [res.data]
-          : [];
-      // don’t show yourself
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
       setResults(arr.filter((u) => u.id !== currentUserId));
-      // seed aliasEdits from saved contacts
+
+      // seed alias edits for saved
       const seed = {};
       arr.forEach((u) => {
         const saved = savedMap.get(u.id);
         if (saved?.alias) seed[u.id] = saved.alias;
       });
       setAliasEdits((prev) => ({ ...seed, ...prev }));
-    } catch (e) {
+    } catch {
       setError('Failed to search users.');
     } finally {
       setLoading(false);
@@ -96,10 +87,9 @@ export default function StartChatModal({ currentUserId, onClose }) {
         userId: user.id,
         alias: aliasEdits[user.id] || undefined,
       });
-      // refresh contacts
       const res = await axiosClient.get(`/contacts/${currentUserId}`);
       setContacts(res.data || []);
-    } catch (e) {
+    } catch {
       setError('Failed to save contact.');
     } finally {
       setSavingId(null);
@@ -117,7 +107,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
       });
       const res = await axiosClient.get(`/contacts/${currentUserId}`);
       setContacts(res.data || []);
-    } catch (e) {
+    } catch {
       setError('Failed to update alias.');
     } finally {
       setUpdatingId(null);
@@ -133,7 +123,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
       });
       const res = await axiosClient.get(`/contacts/${currentUserId}`);
       setContacts(res.data || []);
-    } catch (e) {
+    } catch {
       setError('Failed to delete contact.');
     } finally {
       setDeletingId(null);
@@ -148,14 +138,16 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const chatroom = chatRes.data;
       onClose?.();
       if (chatroom?.id) navigate(`/chat/${chatroom.id}`);
-    } catch (e) {
+    } catch {
       setError('Failed to start chat.');
     } finally {
       setStartingId(null);
     }
   };
 
-  // NEW: add contact directly without search-results UI
+  // Treat any input containing a digit as a phone => create external contact directly
+  const isLikelyPhone = (s) => /\d/.test(s);
+
   const handleAddContactDirect = async () => {
     setError('');
     const raw = addValue.trim();
@@ -163,51 +155,48 @@ export default function StartChatModal({ currentUserId, onClose }) {
     setAdding(true);
 
     try {
-      // 1) Try to find an existing user
-      const res = await axiosClient.get('/users/search', {
-        params: { query: raw },
-      });
-      const arr = Array.isArray(res.data)
-        ? res.data
-        : res.data
-          ? [res.data]
-          : [];
-      const u = arr.find((x) => x.id !== currentUserId);
-
-      if (u) {
-        // 2a) Save linked contact
-        await axiosClient.post('/contacts', {
-          ownerId: currentUserId,
-          userId: u.id,
-          alias: addAlias || undefined,
-        });
-      } else {
-        // 2b) No user found — save as external, then send invite
+      if (isLikelyPhone(raw)) {
+        // External contact path
         await axiosClient.post('/contacts', {
           ownerId: currentUserId,
           externalPhone: raw,
           externalName: addAlias || '',
           alias: addAlias || undefined,
         });
+        // Fire-and-forget invite
+        axiosClient.post('/invites', { phone: raw, name: addAlias }).catch(() => {});
+      } else {
+        // Try to find an existing user (username/email)
+        const res = await axiosClient.get('/users/search', {
+          params: { query: raw },
+        });
+        const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+        const u = arr.find((x) => x.id !== currentUserId);
 
-        // fire-and-forget invite (don’t block UI if it fails)
-        axiosClient
-          .post('/invites', { phone: raw, name: addAlias })
-          .catch(() => {});
+        if (u) {
+          await axiosClient.post('/contacts', {
+            ownerId: currentUserId,
+            userId: u.id,
+            alias: addAlias || undefined,
+          });
+        } else {
+          await axiosClient.post('/contacts', {
+            ownerId: currentUserId,
+            externalPhone: raw,
+            externalName: addAlias || '',
+            alias: addAlias || undefined,
+          });
+          axiosClient.post('/invites', { phone: raw, name: addAlias }).catch(() => {});
+        }
       }
 
-      // 3) Refresh contacts
       const fresh = await axiosClient.get(`/contacts/${currentUserId}`);
       setContacts(fresh.data || []);
-
-      // 4) Reset form
       setAddValue('');
       setAddAlias('');
       setAddOpen(false);
     } catch (e) {
-      setError(
-        e?.response?.data?.message || e.message || 'Failed to add contact.'
-      );
+      setError(e?.response?.data?.message || e.message || 'Failed to add contact.');
     } finally {
       setAdding(false);
     }
@@ -217,10 +206,11 @@ export default function StartChatModal({ currentUserId, onClose }) {
     <Modal
       opened
       onClose={onClose}
-      title={<Title order={4}>Start a New Chat</Title>}
+      title={<Title order={4}>Start a chat</Title>}
       radius="xl"
       centered
       size="lg"
+      aria-label="Start a chat"
     >
       <Stack gap="sm">
         <Group align="end" wrap="nowrap">
@@ -229,18 +219,18 @@ export default function StartChatModal({ currentUserId, onClose }) {
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
             placeholder="Search by username or phone"
+            aria-label="Search users"
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && search()}
           />
-          <Button onClick={search} loading={loading}>
+          <Button onClick={search} loading={!!loading}>
             Search
           </Button>
         </Group>
 
         {error && <Alert color="red">{error}</Alert>}
 
-        {/* Search results */}
-        {results.length > 0 && (
+        {results.length > 0 ? (
           <Stack gap="xs">
             {results.map((u) => {
               const saved = savedMap.get(u.id);
@@ -317,9 +307,10 @@ export default function StartChatModal({ currentUserId, onClose }) {
               );
             })}
           </Stack>
+        ) : (
+          <Text c="dimmed">No results</Text>
         )}
 
-        {/* NEW: explicit Add Contact form */}
         <Group justify="space-between" mt="xs">
           <Text fw={600}>Add a Contact</Text>
           <Button variant="subtle" onClick={() => setAddOpen((v) => !v)}>
@@ -361,18 +352,17 @@ export default function StartChatModal({ currentUserId, onClose }) {
         <Divider label="Or pick from contacts" labelPosition="center" my="xs" />
 
         {/* Saved contacts list with actions */}
-        <ScrollArea.Autosize mah={300}>
+        <ScrollArea style={{ maxHeight: 300 }}>
           <ContactList
             currentUserId={currentUserId}
             onChanged={async () => {
-              // keep modal state in sync after edits from the list
               try {
                 const res = await axiosClient.get(`/contacts/${currentUserId}`);
                 setContacts(res.data || []);
               } catch {}
             }}
           />
-        </ScrollArea.Autosize>
+        </ScrollArea>
 
         <Group justify="flex-end" mt="xs">
           <Button variant="subtle" onClick={onClose}>

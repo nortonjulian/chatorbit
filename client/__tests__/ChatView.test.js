@@ -4,6 +4,12 @@ import { jest } from '@jest/globals';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithRouter } from '../src/test-utils.js';
 
+// Mock premium hook so "@/hooks/useIsPremium" resolves
+jest.mock('@/hooks/useIsPremium', () => ({
+  __esModule: true,
+  default: () => true, // set to false if you want to test the non-premium path
+}));
+
 beforeAll(() => {
   // jsdom doesn't implement scrollIntoView; mock it so ChatView's call doesn't throw
   if (!HTMLElement.prototype.scrollIntoView) {
@@ -15,7 +21,7 @@ beforeAll(() => {
 });
 
 /* ---------- Tame noisy console warnings (optional) ---------- */
-
+/* (left intentionally blank) */
 
 /* ---------- Icons & other heavy deps ---------- */
 jest.mock('@tabler/icons-react', () => {

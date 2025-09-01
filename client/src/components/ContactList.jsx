@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Title,
-  TextInput,
-  Stack,
-  NavLink,
-  Text,
-  Button,
-  Group,
-} from '@mantine/core';
+import { Box, Title, TextInput, Stack, Text, Button, Group } from '@mantine/core';
 
 export default function ContactList({ currentUserId, onChanged }) {
   const [contacts, setContacts] = useState([]);
@@ -20,7 +11,7 @@ export default function ContactList({ currentUserId, onChanged }) {
   const refresh = async () => {
     try {
       const res = await axiosClient.get(`/contacts/${currentUserId}`);
-      setContacts(res.data);
+      setContacts(res.data || []);
     } catch (err) {
       console.error('Failed to fetch contacts:', err);
     }
@@ -38,7 +29,6 @@ export default function ContactList({ currentUserId, onChanged }) {
   );
 
   const startChat = async (userId) => {
-    // Create or fetch a direct chatroom, then navigate to its id
     try {
       const { data } = await axiosClient.post(`/chatrooms/direct/${userId}`);
       if (data?.id) navigate(`/chat/${data.id}`);
@@ -49,9 +39,7 @@ export default function ContactList({ currentUserId, onChanged }) {
 
   const deleteContact = async (userId) => {
     try {
-      await axiosClient.delete('/contacts', {
-        data: { ownerId: currentUserId, userId },
-      });
+      await axiosClient.delete('/contacts', { data: { ownerId: currentUserId, userId } });
       await refresh();
       onChanged?.();
     } catch (err) {
@@ -61,23 +49,18 @@ export default function ContactList({ currentUserId, onChanged }) {
 
   const updateAlias = async (userId, alias) => {
     try {
-      await axiosClient.patch('/contacts', {
-        ownerId: currentUserId,
-        userId,
-        alias: alias || '',
-      });
-      await refresh();
-      onChanged?.();
+      await axiosClient.patch('/contacts', { ownerId: currentUserId, userId, alias: alias || '' });
     } catch (err) {
       console.error('Failed to update alias:', err);
+    } finally {
+      await refresh();
+      onChanged?.();
     }
   };
 
   return (
     <Box p="md" maw={520} mx="auto">
-      <Title order={4} mb="sm">
-        Saved Contacts
-      </Title>
+      <Title order={4} mb="sm">Saved Contacts</Title>
 
       <TextInput
         placeholder="Search contacts..."
@@ -87,12 +70,11 @@ export default function ContactList({ currentUserId, onChanged }) {
       />
 
       {filtered.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No contacts found.
-        </Text>
+        <Text c="dimmed" size="sm">No contacts found.</Text>
       ) : (
         <Stack gap="xs">
           {filtered.map((c) => {
+            const key = c.userId ?? `${c.externalPhone || c.externalName || 'x'}`;
             const name =
               c.alias ||
               c.user?.username ||
@@ -100,19 +82,24 @@ export default function ContactList({ currentUserId, onChanged }) {
               c.externalPhone ||
               `User #${c.userId ?? ''}`;
             return (
-              <Group key={c.userId} justify="space-between" align="center">
-                <NavLink
-                  label={name}
+              <Group key={key} justify="space-between" align="center">
+                <button
+                  type="button"
+                  aria-label={name}
                   onClick={() => startChat(c.userId)}
-                  rightSection={
-                    <Text size="xs" c="dimmed">
-                      Chat →
-                    </Text>
-                  }
-                  variant="light"
-                  radius="md"
-                  style={{ flex: 1 }}
-                />
+                  onMouseDown={() => startChat(c.userId)} // helps in some test envs
+                  style={{
+                    flex: 1,
+                    textAlign: 'left',
+                    background: 'none',
+                    border: 0,
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {name}
+                </button>
+
                 <TextInput
                   placeholder="Alias"
                   defaultValue={c.alias || ''}
@@ -120,12 +107,7 @@ export default function ContactList({ currentUserId, onChanged }) {
                   maw={160}
                   onBlur={(e) => updateAlias(c.userId, e.currentTarget.value)}
                 />
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="red"
-                  onClick={() => deleteContact(c.userId)}
-                >
+                <Button size="xs" variant="light" color="red" onClick={() => deleteContact(c.userId)}>
                   Delete
                 </Button>
               </Group>

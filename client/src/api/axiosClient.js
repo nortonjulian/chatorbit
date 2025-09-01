@@ -1,40 +1,39 @@
 import axios from 'axios';
 
+// Resolve baseURL without using import.meta (Jest-friendly)
 const baseURL =
-  import.meta.env.VITE_API_URL ??
-  import.meta.env.VITE_API_BASE_URL ??
+  (typeof process !== 'undefined' &&
+    process.env &&
+    (process.env.VITE_API_URL || process.env.VITE_API_BASE_URL)) ||
+  (typeof window !== 'undefined' && window.__API_URL__) ||
   'http://localhost:5001';
 
 const axiosClient = axios.create({
   baseURL,
-  withCredentials: true, // ✅ send/receive HttpOnly cookies
-  timeout: 20_000,
+  withCredentials: true,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest', // ✅ lightweight CSRF signal
+    'X-Requested-With': 'XMLHttpRequest',
   },
 });
 
-// ✅ No request interceptor adding Authorization headers — cookie-only auth
-
-// Optional: normalize 401/402 handling in one place
 axiosClient.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err?.response?.status;
-
     if (status === 401) {
-      // Broadcast a global event so the app can redirect to login, clear user state, etc.
-      window.dispatchEvent(new CustomEvent('auth-unauthorized'));
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        try {
+          window.dispatchEvent(new CustomEvent('auth-unauthorized'));
+        } catch {}
+      }
     }
-
     if (status === 402) {
-      // Premium required — send users to the upgrade page
-      window.location.assign('/settings/upgrade');
-      // Let the original caller fail; the redirect will take over.
-      // (Swallowing can mask issues; prefer reject to keep devtools visibility.)
+      if (typeof window !== 'undefined' && window.location && typeof window.location.assign === 'function') {
+        window.location.assign('/settings/upgrade');
+      }
     }
-
     return Promise.reject(err);
   }
 );

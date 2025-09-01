@@ -4,6 +4,7 @@
  */
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MantineProvider } from '@mantine/core';
 
 /* ---- Router: mock useNavigate ---- */
 const mockNavigate = jest.fn();
@@ -34,9 +35,12 @@ beforeEach(() => {
 
 const renderSut = (props = {}) =>
   render(
-    <MemoryRouter>
-      <ContactList currentUserId={props.currentUserId ?? 1} onChanged={props.onChanged} />
-    </MemoryRouter>
+    <MantineProvider>
+      <MemoryRouter>
+          <ContactList currentUserId={props.currentUserId ?? 1} onChanged={props.onChanged} />
+      </MemoryRouter>
+    </MantineProvider>
+    
   );
 
 describe('ContactList', () => {

@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Drawer,
-  TextInput,
-  Stack,
-  ScrollArea,
-  Text,
-  Group,
-  Badge,
-} from '@mantine/core';
+import { Drawer, TextInput, Stack, ScrollArea, Text, Group, Badge } from '@mantine/core';
 import { searchRoom } from '../utils/messagesStore';
 
 export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
@@ -27,55 +19,37 @@ export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
         return;
       }
       const res = await searchRoom(roomId, q);
-      if (alive) {
-        const arr = Array.isArray(res) ? res : [];
-        setResults(arr.slice(-200)); // cap to avoid UI overload
-      }
+      if (alive) setResults(Array.isArray(res) ? res.slice(-200) : []);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [q, roomId]);
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Search in chat"
-      position="right"
-      size="md"
-    >
+    <Drawer opened={opened} onClose={onClose} title="Search in room" position="right" size="md" aria-label="Search in room">
       <Stack gap="sm">
         <TextInput
           value={q}
           onChange={(e) => setQ(e.currentTarget.value)}
-          placeholder="Search messages (local)"
+          placeholder="Search messages"
+          label="Search"
         />
         <ScrollArea h={500}>
           <Stack gap="xs">
-            {results.map((m) => (
-              <Group
-                key={m.id}
-                onClick={() => onJump?.(m.id)}
-                style={{ cursor: 'pointer' }}
-                align="start"
-              >
-                <Badge variant="light">
-                  {new Date(m.createdAt).toLocaleString()}
-                </Badge>
-                <Text size="sm">
-                  {(
-                    m.decryptedContent ||
-                    m.translatedForMe ||
-                    m.rawContent ||
-                    ''
-                  ).slice(0, 240)}
-                </Text>
-              </Group>
-            ))}
-            {!results.length && q && (
-              <Text c="dimmed">No matches (in local cache)</Text>
-            )}
+            {results.map((m) => {
+              const text = (m.decryptedContent || m.translatedForMe || m.rawContent || '').slice(0, 240);
+              const click = () => onJump?.(m.id);
+              return (
+                <Group key={m.id} style={{ cursor: 'pointer' }} align="start" onClick={click}>
+                  <Badge variant="light">
+                    {new Date(m.createdAt).toLocaleString()}
+                  </Badge>
+                  <Text size="sm">
+                    <span onClick={click}>{text}</span>
+                  </Text>
+                </Group>
+              );
+            })}
+            {!results.length && q && <Text c="dimmed">No results</Text>}
           </Stack>
         </ScrollArea>
       </Stack>

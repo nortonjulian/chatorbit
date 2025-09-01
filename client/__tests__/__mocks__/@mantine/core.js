@@ -1,469 +1,205 @@
+/* eslint-disable react/prop-types */
 const React = require('react');
 
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
+/* ---------- helpers ---------- */
+const renderContent = (props, children) =>
+  children != null && children !== false && children !== true
+    ? children
+    : props?.label ?? null;
 
-function sanitizeProps(input = {}) {
-  const {
-    withBorder, shadow, radius, variant, color, size,
-    p, px, py, pl, pr, pt, pb,
-    m, mx, my, ml, mr, mt, mb,
-    gap, align, justify, grow,
-    w, h, maw, mah,
-    order, component, styles, withinPortal, position,
-    to, href,
-    style,
-    ...rest
-  } = input;
-
-  const stylePatch = { ...(style || {}) };
-  if (w != null) stylePatch.width = w;
-  if (h != null) stylePatch.height = h;
-  if (maw != null) stylePatch.maxWidth = maw;
-  if (mah != null) stylePatch.maxHeight = mah;
-  if (mb != null) stylePatch.marginBottom = mb;
-  if (mt != null) stylePatch.marginTop = mt;
-  if (ml != null) stylePatch.marginLeft = ml;
-  if (mr != null) stylePatch.marginRight = mr;
-
-  const mapped = { ...rest };
-  if (href) mapped.href = href;
-  else if (to) mapped.href = to;
-  if (Object.keys(stylePatch).length) mapped.style = stylePatch;
-  return mapped;
-}
-
-function toName(labelLike) {
-  if (!labelLike) return undefined;
-  return String(labelLike).trim().toLowerCase().replace(/\s+/g, '_');
-}
-
-function emailLooksInvalid(v) {
-  if (v == null) return false;
-  const s = String(v).trim();
-  if (!s) return false;
-  return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Generic inputs (forwardRef so tests/components can attach refs)             */
-/* -------------------------------------------------------------------------- */
-
-function makeInput({ type = 'text' } = {}) {
-  return React.forwardRef(function Input(
-    {
-      label,
-      ariaLabel,
-      placeholder,
-      name,
-      value,
-      defaultValue,
-      onChange = () => {},
-      error,
-      description,
-      ...rest
-    },
-    ref
-  ) {
-    const aria = ariaLabel || label || placeholder || 'input';
-    const props = sanitizeProps(rest);
-    const requestedType = props.type || type;
-
-    // Avoid controlled/uncontrolled warnings
-    const controlled = {};
-    if (value !== undefined) controlled.value = value;
-    else if (defaultValue !== undefined) controlled.defaultValue = defaultValue;
-
-    const showEmailDefaultError =
-      !error && requestedType === 'email' && emailLooksInvalid(value);
-
-    // Fallback names so FormData(...) works in tests
-    const fallbackByType =
-      requestedType === 'password'
-        ? 'password'
-        : requestedType === 'email'
-        ? 'email'
-        : undefined;
-
-    const nameAttr = name ?? toName(label || ariaLabel) ?? fallbackByType;
-
-    return (
-      <label>
-        {label}
-        <input
-          ref={ref}
-          type={requestedType}
-          aria-label={aria}
-          placeholder={placeholder}
-          name={nameAttr}
-          {...controlled}
-          onChange={(e) => {
-            try { onChange(e); } catch {}
-            try { onChange(e.target?.value); } catch {}
-          }}
-          {...props}
-        />
-        {description ? <small>{description}</small> : null}
-        {error ? <div role="alert">{error}</div> : null}
-        {showEmailDefaultError ? <div role="alert">Enter a valid email</div> : null}
-      </label>
+const passthroughFactory = (defaultTag) =>
+  React.forwardRef((props, ref) => {
+    const { children, onClick, role, ...rest } = props || {};
+    // If something is clickable, render a real <button> so RTL can find it by role
+    const Tag = onClick && !role ? 'button' : defaultTag;
+    return React.createElement(
+      Tag,
+      { ref, role, ...rest },
+      renderContent(props, children)
     );
   });
-}
 
-function passthrough(tag, role) {
-  return function Comp({ children, ...props }) {
-    const Tag = tag || React.Fragment;
-    const p = sanitizeProps(props);
-    if (tag) {
-      if (role) p.role = role;
-      return <Tag {...p}>{children}</Tag>;
-    }
-    return <>{children}</>;
-  };
-}
+const withLabel = (id, label, control) =>
+  label
+    ? React.createElement('label', { htmlFor: id, style: { display: 'block' } }, label, control)
+    : control;
 
-/* -------------------------------------------------------------------------- */
-/* Core Primitives                                                             */
-/* -------------------------------------------------------------------------- */
+/* ---------- base exports ---------- */
+const ex = {};
 
-const MantineProvider = ({ children }) => <>{children}</>;
-const Box = passthrough('div');
-const Group = passthrough('div');
-const Stack = passthrough('div');
-const Container = passthrough('div');
-const Title = ({ children, ...p }) => <h3 {...sanitizeProps(p)}>{children}</h3>;
-const Text = ({ children, ...p }) => <p {...sanitizeProps(p)}>{children}</p>;
-const Divider = passthrough('hr');
-const Image = (p) => <img alt={p.alt} {...sanitizeProps(p)} />;
-const Badge = ({ children, ...p }) => <span {...sanitizeProps(p)}>{children}</span>;
-
-/* ScrollArea */
-const ScrollAreaBase = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-const ScrollAreaAutosize = ({ children, viewportRef, ...p }) => (
-  <div ref={viewportRef} {...sanitizeProps(p)}>{children}</div>
+/* Provider / layout */
+ex.MantineProvider = ({ children }) => React.createElement(React.Fragment, null, children);
+ex.Group   = passthroughFactory('div');
+ex.Stack   = passthroughFactory('div');
+ex.Paper   = passthroughFactory('div');
+ex.Container = passthroughFactory('div');
+ex.Divider = React.forwardRef((props, ref) =>
+  React.createElement('div', { role: 'separator', ref, ...props })
 );
-const ScrollArea = Object.assign(ScrollAreaBase, { Autosize: ScrollAreaAutosize });
+ex.Card = React.forwardRef((props, ref) => {
+  const { children, ...rest } = props || {};
+  // Ensure tests relying on data-testid can find the card
+  const testId = rest['data-testid'] || 'card';
+  return React.createElement('div', { ref, 'data-testid': testId, ...rest }, renderContent(props, children));
+});
+ex.ScrollArea = passthroughFactory('div');
 
-/* Card */
-const Card = ({ children, ...p }) => <div data-testid="card" {...sanitizeProps(p)}>{children}</div>;
-Card.Section = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
+/* text */
+ex.Text  = passthroughFactory('p');
+ex.Title = ({ order = 3, children, ...p }) => React.createElement(`h${order}`, p, children);
+ex.Kbd   = passthroughFactory('kbd');
 
-/* Form-ish */
-const TextInput = makeInput({ type: 'text' });
-const PasswordInput = makeInput({ type: 'password' });
+/* media */
+ex.Image = ({ src, alt = '', ...p }) => React.createElement('img', { src, alt, ...p });
+ex.Video = passthroughFactory('video');
+ex.Audio = passthroughFactory('audio');
+ex.Avatar = ({ src, alt = 'avatar', ...p }) => React.createElement('img', { src, alt, ...p });
 
-const FileInput = React.forwardRef(function FileInputComp(
-  {
-    label,
-    ariaLabel,
-    placeholder,
-    name,
+/* feedback */
+ex.Alert  = ({ children, ...p }) => React.createElement('div', { role: 'alert', ...p }, children);
+ex.Loader = () => React.createElement('div', { 'data-testid': 'loader' });
+
+/* buttons */
+ex.Button = ({ children, onClick, type = 'button', disabled, ...p }) =>
+  React.createElement('button', { onClick, type, disabled, ...p }, React.createElement('span', null, children));
+
+ex.ActionIcon = ({ children, onClick, type = 'button', disabled, 'aria-label': ariaLabel, title, ...p }) =>
+  React.createElement(
+    'button',
+    { onClick, type, disabled, 'aria-label': ariaLabel, title, ...p },
+    React.createElement('span', null, children)
+  );
+
+ex.Badge = ({ onClick, children, ...p }) => {
+  // If clickable, expose as a <button> to satisfy role queries
+  if (onClick) {
+    return React.createElement('button', { onClick, ...p }, renderContent({ ...p, children }, children));
+  }
+  return React.createElement('span', p, renderContent({ ...p, children }, children));
+};
+
+ex.CloseButton = ({ 'aria-label': ariaLabel = 'Close', onClick, ...p }) =>
+  React.createElement('button', { 'aria-label': ariaLabel, onClick, type: 'button', ...p });
+
+/* inputs */
+ex.Checkbox = ({ label, checked, onChange, ...p }) => {
+  const id = p.id || `chk_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('input', { id, type: 'checkbox', checked, onChange, ...p });
+  return withLabel(id, label, el);
+};
+
+ex.Switch = ({ label, checked, onChange, ...p }) => {
+  const id = p.id || `s_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('input', { id, type: 'checkbox', role: 'switch', checked, onChange, ...p });
+  return withLabel(id, label, el);
+};
+
+ex.TextInput = ({ label, placeholder, value, onChange, ...p }) => {
+  const id = p.id || `ti_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('input', { id, type: 'text', placeholder, value, onChange, ...p });
+  return withLabel(id, label, el);
+};
+
+ex.PasswordInput = ({ label, placeholder, value, onChange, ...p }) => {
+  const id = p.id || `pw_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('input', { id, type: 'password', placeholder, value, onChange, ...p });
+  return withLabel(id, label, el);
+};
+
+ex.Textarea = ({ label, placeholder, value, onChange, ...p }) => {
+  const id = p.id || `ta_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('textarea', { id, placeholder, value, onChange, ...p });
+  return withLabel(id, label, el);
+};
+
+/* Native selects */
+ex.Select = ({ label, data = [], value, onChange, disabled, ...p }) => {
+  const id = p.id || `sel_${Math.random().toString(36).slice(2)}`;
+  const opts = data.map((o) =>
+    React.createElement('option', { key: o.value, value: o.value }, o.label ?? o.value)
+  );
+  const handle = (e) => onChange && onChange(e.target.value);
+  const el = React.createElement('select', { id, value, onChange: handle, disabled, ...p }, opts);
+  return withLabel(id, label, el);
+};
+
+ex.MultiSelect = ({ label, data = [], value = [], onChange, disabled, ...p }) => {
+  const id = p.id || `ms_${Math.random().toString(36).slice(2)}`;
+  const opts = data.map((o) =>
+    React.createElement('option', { key: o.value, value: o.value }, o.label ?? o.value)
+  );
+  const handle = (e) =>
+    onChange && onChange(Array.from(e.target.selectedOptions).map((o) => o.value));
+  const el = React.createElement('select', { id, multiple: true, value, onChange: handle, disabled, ...p }, opts);
+  return withLabel(id, label, el);
+};
+
+ex.FileInput = React.forwardRef(({ label, placeholder, accept, onChange, ...p }, ref) => {
+  const id = p.id || `file_${Math.random().toString(36).slice(2)}`;
+  const el = React.createElement('input', {
+    id,
+    type: 'file',
     accept,
-    multiple,
-    onChange = () => {},
-    ...rest
-  },
-  ref
-) {
-  const aria = ariaLabel || label || placeholder || 'input';
-  const props = sanitizeProps(rest);
-  const nameAttr = name ?? toName(label || ariaLabel) ?? 'file';
-  return (
-    <label>
-      {label}
-      <input
-        ref={ref}
-        type="file"
-        aria-label={aria}
-        placeholder={placeholder}
-        name={nameAttr}
-        accept={accept}
-        multiple={!!multiple}
-        onChange={(e) => {
-          const files = e.target.files || null;
-          const value = multiple ? Array.from(files || []) : (files && files[0]) || null;
-          // Support both Mantine-style and DOM-event consumers
-          try { onChange(value); } catch {}
-          try { onChange(e); } catch {}
-        }}
-        {...props}
-      />
-    </label>
-  );
+    onChange,
+    'aria-label': placeholder || label || 'file',
+    ref,
+    ...p,
+  });
+  return label ? withLabel(id, label, el) : el;
 });
 
-const Textarea = React.forwardRef(function TextareaComp(
-  {
-    label,
-    ariaLabel,
-    placeholder,
-    name,
-    value,
-    defaultValue,
-    onChange = () => {},
-    error,
-    description,
-    ...rest
-  },
-  ref
-) {
-  const aria = ariaLabel || label || placeholder || 'textarea';
-  const props = sanitizeProps(rest);
-  const controlled = {};
-  if (value !== undefined) controlled.value = value;
-  else if (defaultValue !== undefined) controlled.defaultValue = defaultValue;
+/* overlays */
+const PassThrough = ({ children }) => React.createElement(React.Fragment, null, children);
 
-  const nameAttr = name ?? toName(label || ariaLabel) ?? undefined;
-
-  return (
-    <label>
-      {label}
-      <textarea
-        ref={ref}
-        aria-label={aria}
-        placeholder={placeholder}
-        name={nameAttr}
-        {...controlled}
-        onChange={(e) => {
-          try { onChange(e); } catch {}
-          try { onChange(e.target?.value); } catch {}
-        }}
-        {...props}
-      />
-      {description ? <small>{description}</small> : null}
-      {error ? <div role="alert">{error}</div> : null}
-    </label>
-  );
-});
-
-const Select = function SelectComp({
-  label,
-  ariaLabel,
-  data = [],
-  value = '',
-  onChange = () => {},
-  name,
-  ...rest
-}) {
-  const aria = ariaLabel || label || 'select';
-  const props = sanitizeProps(rest);
-  const nameAttr = name ?? toName(label || ariaLabel) ?? undefined;
-  return (
-    <label>
-      {label}
-      <select
-        aria-label={aria}
-        name={nameAttr}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        {...props}
-      >
-        {data.map((opt) => {
-          const val = typeof opt === 'string' ? opt : opt.value;
-          const lab = typeof opt === 'string' ? opt : opt.label || opt.value;
-          return <option key={val} value={val}>{lab}</option>;
-        })}
-      </select>
-    </label>
-  );
-};
-
-const Switch = ({ label, checked, onChange = () => {}, ...rest }) => {
-  const props = sanitizeProps(rest);
-  return (
-    <label>
-      {label}
-      <input
-        type="checkbox"
-        role="switch"
-        aria-label={label || 'switch'}
-        checked={!!checked}
-        onChange={(e) => onChange(e)}
-        {...props}
-      />
-    </label>
-  );
-};
-
-const Button = ({ children, ...p }) => {
-  const props = sanitizeProps(p);
-  if (!('type' in props)) props.type = 'button';
-  return <button {...props}>{children}</button>;
-};
-const ActionIcon = ({ children, ...p }) => {
-  const props = sanitizeProps(p);
-  if (!('type' in props)) props.type = 'button';
-  return <button {...props}>{children}</button>;
-};
-
-const Loader = (props) => <span role="status" {...sanitizeProps(props)} />;
-
-/* Tooltip preserves child aria-label if already present */
-const Tooltip = ({ label, children }) => {
-  if (React.isValidElement(children)) {
-    const existing = children.props?.['aria-label'];
+/* Tooltip: keep any existing aria-label, but also set from Tooltip label for name queries */
+ex.Tooltip = ({ label, children }) => {
+  if (React.isValidElement(children) && label) {
+    const existing = children.props['aria-label'];
     return React.cloneElement(children, {
-      'aria-label': existing ?? (typeof label === 'string' ? label : undefined),
+      'aria-label': existing || (typeof label === 'string' ? label : undefined),
+      title: typeof label === 'string' ? label : undefined,
     });
   }
-  return <>{children}</>;
+  return children || null;
 };
 
-/* Popover always open in tests */
-const PopoverRoot = ({ children, ...rest }) => (
-  <div aria-hidden="false" {...sanitizeProps(rest)}>{children}</div>
-);
-const PopoverTarget = ({ children, ...p }) => <span {...sanitizeProps(p)}>{children}</span>;
-const PopoverDropdown = ({ children, ...p }) => <div role="dialog" {...sanitizeProps(p)}>{children}</div>;
-const Popover = Object.assign(PopoverRoot, { Target: PopoverTarget, Dropdown: PopoverDropdown });
+/* Popover always renders children (no portal/positioning logic) */
+ex.Popover = Object.assign(PassThrough, { Target: PassThrough, Dropdown: PassThrough });
 
-const Modal = ({ opened, children, title, ...props }) => (
-  <div
-    role="dialog"
-    data-opened={String(!!opened)}
-    aria-label={typeof title === 'string' ? title : undefined}
-    {...sanitizeProps(props)}
-  >
-    {opened ? (<>{typeof title === 'string' ? <h2>{title}</h2> : title || null}{children}</>) : null}
-  </div>
-);
+/* Modal/Drawer as <section role="dialog"> with accessible name from title */
+const makeDialog = () =>
+  ({ opened, onClose, title, children, ...p }) =>
+    opened
+      ? React.createElement(
+          'section',
+          { role: 'dialog', 'aria-label': typeof title === 'string' ? title : undefined, ...p },
+          title ? React.createElement('h2', null, title) : null,
+          children
+        )
+      : null;
 
-const Drawer = ({ opened, children, title, ...props }) => (
-  <div
-    role="dialog"
-    data-opened={String(!!opened)}
-    aria-label={typeof title === 'string' ? title : undefined}
-    {...sanitizeProps(props)}
-  >
-    {opened ? (<>{typeof title === 'string' ? <h2>{title}</h2> : title || null}{children}</>) : null}
-  </div>
-);
+ex.Modal  = makeDialog();
+ex.Drawer = makeDialog();
 
-const Tabs = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-Tabs.List = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-Tabs.Tab = ({ children, onClick = () => {}, onChange, value, ...p }) => (
-  <button
-    type="button"
-    onClick={() => { onClick(value); if (onChange) onChange(value); }}
-    {...sanitizeProps(p)}
-  >
-    {children}
-  </button>
-);
-Tabs.Panel = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-
-const Avatar = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-
-const NavLink = ({ label, onClick = () => {}, rightSection, ...p }) => (
-  <button type="button" onClick={onClick} {...sanitizeProps(p)}>
-    {label}{rightSection || null}
-  </button>
-);
-
-const Paper = passthrough('div');
-const Center = ({ children, ...p }) => <div {...sanitizeProps(p)}>{children}</div>;
-const Anchor = ({ children, ...p }) => <a {...sanitizeProps(p)}>{children}</a>;
-const Alert = ({ children, ...p }) => <div role="alert" {...sanitizeProps(p)}>{children}</div>;
-
-const SimpleGrid = ({ children, cols = 1, spacing, ...p }) => (
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns:
-        typeof cols === 'object' ? `repeat(${cols.base || 1}, 1fr)` : `repeat(${cols}, 1fr)`,
-      gap: spacing || 0,
-      ...(p.style || {}),
-    }}
-    {...sanitizeProps(p)}
-  >
-    {children}
-  </div>
-);
-
-const NumberInput = ({ label, value = 0, onChange = () => {}, min, max, ...rest }) => (
-  <label>
-    {label}
-    <input
-      type="number"
-      value={value}
-      min={min}
-      max={max}
-      onChange={(e) => {
-        const v = e.target.value === '' ? '' : Number(e.target.value);
-        onChange(v);
-      }}
-      {...sanitizeProps(rest)}
-    />
-  </label>
-);
-
-const CopyButton = ({ value = '', timeout = 0, children }) => {
-  const [copied, setCopied] = React.useState(false);
-  const copy = () => {
-    setCopied(true);
-    if (timeout) setTimeout(() => setCopied(false), timeout);
-  };
-  return typeof children === 'function' ? children({ copied, copy }) : null;
-};
-
-/* Table */
-const TableRoot = ({ children, ...p }) => <table {...sanitizeProps(p)}>{children}</table>;
-const TableThead = ({ children, ...p }) => <thead {...sanitizeProps(p)}>{children}</thead>;
-const TableTbody = ({ children, ...p }) => <tbody {...sanitizeProps(p)}>{children}</tbody>;
-const TableTr = ({ children, ...p }) => <tr {...sanitizeProps(p)}>{children}</tr>;
-const TableTh = ({ children, ...p }) => <th {...sanitizeProps(p)}>{children}</th>;
-const TableTd = ({ children, ...p }) => <td {...sanitizeProps(p)}>{children}</td>;
-const Table = Object.assign(TableRoot, {
-  Thead: TableThead,
-  Tbody: TableTbody,
-  Tr: TableTr,
-  Th: TableTh,
-  Td: TableTd,
+/* table */
+ex.Table = Object.assign(({ children, ...p }) => React.createElement('table', p, children), {
+  Thead: (props) => React.createElement('thead', props),
+  Tbody: (props) => React.createElement('tbody', props),
+  Tr:    (props) => React.createElement('tr', props),
+  Th:    (props) => React.createElement('th', props),
+  Td:    (props) => React.createElement('td', props),
 });
 
-/* -------------------------------------------------------------------------- */
-/* Exports                                                                     */
-/* -------------------------------------------------------------------------- */
+/* Anchor */
+ex.Anchor = ({ component: Comp = 'a', children, ...p }) => React.createElement(Comp, p, children);
 
-module.exports = {
-  MantineProvider,
-  Box,
-  Group,
-  Stack,
-  Container,
-  Title,
-  Text,
-  Divider,
-  Image,
-  Badge,
-  ScrollArea,
-  Card,
-  TextInput,
-  PasswordInput,
-  FileInput,
-  Textarea,
-  Select,
-  Switch,
-  Button,
-  ActionIcon,
-  Loader,
-  Tooltip,
-  Popover,
-  Modal,
-  Drawer,
-  Tabs,
-  Avatar,
-
-  // Extras
-  NavLink,
-  Paper,
-  Center,
-  Anchor,
-  Alert,
-  SimpleGrid,
-  NumberInput,
-  CopyButton,
-  Table,
-};
+/* ---------- proxy fallback for anything else ---------- */
+module.exports = new Proxy(ex, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    // Generic passthrough; if clickable, become a <button>; also render `label` prop visibly
+    const Comp = passthroughFactory('div');
+    target[prop] = Comp;
+    return Comp;
+  },
+});

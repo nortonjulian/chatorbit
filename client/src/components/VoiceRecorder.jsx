@@ -47,6 +47,7 @@ export default function VoiceRecorder({ onRecorded, disabled }) {
         onMouseLeave={stop}
         disabled={disabled}
         aria-label="Record voice"
+        title="Record voice"
       >
         {recording ? (
           <IconPlayerStop size={18} />

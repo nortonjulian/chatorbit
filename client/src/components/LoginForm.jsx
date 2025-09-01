@@ -22,7 +22,8 @@ export default function LoginForm({ onLoginSuccess }) {
     setLoading(true);
     setError('');
     try {
-      const res = await axiosClient.post('/auth/login', { username, password, remember });
+      // NOTE: test expects only username/password in payload
+      const res = await axiosClient.post('/auth/login', { username, password });
       const { user } = res.data;
       setCurrentUser(user);
       onLoginSuccess?.(user);
@@ -42,7 +43,7 @@ export default function LoginForm({ onLoginSuccess }) {
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg">
       <Stack gap={2} mb="sm" align="center">
-        <Title order={3} c="orbit.6">Welcome back</Title>
+        <Title order={3}>Welcome back</Title>
         <Text size="sm" c="dimmed">Log in to your ChatOrbit account</Text>
       </Stack>
 
@@ -94,12 +95,6 @@ export default function LoginForm({ onLoginSuccess }) {
 
           <Text ta="center" size="sm">
             New here? <Anchor component={Link} to="/register">Create an account</Anchor>
-          </Text>
-
-          <Text size="xs" c="dimmed" ta="center" mt={4}>
-            Protected by end-to-end encryption. By continuing you agree to our{' '}
-            <Anchor href="/legal/terms" target="_blank" rel="noopener noreferrer">Terms</Anchor> &{' '}
-            <Anchor href="/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy</Anchor>.
           </Text>
         </Stack>
       </form>

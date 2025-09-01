@@ -4,7 +4,7 @@ import axiosClient from '../api/axiosClient';
 
 const QUICK = ['👍', '😂', '🔥', '🎉', '😮', '❤️'];
 
-export default function ReactionBar({ message, currentUserId }) {
+export default function ReactionBar({ message = {}, currentUserId }) {
   const [opened, setOpened] = useState(false);
   const counts = message.reactionSummary || {};
   const mine = new Set(message.myReactions || []);
@@ -23,11 +23,10 @@ export default function ReactionBar({ message, currentUserId }) {
       }
       message.reactionSummary = next;
       message.myReactions = Array.from(mine);
-      // server
       await axiosClient.post(`/messages/${message.id}/reactions`, { emoji });
     } catch (e) {
       // ignore; socket will reconcile
-      console.error('reaction toggle failed', e);
+      // console.debug('reaction toggle failed', e);
     }
   };
 
@@ -47,15 +46,15 @@ export default function ReactionBar({ message, currentUserId }) {
         ) : null
       )}
 
-      <Popover
-        opened={opened}
-        onChange={setOpened}
-        position="top-end"
-        withArrow
-      >
+      <Popover opened={opened} onChange={setOpened} position="top-end" withArrow>
         <Popover.Target>
           <Tooltip label="Add reaction">
-            <ActionIcon variant="subtle" onClick={() => setOpened((v) => !v)}>
+            <ActionIcon
+              aria-label="Add reaction"
+              title="Add reaction"
+              variant="subtle"
+              onClick={() => setOpened((v) => !v)}
+            >
               ＋
             </ActionIcon>
           </Tooltip>
@@ -65,6 +64,7 @@ export default function ReactionBar({ message, currentUserId }) {
             {QUICK.map((e) => (
               <ActionIcon
                 key={e}
+                aria-label={e}
                 variant="light"
                 onClick={() => {
                   setOpened(false);
