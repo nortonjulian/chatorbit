@@ -2,8 +2,13 @@ import { Server } from 'socket.io';
 import cookie from 'cookie';
 import jwt from 'jsonwebtoken';
 
+/**
+ * Read allowed origins from env. Supports:
+ * - CORS_ORIGINS: comma-separated list
+ * - WEB_ORIGIN: legacy, single value
+ * Fallback: ['*'] (dev only)
+ */
 function parseOrigins() {
-  // Support either CORS_ORIGINS or WEB_ORIGIN (comma-separated)
   const raw = process.env.CORS_ORIGINS || process.env.WEB_ORIGIN || '';
   const list = raw
     .split(',')
@@ -12,8 +17,10 @@ function parseOrigins() {
   return list.length ? list : ['*'];
 }
 
+/**
+ * Cookie-only auth: read the JWT from cookies on the Socket.IO handshake.
+ */
 function getTokenFromHandshake(handshake) {
-  // ✅ Cookie-only authentication
   if (handshake.headers?.cookie) {
     const cookies = cookie.parse(handshake.headers.cookie || '');
     const name = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
@@ -26,7 +33,7 @@ export function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: {
       origin: parseOrigins(),
-      credentials: true, // allow cookie auth
+      credentials: true, // allow cookie auth across subdomain
     },
   });
 
@@ -37,18 +44,15 @@ export function initSocket(httpServer) {
       if (!token) return next(new Error('Unauthorized'));
 
       const secret = process.env.JWT_SECRET;
-      if (!secret)
-        return next(new Error('Server misconfiguration: JWT secret missing'));
+      if (!secret) return next(new Error('Server misconfiguration: JWT secret missing'));
 
       const decoded = jwt.verify(token, secret); // { id, username, role, ... }
 
-      // Attach user to socket (both styles for convenience)
       socket.user = decoded;
       socket.data.user = decoded;
 
-      // Auto-join per-user room for targeted emits
       if (decoded?.id) {
-        socket.join(`user:${decoded.id}`);
+        socket.join(`user:${decoded.id}`); // personal room for targeted emits
       }
 
       next();
@@ -58,7 +62,7 @@ export function initSocket(httpServer) {
   });
 
   io.on('connection', (_socket) => {
-    // You can add connection logs or per-socket listeners here if needed
+    // place connection-level logs or listeners if needed
   });
 
   function emitToUser(userId, event, payload) {

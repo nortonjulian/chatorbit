@@ -80,6 +80,7 @@ import {
 import { allow } from './utils/tokenBucket.js';
 
 dotenv.config();
+
 import { assertRequiredEnv } from './utils/env.js';
 assertRequiredEnv(['JWT_SECRET']);
 
@@ -89,14 +90,31 @@ const PORT = process.env.PORT || 5001;
 
 app.set('trust proxy', 1);
 
-// === Security / CORS ===
+/**
+ * ---- CORS / Security Config ----
+ *
+ * FRONTEND_ORIGIN: the primary frontend (e.g., https://www.chatorbit.com)
+ * CORS_ORIGINS: optional, comma-separated list of additional origins (e.g., dev)
+ * CDN_ORIGIN: optional CDN host for static assets
+ */
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const EXTRA_ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = [FRONTEND_ORIGIN, ...EXTRA_ORIGINS].filter(Boolean);
+
 const CDN_ORIGIN = process.env.CDN_ORIGIN || '';
 const IMG_ORIGINS = ["'self'", 'data:', 'blob:'];
 if (CDN_ORIGIN) IMG_ORIGINS.push(CDN_ORIGIN);
 
 app.disable('x-powered-by');
 
+/**
+ * Helmet CSP with dynamic connect-src to include allowed frontends and ws/wss.
+ * If your Socket.IO or API is at api.chatorbit.com, browser connections still
+ * originate from the frontend origin; keep both API and WS in connect-src.
+ */
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -108,8 +126,7 @@ app.use(
         'img-src': IMG_ORIGINS,
         'connect-src': [
           "'self'",
-          FRONTEND_ORIGIN,
-          ...(process.env.CORS_ORIGINS || '').split(',').filter(Boolean),
+          ...ALLOWED_ORIGINS,
           'ws:',
           'wss:',
         ],
@@ -133,9 +150,17 @@ app.use(
   })
 );
 
+/**
+ * Express CORS config — allow cookies and multiple origins.
+ * We accept requests with no Origin (e.g., curl) and Origins in the allowlist.
+ */
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // non-browser clients
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS blocked'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-Requested-With'],
@@ -147,16 +172,27 @@ app.use(compression());
 // --- HTTP server (Socket.IO + WS captions) ---
 const server = http.createServer(app);
 
-// --- Socket.IO ---
+// --- Socket.IO (CORS also configured inside initSocket) ---
 const { io, emitToUser } = initSocket(server);
 app.set('emitToUser', emitToUser);
 
+// Example extra Socket.IO tuning
 io.engine.opts.maxHttpBufferSize = 1e7;
 io.opts = {
   ...io.opts,
-  cors: { origin: FRONTEND_ORIGIN, methods: ['GET', 'POST'], credentials: true },
+  cors: {
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS blocked'));
+    },
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
 };
 
+// Socket cookie middleware (if you have extra logic)
+import { cookieSocketAuth } from './middleware/socketAuth.js';
 cookieSocketAuth(io);
 
 // --- Rate limiter for auth-sensitive routes ---
@@ -181,7 +217,7 @@ app.use(webhookApp);
 // Now safe for JSON parsing
 app.use(express.json());
 
-// Lightweight CSRF header check
+// Lightweight CSRF header check for state-changing routes
 app.use((req, res, next) => {
   const method = req.method.toUpperCase();
   const url = req.originalUrl || req.url || '';
@@ -221,25 +257,20 @@ app.use('/files', filesRouter);
 app.use('/backups', backupsRouter);
 app.use('/numbers', numbersRouter);
 
-// ✅ AI routes (NOW USED)
+// AI routes
 app.use('/ai', aiRouter);
-
 app.use('/features', premiumFeaturesRouter);
 app.use('/ai', aiPowerRouter);
-
-// ✅ Billing JSON endpoints (checkout, portal, etc.)
-// IMPORTANT: remove `/webhook` route inside billing.js to avoid duplicates.
-app.use('/billing', billingRouter);
 
 // Example premium-only endpoint
 app.get('/ai/power-feature', requireAuth, requirePremium, (_req, res) => {
   res.json({ ok: true });
 });
 
-// ✅ Accessibility routes (live captions, voice-note STT)
+// Accessibility routes (live captions, voice-note STT)
 app.use(a11yRouter);
 
-// ✅ Private bots
+// Private bots
 app.use('/bots', botsRouter);
 
 // Admin APIs
@@ -255,7 +286,7 @@ app.use(errorHandler);
 attachCaptionWS(server);
 startTranscriptRetentionJob();
 
-// --- RANDOM CHAT (Redis-backed; age-aware) ---
+// Random chat (Redis-backed; age-aware)
 io.on('connection', (socket) => {
   console.log(`🟢 User connected: ${socket.id}`);
 
@@ -264,10 +295,8 @@ io.on('connection', (socket) => {
     if (uid) socket.join(`user:${uid}`);
   });
 
-  // ⬇️ UPDATED: load age prefs and perform age-compatible matchmaking
   socket.on('find_random_chat', async (username) => {
     try {
-      // Pull my age prefs
       const meDb = await prisma.user.findUnique({
         where: { id: socket.user?.id },
         select: {
@@ -322,7 +351,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ⬇️ UPDATED: re-enqueue both parties with full saved meta (preserves age prefs)
   socket.on('skip_random_chat', async ({ roomId }) => {
     try {
       if (!roomId) return;
@@ -340,7 +368,6 @@ io.on('connection', (socket) => {
       io.in(roomId).socketsLeave(roomId);
       await deletePair(roomId);
 
-      // Re-enqueue with the same objects we saved (includes age prefs)
       await enqueueWaiting(a);
       await enqueueWaiting(b);
     } catch (err) {
@@ -408,12 +435,8 @@ io.on('connection', (socket) => {
       });
       io.to(String(chatRoomId)).emit('receive_message', saved);
 
-      const { maybeInvokeOrbitBot } = await import(
-        './services/botAssistant.js'
-      );
-      const { maybeAutoRespondUsers } = await import(
-        './services/autoResponder.js'
-      );
+      const { maybeInvokeOrbitBot } = await import('./services/botAssistant.js');
+      const { maybeAutoRespondUsers } = await import('./services/autoResponder.js');
 
       maybeAutoTranslate({ savedMessage: saved, io, prisma }).catch(() => {});
       maybeInvokeOrbitBot({
@@ -422,9 +445,7 @@ io.on('connection', (socket) => {
         io,
         prisma,
       }).catch(() => {});
-      maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(
-        () => {}
-      );
+      maybeAutoRespondUsers({ savedMessage: saved, prisma, io }).catch(() => {});
     } catch (e) {
       console.error('Message save failed:', e);
     }
@@ -450,7 +471,7 @@ io.on('connection', (socket) => {
   registerCallHandlers({ io, socket, prisma });
 });
 
-// Expose io
+// Expose io for other modules
 app.set('io', io);
 
 // Start sweeper once io exists
