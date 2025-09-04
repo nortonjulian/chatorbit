@@ -62,7 +62,7 @@ export default function LoginForm({ onLoginSuccess }) {
         <Stack gap="sm">
           <TextInput
             label="Username"
-            placeholder="yourusername"
+            placeholder="Your username"
             value={username}
             onChange={(e) => setUsername(e.currentTarget.value)}
             required
