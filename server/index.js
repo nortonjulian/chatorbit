@@ -64,6 +64,7 @@ import { startCleanupJobs } from './cleanup.js';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { ensureRedis, redisPub, redisSub } from './utils/redisClient.js';
 
+// Premium/AI routes
 import premiumFeaturesRouter from './routes/premiumFeatures.js';
 import aiPowerRouter from './routes/ai.power.js';
 
@@ -96,6 +97,7 @@ app.set('trust proxy', 1);
  * FRONTEND_ORIGIN: the primary frontend (e.g., https://www.chatorbit.com)
  * CORS_ORIGINS: optional, comma-separated list of additional origins (e.g., dev)
  * CDN_ORIGIN: optional CDN host for static assets
+ * R2_PUBLIC_BASE: your R2 public base (e.g., https://media.chatorbit.com)
  */
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 const EXTRA_ORIGINS = (process.env.CORS_ORIGINS || '')
@@ -105,15 +107,13 @@ const EXTRA_ORIGINS = (process.env.CORS_ORIGINS || '')
 const ALLOWED_ORIGINS = [FRONTEND_ORIGIN, ...EXTRA_ORIGINS].filter(Boolean);
 
 const CDN_ORIGIN = process.env.CDN_ORIGIN || '';
-const IMG_ORIGINS = ["'self'", 'data:', 'blob:'];
-if (CDN_ORIGIN) IMG_ORIGINS.push(CDN_ORIGIN);
+const MEDIA_ORIGIN = (process.env.R2_PUBLIC_BASE || '').replace(/\/+$/, ''); // e.g. https://media.chatorbit.com
 
 app.disable('x-powered-by');
 
 /**
  * Helmet CSP with dynamic connect-src to include allowed frontends and ws/wss.
- * If your Socket.IO or API is at api.chatorbit.com, browser connections still
- * originate from the frontend origin; keep both API and WS in connect-src.
+ * Add MEDIA_ORIGIN to img-src/media-src/connect-src if you fetch directly.
  */
 app.use(
   helmet({
@@ -123,10 +123,23 @@ app.use(
         'default-src': ["'self'"],
         'script-src': ["'self'"],
         'style-src': ["'self'", "'unsafe-inline'"],
-        'img-src': IMG_ORIGINS,
+        'img-src': [
+          "'self'",
+          'data:',
+          'blob:',
+          ...(MEDIA_ORIGIN ? [MEDIA_ORIGIN] : []),
+          ...(CDN_ORIGIN ? [CDN_ORIGIN] : []),
+        ],
+        'media-src': [
+          "'self'",
+          'data:',
+          'blob:',
+          ...(MEDIA_ORIGIN ? [MEDIA_ORIGIN] : []),
+        ],
         'connect-src': [
           "'self'",
           ...ALLOWED_ORIGINS,
+          ...(MEDIA_ORIGIN ? [MEDIA_ORIGIN] : []),
           'ws:',
           'wss:',
         ],
@@ -191,18 +204,42 @@ io.opts = {
   },
 };
 
-// Socket cookie middleware (if you have extra logic)
-import { cookieSocketAuth } from './middleware/socketAuth.js';
+// Socket cookie middleware
 cookieSocketAuth(io);
 
-// --- Rate limiter for auth-sensitive routes ---
-const authLimiter = rateLimit({
+/* =========================
+ *      Rate limiters
+ * ========================= */
+
+// Very strict for login + reset
+const strictAuthLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
 });
 
-// ---------- Parsers (⚠️ webhook raw BEFORE json) ----------
+// Slightly looser for signup/email-verify
+const signupLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Read throttling for status (prevents scraping of individual items)
+const statusReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60, // tune to your traffic
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/* =========================
+ *   Parsers & CSRF check
+ * ========================= */
+
 app.use(cookieParser());
 
 // Dedicated raw-body Stripe webhook
@@ -229,13 +266,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------- Routes ----------
+/* =========================
+ *          Routes
+ * ========================= */
+
 app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-app.use('/auth/login', authLimiter);
-app.use('/auth/forgot-password', authLimiter);
+// Apply per-path auth rate-limits
+app.use('/auth/login', strictAuthLimiter);
+app.use('/auth/forgot-password', strictAuthLimiter);
+app.use('/auth/reset-password', strictAuthLimiter);
+app.use('/auth/register', signupLimiter);
 
+// Mount routers
 app.use('/auth', authRouter);
 app.use('/users', usersRouter);
 app.use('/chatrooms', chatroomsRouter);
@@ -247,6 +291,8 @@ app.use('/media', mediaRouter);
 app.use('/ice-servers', iceRouter);
 
 if (process.env.STATUS_ENABLED === 'true') {
+  // throttle reads on status endpoints
+  app.use('/status', statusReadLimiter);
   app.use('/status', statusRoutes);
 }
 
@@ -282,7 +328,10 @@ app.use('/admin/audit', adminAuditRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// ---------- WS & background jobs ----------
+/* =========================
+ *   WS & background jobs
+ * ========================= */
+
 attachCaptionWS(server);
 startTranscriptRetentionJob();
 

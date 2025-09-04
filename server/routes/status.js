@@ -33,7 +33,7 @@ router.post(
       attachmentsInline,
     } = req.body || {};
 
-    // Uploads → assets
+    // Uploads → assets (demo local storage; swap to R2 if desired)
     const uploaded = (req.files || []).map((f) => {
       const mt = f.mimetype || '';
       const kind = mt.startsWith('image/')
@@ -87,8 +87,34 @@ router.post(
 );
 
 /**
+ * Helper visibility checks
+ */
+async function isFollower({ viewerId, authorId }) {
+  const rel = await prisma.follow.findFirst({
+    where: { followerId: viewerId, followeeId: authorId, accepted: true },
+    select: { id: true },
+  });
+  return !!rel;
+}
+
+async function isMutual({ viewerId, authorId }) {
+  const [a, b] = await Promise.all([
+    prisma.follow.findFirst({
+      where: { followerId: viewerId, followeeId: authorId, accepted: true },
+      select: { id: true },
+    }),
+    prisma.follow.findFirst({
+      where: { followerId: authorId, followeeId: viewerId, accepted: true },
+      select: { id: true },
+    }),
+  ]);
+  return !!a && !!b;
+}
+
+/**
  * GET /status/:id
  * Returns the status + aggregated reactionSummary (emoji -> count)
+ * Now enforces audience/visibility rules.
  */
 router.get(
   '/:id',
@@ -97,15 +123,68 @@ router.get(
     const statusId = Number(req.params.id);
     if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
 
+    // Pull only fields we need to decide visibility (+ author & assets for response)
     const status = await prisma.status.findUnique({
       where: { id: statusId },
-      include: {
-        author: { select: { id: true, username: true, avatarUrl: true } },
+      select: {
+        id: true,
+        authorId: true,
+        audience: true,            // 'MUTUALS'|'FOLLOWERS'|'PUBLIC'|'CUSTOM'
+        customAudienceIds: true,   // int[] (for CUSTOM)
+        createdAt: true,
+        expiresAt: true,
+        captionCiphertext: true,
         assets: true,
+        author: { select: { id: true, username: true, avatarUrl: true } },
+        // If you store per-viewer keys, you may also want:
+        keys: { select: { userId: true, encryptedKey: true } },
       },
     });
     if (!status) throw Boom.notFound('Not found');
 
+    // Expired?
+    if (status.expiresAt && status.expiresAt <= new Date()) {
+      throw Boom.notFound('Not found');
+    }
+
+    const me = req.user;
+    const isOwner = status.authorId === me.id;
+    const isAdmin = me.role === 'ADMIN';
+
+    let allowed = false;
+
+    if (isOwner || isAdmin) {
+      allowed = true;
+    } else if (status.audience === 'PUBLIC') {
+      allowed = true;
+    } else if (status.audience === 'FOLLOWERS') {
+      allowed = await isFollower({ viewerId: me.id, authorId: status.authorId });
+    } else if (status.audience === 'MUTUALS') {
+      allowed = await isMutual({ viewerId: me.id, authorId: status.authorId });
+    } else if (status.audience === 'CUSTOM') {
+      const list = Array.isArray(status.customAudienceIds)
+        ? status.customAudienceIds
+        : [];
+      allowed = list.includes(me.id);
+    }
+
+    // (Optional) Defense-in-depth: ensure viewer has a key if not owner/admin.
+    // If you enforce encryption on the client, this gate keeps /status/:id consistent with /status/feed.
+    if (allowed && !isOwner && !isAdmin) {
+      const hasKey =
+        Array.isArray(status.keys) &&
+        status.keys.some((k) => k.userId === me.id);
+      // If you require keys for any non-public audience, enforce here:
+      // allowed = hasKey;
+      // If PUBLIC should NOT require keys, only enforce for non-public:
+      if (status.audience !== 'PUBLIC') {
+        allowed = hasKey;
+      }
+    }
+
+    if (!allowed) throw Boom.forbidden('Forbidden');
+
+    // Aggregate reactions for this status
     const reactionGroups = await prisma.statusReaction.groupBy({
       by: ['emoji'],
       where: { statusId },
@@ -115,7 +194,19 @@ router.get(
       reactionGroups.map((r) => [r.emoji, r._count.emoji])
     );
 
-    return res.json({ ...status, reactionSummary });
+    // Shape response
+    return res.json({
+      id: status.id,
+      author: status.author,
+      assets: status.assets,
+      captionCiphertext: status.captionCiphertext,
+      // Include encrypted key for the viewer (if you want)
+      encryptedKeyForMe:
+        status.keys?.find((k) => k.userId === me.id)?.encryptedKey ?? null,
+      expiresAt: status.expiresAt,
+      createdAt: status.createdAt,
+      reactionSummary,
+    });
   })
 );
 

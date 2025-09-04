@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Group,
   TextInput,
-  FileInput,
   ActionIcon,
   Loader,
   Select,
   Textarea,
   Button,
+  Badge,
 } from '@mantine/core';
-import { IconPaperclip, IconSend } from '@tabler/icons-react';
+import { IconSend, IconPaperclip } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
 import StickerPicker from './StickerPicker.jsx';
+import FileUploader from './FileUploader.jsx';
 
 const TTL_OPTIONS = [
   { value: '0', label: 'Off' },
@@ -27,121 +28,125 @@ const TTL_OPTIONS = [
  * - chatroomId (number|string)
  * - currentUser (object)
  * - onMessageSent (fn) — called with the newly-saved message
- * - getLastInboundText (optional fn) — still supported but unused here
  */
-export default function MessageInput({
-  chatroomId,
-  currentUser,
-  onMessageSent,
-  getLastInboundText, // kept for API compatibility
-}) {
+export default function MessageInput({ chatroomId, currentUser, onMessageSent }) {
   const [content, setContent] = useState('');
-  const [files, setFiles] = useState([]); // File[]
-  const [captions, setCaptions] = useState({}); // { [idx: number]: string }
-  const [loading, setLoading] = useState(false);
   const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0));
 
+  // Files already uploaded to R2 via <FileUploader/>
+  // Each item: { url, key, contentType, width?, height?, durationSec?, caption? }
+  const [uploaded, setUploaded] = useState([]);
+
   // Stickers / GIFs picked from remote providers (no upload)
-  // Each item: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
-  const [inlineAttachments, setInlineAttachments] = useState([]);
+  // Each: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
+  const [inlinePicks, setInlinePicks] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const nothingToSend =
-    !content.trim() && files.length === 0 && inlineAttachments.length === 0;
+  const [sending, setSending] = useState(false);
+  const nothingToSend = useMemo(
+    () => !content.trim() && uploaded.length === 0 && inlinePicks.length === 0,
+    [content, uploaded.length, inlinePicks.length]
+  );
 
-  const handleSubmit = async (e) => {
+  const handleSend = async (e) => {
     e?.preventDefault?.();
     if (nothingToSend) return;
 
-    setLoading(true);
+    setSending(true);
     try {
-      const form = new FormData();
-      form.append('chatRoomId', String(chatroomId));
-      form.append('expireSeconds', String(Number(ttl) || 0));
-      if (content.trim()) form.append('content', content.trim());
+      // Compose “inline attachments” payload (server merges these with message)
+      const attachmentsInline = [
+        // R2 uploads
+        ...uploaded.map((f) => ({
+          kind: kindFromMime(f.contentType),
+          url: f.url,
+          mimeType: f.contentType,
+          width: f.width || null,
+          height: f.height || null,
+          durationSec: f.durationSec || null,
+          caption: f.caption || null,
+        })),
+        // Stickers / GIFs
+        ...inlinePicks,
+      ];
 
-      // Append files[] for multer.array('files', 10)
-      files.forEach((f) => form.append('files', f));
+      const payload = {
+        chatRoomId: String(chatroomId),
+        content: content.trim() || undefined,
+        expireSeconds: Number(ttl) || 0,
+        attachmentsInline,
+      };
 
-      // Pair meta by index
-      const meta = files.map((_, i) => ({
-        idx: i,
-        caption: captions[i] || null,
-        // width/height/durationSec can be added after client-side inspection/cropping
-      }));
-      form.append('attachmentsMeta', JSON.stringify(meta));
-
-      // Inline stickers/GIFs (no upload; server will merge with uploaded attachments)
-      if (inlineAttachments.length) {
-        form.append('attachmentsInline', JSON.stringify(inlineAttachments));
-      }
-
-      const { data: saved } = await axiosClient.post('/messages', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const { data: saved } = await axiosClient.post('/messages', payload, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
       });
 
       onMessageSent?.(saved);
-
-      // Reset inputs
+      // reset
       setContent('');
-      setFiles([]);
-      setCaptions({});
-      setInlineAttachments([]);
+      setUploaded([]);
+      setInlinePicks([]);
     } catch (err) {
       console.error('Error sending message', err);
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
+  function kindFromMime(m) {
+    if (!m) return 'FILE';
+    if (m.startsWith('image/')) return 'IMAGE';
+    if (m.startsWith('video/')) return 'VIDEO';
+    if (m.startsWith('audio/')) return 'AUDIO';
+    return 'FILE';
+  }
+
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSend}>
       <Group align="end" gap="xs" wrap="nowrap">
-        {/* Text message */}
+        {/* Text */}
         <TextInput
           style={{ flex: 1 }}
           placeholder="Say something…"
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
-          rightSection={loading ? <Loader size="xs" /> : null}
-          disabled={loading}
+          rightSection={sending ? <Loader size="xs" /> : null}
+          disabled={sending}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              handleSubmit();
+              handleSend();
             }
           }}
         />
 
-        {/* TTL picker */}
+        {/* TTL */}
         <Select
           value={ttl}
           onChange={setTtl}
           data={TTL_OPTIONS}
           w={110}
           aria-label="Message timer"
-          disabled={loading}
+          disabled={sending}
         />
 
-        {/* Sticker/GIF picker trigger */}
-        <Button
-          variant="light"
-          onClick={() => setPickerOpen(true)}
-          disabled={loading}
-        >
+        {/* Sticker/GIF picker */}
+        <Button variant="light" onClick={() => setPickerOpen(true)} disabled={sending}>
           😀
         </Button>
 
-        {/* Multi-file picker (append to list) */}
-        <FileInput
-          value={null} // always null so the same file can be picked again later
-          onChange={(f) => f && setFiles((prev) => [...prev, f])}
-          accept="image/*,video/*,audio/*"
-          placeholder="Attach"
-          leftSection={<IconPaperclip size={16} />}
-          w={180}
-          disabled={loading}
-          clearable
+        {/* FileUploader (R2) */}
+        <FileUploader
+          button={
+            <Button variant="light" leftSection={<IconPaperclip size={16} />} disabled={sending}>
+              Attach
+            </Button>
+          }
+          // Called when a file finishes uploading to R2
+          onUploaded={(fileMeta) => {
+            // fileMeta: { url, key, contentType, width?, height?, durationSec? }
+            setUploaded((prev) => [...prev, fileMeta]);
+          }}
         />
 
         {/* Send */}
@@ -150,38 +155,42 @@ export default function MessageInput({
           variant="filled"
           radius="xl"
           size="lg"
-          disabled={loading || nothingToSend}
+          disabled={sending || nothingToSend}
           aria-label="Send"
         >
           <IconSend size={18} />
         </ActionIcon>
       </Group>
 
-      {/* Simple media list with per-file captions */}
-      {files.length > 0 && (
+      {/* Uploaded files (from R2) with optional captions */}
+      {uploaded.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          {files.map((f, i) => (
+          {uploaded.map((f, i) => (
             <Group
-              key={`${f.name}-${i}`}
+              key={`${f.key}-${i}`}
               gap="xs"
               align="center"
               wrap="nowrap"
               style={{ marginBottom: 6 }}
             >
-              <div
+              <Badge variant="light">
+                {f.contentType?.split('/')[0]?.toUpperCase() || 'FILE'}
+              </Badge>
+
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
                 style={{
-                  width: 180,
+                  maxWidth: 260,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}
-                title={`${f.name} (${f.type || 'unknown'})`}
+                title={f.url}
               >
-                {f.name} <small>({f.type || 'file'})</small>
-              </div>
-
-              {/* Optional: launch an editor/cropper here, then replace file in state */}
-              {/* <Button size="xs" variant="light" onClick={() => setEditorIndex(i)}>Edit</Button> */}
+                {new URL(f.url).pathname.split('/').pop()}
+              </a>
 
               <Textarea
                 placeholder="Caption (optional)"
@@ -189,9 +198,11 @@ export default function MessageInput({
                 minRows={1}
                 maxRows={2}
                 w={320}
-                value={captions[i] || ''}
+                value={f.caption || ''}
                 onChange={(e) =>
-                  setCaptions((s) => ({ ...s, [i]: e.currentTarget.value }))
+                  setUploaded((prev) =>
+                    prev.map((x, idx) => (idx === i ? { ...x, caption: e.currentTarget.value } : x))
+                  )
                 }
               />
 
@@ -199,9 +210,7 @@ export default function MessageInput({
                 size="xs"
                 variant="subtle"
                 color="red"
-                onClick={() =>
-                  setFiles((prev) => prev.filter((_, idx) => idx !== i))
-                }
+                onClick={() => setUploaded((prev) => prev.filter((_, idx) => idx !== i))}
               >
                 Remove
               </Button>
@@ -211,9 +220,9 @@ export default function MessageInput({
       )}
 
       {/* Inline stickers / GIFs preview badges */}
-      {inlineAttachments.length > 0 && (
+      {inlinePicks.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          {inlineAttachments.map((a, i) => (
+          {inlinePicks.map((a, i) => (
             <span
               key={`${a.url}-${i}`}
               style={{
@@ -233,7 +242,7 @@ export default function MessageInput({
             size="xs"
             variant="subtle"
             color="red"
-            onClick={() => setInlineAttachments([])}
+            onClick={() => setInlinePicks([])}
             style={{ marginLeft: 4 }}
           >
             Clear
@@ -246,25 +255,11 @@ export default function MessageInput({
         opened={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onPick={(att) => {
-          // Expect att: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
-          setInlineAttachments((prev) => [...prev, att]);
+          // att: { kind: 'STICKER'|'GIF', url, mimeType?, width?, height?, durationSec?, caption? }
+          setInlinePicks((prev) => [...prev, att]);
           setPickerOpen(false);
         }}
       />
-
-      {/*
-        If you later add an ImageEditorModal/cropper:
-        <ImageEditorModal
-          file={files[editorIndex]}
-          onCancel={() => setEditorIndex(null)}
-          onSave={(blob, meta) => {
-            const newFile = new File([blob], files[editorIndex].name, { type: files[editorIndex].type });
-            setFiles(prev => prev.map((f, i) => i === editorIndex ? newFile : f));
-            // Optionally store meta.width/height in captions/meta map by index
-            setEditorIndex(null);
-          }}
-        />
-      */}
     </form>
   );
 }

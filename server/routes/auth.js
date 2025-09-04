@@ -1,22 +1,19 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
+
 import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 import { generateKeyPair } from '../utils/encryption.js';
+import { issueResetToken, consumeResetToken } from '../utils/resetTokens.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET; // asserted in index.js
-const RESET_TOKEN_EXPIRATION = 1000 * 60 * 15; // 15 minutes
-
-// In-memory reset token store (for demo; consider Redis/DB in prod)
-const resetTokens = new Map();
 
 /* =========================
  *  Cookie helpers (config)
@@ -226,14 +223,13 @@ router.get('/me', requireAuth, async (req, res) => {
       showReadReceipts: true,
       avatarUrl: true,
       emojiTag: true,
-      // add any other fields you rely on in the UI
     },
   });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   return res.json({ user: me });
 });
 
-// Forgot password
+// Forgot password (issues Redis-backed token and emails link)
 router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
@@ -242,21 +238,20 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'user not found' });
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiration = Date.now() + RESET_TOKEN_EXPIRATION;
+    const token = await issueResetToken(user.id);
 
-    resetTokens.set(token, { userId: user.id, expiration });
-
-    // TODO: In prod, build this URL from env (frontend base)
-    const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+    // Build link for your frontend
+    const base = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+    const resetLink = `${base.replace(/\/+$/, '')}/reset-password?token=${token}`;
 
     const info = await transporter.sendMail({
       from: '"ChatOrbit Support" <no-reply@chatorbit.com>',
       to: email,
       subject: 'Reset Your ChatOrbit Password',
       html: `<p>Hello ${user.username},</p>
-        <p>Click below to reset your password. This link will expire in 15 minutes.</p>
-        <a href="${resetLink}">Reset Password</a>`,
+        <p>Click below to reset your password. This link will expire shortly.</p>
+        <p><a href="${resetLink}">Reset Password</a></p>
+        <p>If you didn’t request this, you can safely ignore this email.</p>`,
     });
 
     res.json({
@@ -269,25 +264,24 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   }
 });
 
-// Reset password
+// Reset password (consumes Redis token)
 router.post('/reset-password', async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword)
     return res.status(400).json({ error: 'Token and new password required' });
 
   try {
-    const tokenData = resetTokens.get(token);
-    if (!tokenData || tokenData.expiration < Date.now()) {
-      return res.status(400).json({ error: 'invalid or expired token' });
+    const userId = await consumeResetToken(token);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
-      where: { id: tokenData.userId },
+      where: { id: Number(userId) },
       data: { password: hashedPassword },
     });
 
-    resetTokens.delete(token);
     res.json({ message: 'Password reset successful' });
   } catch (error) {
     console.error('Reset password error:', error);
