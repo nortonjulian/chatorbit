@@ -1,0 +1,58 @@
+config:
+  target: "http://localhost:5001"
+  processor: "./helpers.cjs"
+  phases:
+    - duration: 60
+      arrivalRate: 5         # warm-up
+    - duration: 120
+      arrivalRate: 20        # ramp
+    - duration: 180
+      arrivalRate: 50        # hold
+  ensure:
+    p95: 250
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+      Origin: "http://localhost:5173"
+      Referer: "http://localhost:5173/"
+
+scenarios:
+  - name: "Auth once, then hammer /auth/me"
+    flow:
+      - function: "seedVars"
+
+      # create user once per VU (OK if 409)
+      - post:
+          url: "/auth/register"
+          beforeRequest: "logJson"
+          afterResponse: "debugOnError"
+          json:
+            username: "{{ uname }}"
+            email: "{{ email }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 201
+            - statusCode: 409
+
+      # login once, capture cookie/JWT
+      - post:
+          url: "/auth/login"
+          afterResponse: "extractJwtAfterLogin"
+          json:
+            username: "{{ uname }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 200
+
+      # tight loop of authenticated requests
+      - loop:
+          - get:
+              url: "/auth/me"
+              beforeRequest: "attachAuth"
+              afterResponse: "debugOnError"
+              expect:
+                - statusCode: 200
+          - think: 0.2
+        count: 50

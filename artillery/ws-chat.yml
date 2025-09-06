@@ -1,0 +1,100 @@
+config:
+  target: "http://localhost:5001"
+  phases:
+    - duration: 60
+      arrivalCount: 4
+  plugins:
+    socketio: {}
+  engines:
+    socketio: {}
+  processor: "./helpers.cjs"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+
+scenarios:
+  - name: "Login + WS (Socket.IO engine)"
+    flow:
+      # seed variables
+      - function: seedVars
+
+      # register (allow 201 new OR 409 already exists)
+      - post:
+          url: "/auth/register"
+          afterResponse: "debugOnError"
+          json:
+            username: "{{ uname }}"
+            email: "{{ email }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 201
+            - statusCode: 409
+
+      # login (captures orbit_jwt cookie into {{ jwt }})
+      - post:
+          url: "/auth/login"
+          afterResponse: "afterLoginHook"
+          json:
+            username: "{{ uname }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 200
+
+      # whoami (sanity)
+      - get:
+          url: "/auth/me"
+          afterResponse: "debugOnError"
+          expect:
+            - statusCode: 200
+
+      # short-lived token for WS
+      - get:
+          url: "/auth/token"
+          afterResponse: "debugOnError"
+          capture:
+            - json: "$.token"
+              as: "token"
+          expect:
+            - statusCode: 200
+
+      # make sure we actually have creds before connecting
+      - function: ensureAuthVars
+
+      # Socket.IO connect (polling first, then upgrade)
+      - connect:
+          engine: "socketio"
+          url: "http://localhost:5001"
+          namespace: "/"
+          transports: ["polling","websocket"]
+          path: "/socket.io"
+          auth:
+            token: "{{ token }}"
+          extraHeaders:
+            Origin: "http://localhost:5173"
+            X-Requested-With: "XMLHttpRequest"
+            Cookie: "orbit_jwt={{ jwt }}"
+          timeout: 8000
+          reconnection: false
+          forceNew: true
+
+      # exercise a few events
+      - emit:
+          channel: "join_user"
+
+      - emit:
+          channel: "typing"
+          data:
+            chatRoomId: 1
+            username: "perf-bot"
+
+      - emit:
+          channel: "send_message"
+          data:
+            chatRoomId: 1
+            content: "Hello from Artillery"
+            expireSeconds: 0
+
+      - think: 1
+      - disconnect: {}

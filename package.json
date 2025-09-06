@@ -28,6 +28,7 @@
     "@playwright/test": "^1.47.0",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "14.2.2",
+    "artillery": "^2.0.24",
     "babel-jest": "^29.7.0",
     "eslint": "^9.33.0",
     "i": "^0.3.7",

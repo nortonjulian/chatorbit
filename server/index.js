@@ -82,6 +82,9 @@ import { allow } from './utils/tokenBucket.js';
 
 dotenv.config();
 
+// ---- Load-test mode switch ----
+const isLoad = process.env.NODE_ENV === 'loadtest' || process.env.LOADTEST === '1';
+
 import { assertRequiredEnv } from './utils/env.js';
 assertRequiredEnv(['JWT_SECRET']);
 
@@ -211,19 +214,22 @@ cookieSocketAuth(io);
  *      Rate limiters
  * ========================= */
 
-// Very strict for login + reset
+// When load testing, dramatically raise caps so you don’t immediately 429.
+const RL_HUGE = 100000;
+
+// Very strict for login + reset (normal), relaxed in loadtest
 const strictAuthLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: isLoad ? RL_HUGE : 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
 });
 
-// Slightly looser for signup/email-verify
+// Slightly looser for signup/email-verify (normal), relaxed in loadtest
 const signupLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 20,
+  max: isLoad ? RL_HUGE : 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -231,10 +237,20 @@ const signupLimiter = rateLimit({
 // Read throttling for status (prevents scraping of individual items)
 const statusReadLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60, // tune to your traffic
+  max: isLoad ? RL_HUGE : 60, // tune to your traffic
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Optional: a global limiter you can toggle (OFF by default to avoid double limiting)
+// If you want one, uncomment below:
+// const globalLimiter = rateLimit({
+//   windowMs: 10 * 60 * 1000,
+//   max: isLoad ? RL_HUGE : 300,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
+// app.use(globalLimiter);
 
 /* =========================
  *   Parsers & CSRF check
@@ -295,6 +311,34 @@ if (process.env.STATUS_ENABLED === 'true') {
   app.use('/status', statusReadLimiter);
   app.use('/status', statusRoutes);
 }
+
+// DEV ONLY — list all routes
+app.get('/__routes', (req, res) => {
+  const out = [];
+  function push(m, p) { out.push(`${m} ${p}`); }
+  function walk(stack, prefix = '') {
+    for (const layer of stack || []) {
+      if (layer.route) {
+        const rp = layer.route.path;
+        const methods = Object.keys(layer.route.methods || {}).map(m => m.toUpperCase());
+        methods.forEach(m => push(m, prefix + rp));
+      } else if (layer.name === 'router' && layer.handle?.stack) {
+        // best-effort mount path from regexp
+        let mount = '';
+        if (layer.regexp?.source) {
+          mount = layer.regexp.source
+            .replace('^\\/?', '/')
+            .replace('\\/?(?=\\/|$)', '')
+            .replace(/\\\//g, '/')
+            .replace(/\(\?:\(\[\^\\\/]\+\?\)\)/g, ':param');
+        }
+        walk(layer.handle.stack, prefix + mount);
+      }
+    }
+  }
+  walk(app._router?.stack);
+  res.status(200).json({ routes: out.sort() });
+});
 
 app.use('/devices', devicesRouter);
 app.use('/features', featuresRouter);
@@ -540,7 +584,9 @@ async function start() {
     startCleanupJobs();
 
     server.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(
+        `🚀 Server running on http://localhost:${PORT} ${isLoad ? '(loadtest mode)' : ''}`
+      );
     });
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -548,6 +594,34 @@ async function start() {
   }
 }
 start();
+
+// DEV ONLY: list all routes on boot
+function listRoutes(app) {
+  const lines = [];
+  function push(method, path){ lines.push(`${method} ${path}`); }
+  function walk(stack, prefix="") {
+    for (const layer of stack) {
+      if (layer.route && layer.route.path) {
+        const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase());
+        for (const m of methods) push(m, prefix + layer.route.path);
+      } else if (layer.name === "router" && layer.handle?.stack) {
+        let mount = "";
+        if (layer.regexp?.source) {
+          mount = layer.regexp.source
+            .replace("^\\/?", "/")
+            .replace("\\/?(?=\\/|$)", "")
+            .replace(/\\\//g, "/")
+            .replace(/\(\?:\(\[\^\\\/]\+\?\)\)/g, ":param");
+        }
+        walk(layer.handle.stack, prefix + mount);
+      }
+    }
+  }
+  app._router?.stack && walk(app._router.stack, "");
+  console.log("=== ROUTES ===\n" + lines.sort().join("\n") + "\n==============");
+}
+listRoutes(app);
+
 
 // Graceful shutdown
 async function shutdown(code = 0) {

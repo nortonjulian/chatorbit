@@ -1,0 +1,57 @@
+config:
+  target: "http://localhost:5001"
+  processor: "./helpers.cjs"
+  phases:
+    - duration: 600
+      arrivalRate: 0.02       # 1 register every ~50s (<< 20/600s)
+    - duration: 180
+      arrivalRate: 5          # drive traffic on reads
+  ensure:
+    p95: 250
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+      Origin: "http://localhost:5173"
+      Referer: "http://localhost:5173/"
+
+scenarios:
+  - name: "Gentle signup, RL-aware traffic"
+    flow:
+      - function: "seedVars"
+
+      - post:
+          url: "/auth/register"
+          beforeRequest: "logJson"
+          afterResponse: ["debugOnError", "respectRetryAfter"]
+          json:
+            username: "{{ uname }}"
+            email: "{{ email }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 201
+            - statusCode: 409
+            - statusCode: 429     # allowed, we’ll back off
+
+      - post:
+          url: "/auth/login"
+          afterResponse: ["extractJwtAfterLogin", "respectRetryAfter"]
+          json:
+            username: "{{ uname }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 200
+            - statusCode: 429
+
+      - loop:
+          - get:
+              url: "/auth/me"
+              beforeRequest: "attachAuth"
+              afterResponse: ["debugOnError", "respectRetryAfter"]
+              expect:
+                - statusCode: 200
+                - statusCode: 401     # token dropped? fine
+                - statusCode: 429
+          - think: 1
+        count: 120

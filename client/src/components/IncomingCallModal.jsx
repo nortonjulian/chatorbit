@@ -1,8 +1,12 @@
 import { useCall } from '../context/CallContext';
 
 export default function IncomingCallModal() {
-  const { incoming, acceptCall, rejectCall } = useCall();
-  if (!incoming) return null;
+  const call = useCall();
+
+  // Defensive guard: if context missing or no incoming call
+  if (!call || !call.incoming) return null;
+
+  const { incoming, acceptCall, rejectCall } = call;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

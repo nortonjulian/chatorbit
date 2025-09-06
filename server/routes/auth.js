@@ -27,7 +27,7 @@ function getCookieCommon() {
     httpOnly: true,
     secure: String(process.env.COOKIE_SECURE) === 'true',
     sameSite: process.env.COOKIE_SAMESITE || 'Lax', // 'Lax' | 'Strict' | 'None'
-    domain: process.env.COOKIE_DOMAIN || undefined, // e.g. ".chatorbit.com"
+    domain: process.env.COOKIEDOMAIN || process.env.COOKIE_DOMAIN || undefined, // e.g. ".chatorbit.com"
     path: process.env.COOKIE_PATH || '/',
   };
 }
@@ -105,7 +105,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   const { username, email, password, preferredLanguage } = req.body;
 
   const validationError = validateRegistrationInput(username, email, password);
-  if (validationError) return res.status(400).json({ error: validationError });
+  if (validationError) return res.status(400).json({ error: { message: validationError } });
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -227,6 +227,18 @@ router.get('/me', requireAuth, async (req, res) => {
   });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   return res.json({ user: me });
+});
+
+// 🔐 Short-lived JWT for WS clients & load tests (requires existing cookie auth)
+router.get('/token', requireAuth, (req, res) => {
+  const payload = {
+    id: req.user.id,
+    username: req.user.username,
+    role: req.user.role,
+    plan: req.user.plan || 'FREE',
+  };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
+  res.json({ token });
 });
 
 // Forgot password (issues Redis-backed token and emails link)

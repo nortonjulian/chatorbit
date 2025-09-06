@@ -1,0 +1,71 @@
+config:
+  target: "http://localhost:5001"
+  processor: "./helpers.cjs"
+  phases:
+    - duration: 30
+      arrivalRate: 2     # warm up
+    - duration: 60
+      arrivalRate: 5     # hold steady
+  ensure:
+    p95: 250            # fail run if p95 exceeds 250ms
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+      Origin: "http://localhost:5173"
+      Referer: "http://localhost:5173/"
+
+scenarios:
+  - name: "Register + Login + Me (gentle)"
+    flow:
+      - function: "seedVars"
+
+      - post:
+          url: "/auth/register"
+          beforeRequest: "logJson"
+          afterResponse: "debugOnError"
+          json:
+            username: "{{ uname }}"
+            email: "{{ email }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 201
+            - statusCode: 409   # already exists
+
+      - post:
+          url: "/auth/login"
+          json:
+            username: "{{ uname }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "body.user.id"
+            - hasProperty: "body.user.username"
+          capture:
+            - json: "$.user.id"
+              as: "userId"
+            - json: "$.user.plan"
+              as: "userPlan"
+
+      - get:
+          url: "/auth/me"
+          expect:
+            - statusCode: 200
+            - hasProperty: "body.user.plan"
+
+      - get:
+          url: "/auth/token"
+          afterResponse: "debugOnError"
+          expect:
+            - statusCode: 200
+          capture:
+            - json: "$.token"
+              as: "wsToken"
+
+      - function: "ensureVars"   # sanity check required vars exist
+
+      - post:
+          url: "/auth/logout"
+          expect:
+            - statusCode: 200
