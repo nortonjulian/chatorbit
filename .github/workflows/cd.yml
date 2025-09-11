@@ -1,0 +1,79 @@
+name: CD
+on:
+  push:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      - name: Build (server)
+        run: npm run build --workspace server
+
+      - name: Build (client)
+        run: npm run build --workspace client
+
+      # --- DB MIGRATIONS (STAGING) ---
+      - name: Prisma Migrate (staging)
+        run: npx prisma migrate deploy
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+      # --- DEPLOY APP (STAGING) ---
+      - name: Deploy server (staging)
+        run: echo "Deploy server to staging here"
+
+      - name: Deploy client (staging)
+        run: echo "Deploy client to staging here"
+
+  promote-prod:
+    name: Promote to Production
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      # Set GitHub Environments -> Protection Rules to require manual approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      - name: Build (server)
+        run: npm run build --workspace server
+
+      - name: Build (client)
+        run: npm run build --workspace client
+
+      # --- DB MIGRATIONS (PROD) ---
+      - name: Prisma Migrate (prod)
+        run: npx prisma migrate deploy
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+
+      # --- DEPLOY APP (PROD) ---
+      - name: Deploy server (prod)
+        run: echo "Deploy server to prod here"
+
+      - name: Deploy client (prod)
+        run: echo "Deploy client to prod here"

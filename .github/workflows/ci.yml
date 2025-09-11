@@ -1,0 +1,36 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --workspaces
+
+      - name: Test (server)
+        run: npm run test --workspace server
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/testdb" # adjust or use sqlite for tests
+
+      - name: Test (client)
+        run: npm run test --workspace client
+
+      - name: Build (server)
+        run: npm run build --workspace server
+
+      - name: Build (client)
+        run: npm run build --workspace client
