@@ -1,0 +1,59 @@
+envVarGroups:
+  # Shared, non-secret values used by all services/environments
+  - name: chatorbit-shared
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_DOMAIN
+        value: .chatorbit.com
+
+  # Secret keys defined once and reused (left unsynced so you set them in Render)
+  - name: chatorbit-secrets
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+services:
+  # ---------- STAGING API ----------
+  - type: web
+    name: chatorbit-api-staging
+    env: node
+    region: oregon          # pick your closest region
+    plan: starter
+    rootDir: server         # build from /server
+    buildCommand: npm ci && npm run build --workspace server
+    startCommand: node server/dist/index.js
+    healthCheckPath: /status
+    autoDeploy: false       # GitHub Actions triggers deploys
+    envVars:
+      - fromGroup: chatorbit-shared
+      - fromGroup: chatorbit-secrets
+      - key: FRONTEND_ORIGIN
+        value: https://staging-www.chatorbit.com
+
+  # ---------- PRODUCTION API ----------
+  - type: web
+    name: chatorbit-api
+    env: node
+    region: oregon
+    plan: starter
+    rootDir: server
+    buildCommand: npm ci && npm run build --workspace server
+    startCommand: node server/dist/index.js
+    healthCheckPath: /status
+    autoDeploy: false
+    envVars:
+      - fromGroup: chatorbit-shared
+      - fromGroup: chatorbit-secrets
+      - key: FRONTEND_ORIGIN
+        value: https://www.chatorbit.com

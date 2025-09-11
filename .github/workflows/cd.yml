@@ -13,6 +13,7 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -21,25 +22,74 @@ jobs:
       - name: Install (workspaces)
         run: npm ci
 
-      - name: Build (server)
+      - name: Build server
         run: npm run build --workspace server
 
-      - name: Build (client)
+      - name: Build client
         run: npm run build --workspace client
 
-      # --- DB MIGRATIONS (STAGING) ---
-      - name: Prisma Migrate (staging)
+      # ---------- MIGRATIONS (STAGING) ----------
+      - name: Prisma migrate deploy (staging)
         run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 
-      # --- DEPLOY APP (STAGING) ---
-      - name: Deploy server (staging)
-        run: echo "Deploy server to staging here"
+      # ---------- RENDER DEPLOY (STAGING) ----------
+      - name: Render Deploy (staging)
+        id: render-deploy-staging
+        run: |
+          DEPLOY=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":false}')
+          echo "$DEPLOY"
+          ID=$(echo "$DEPLOY" | jq -r '.id')
+          echo "deploy_id=$ID" >> $GITHUB_OUTPUT
 
-      - name: Deploy client (staging)
-        run: echo "Deploy client to staging here"
+      - name: Wait for Render deploy (staging)
+        if: steps.render-deploy-staging.outputs.deploy_id != 'null'
+        run: |
+          DEPLOY_ID=${{ steps.render-deploy-staging.outputs.deploy_id }}
+          for i in {1..60}; do
+            STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_TOKEN }}" \
+              "https://api.render.com/v1/deploys/$DEPLOY_ID" | jq -r '.status')
+            echo "Deploy status: $STATUS"
+            if [ "$STATUS" = "live" ]; then exit 0; fi
+            if [ "$STATUS" = "failed" ]; then echo "Render deploy failed"; exit 1; fi
+            sleep 10
+          done
+          echo "Timed out waiting for Render deploy"; exit 1
+
+      # ---------- CURL SMOKE (STAGING) ----------
+      - name: Smoke check (curl)
+        run: |
+          set -e
+          URL="${{ secrets.STAGING_BASE_URL }}"
+          echo "GET $URL/status"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/status")
+          echo "HTTP $code"
+          test "$code" -eq 200
+
+      # ---------- K6 SMOKE (STAGING) ----------
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 smoke
+        run: k6 run k6/smoke.js
+        env:
+          BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+
+      # ---------- (OPTIONAL) VERCEL DEPLOY (STAGING) ----------
+      - name: Deploy client to Vercel (staging) [optional]
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npm i -g vercel@latest
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
+          vercel build --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
+          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --cwd=client \
+            --scope=${{ secrets.VERCEL_ORG_ID }} \
+            --project=${{ secrets.VERCEL_PROJECT_ID_STAGING }}
 
   promote-prod:
     name: Promote to Production
@@ -47,9 +97,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      # Set GitHub Environments -> Protection Rules to require manual approval
+      # require manual approval in GitHub Environments
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -58,22 +109,52 @@ jobs:
       - name: Install (workspaces)
         run: npm ci
 
-      - name: Build (server)
+      - name: Build server
         run: npm run build --workspace server
 
-      - name: Build (client)
+      - name: Build client
         run: npm run build --workspace client
 
-      # --- DB MIGRATIONS (PROD) ---
-      - name: Prisma Migrate (prod)
+      # ---------- MIGRATIONS (PROD) ----------
+      - name: Prisma migrate deploy (prod)
         run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
 
-      # --- DEPLOY APP (PROD) ---
-      - name: Deploy server (prod)
-        run: echo "Deploy server to prod here"
+      # ---------- RENDER DEPLOY (PROD) ----------
+      - name: Render Deploy (prod)
+        id: render-deploy-prod
+        run: |
+          DEPLOY=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":false}')
+          echo "$DEPLOY"
+          ID=$(echo "$DEPLOY" | jq -r '.id')
+          echo "deploy_id=$ID" >> $GITHUB_OUTPUT
 
-      - name: Deploy client (prod)
-        run: echo "Deploy client to prod here"
+      - name: Wait for Render deploy (prod)
+        if: steps.render-deploy-prod.outputs.deploy_id != 'null'
+        run: |
+          DEPLOY_ID=${{ steps.render-deploy-prod.outputs.deploy_id }}
+          for i in {1..60}; do
+            STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_TOKEN }}" \
+              "https://api.render.com/v1/deploys/$DEPLOY_ID" | jq -r '.status')
+            echo "Deploy status: $STATUS"
+            if [ "$STATUS" = "live" ]; then exit 0; fi
+            if [ "$STATUS" = "failed" ]; then echo "Render deploy failed"; exit 1; fi
+            sleep 10
+          done
+          echo "Timed out waiting for Render deploy"; exit 1
+
+      # ---------- (OPTIONAL) VERCEL DEPLOY (PROD) ----------
+      - name: Deploy client to Vercel (prod) [optional]
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npm i -g vercel@latest
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd=client \
+            --scope=${{ secrets.VERCEL_ORG_ID }} \
+            --project=${{ secrets.VERCEL_PROJECT_ID_PROD }}

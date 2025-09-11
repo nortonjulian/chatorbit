@@ -1,6 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-// import Boom from '@hapi/boom'; // no longer needed
 import { requireAuth } from '../middleware/auth.js';
 import prisma from '../utils/prismaClient.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -21,15 +20,7 @@ const upload = multer({ dest: 'uploads/' });
 
 /**
  * POST /status  (create)
- * Body fields:
- *  - caption?: string
- *  - audience?: 'MUTUALS'|'FRIENDS'|'CONTACTS'|'PUBLIC'|'CUSTOM'
- *  - customAudienceIds?: JSON string [userId,...]
- *  - expireSeconds?: number (default 24h)
- *  - attachmentsInline?: JSON string [{ kind, url, ... }]
- * Files: files[] (up to 5)
  */
-
 router.get('/__iam_status_router', (_req, res) => {
   res.json({ ok: true, router: 'status' });
 });
@@ -100,10 +91,23 @@ router.post(
     }
 
     // Notify author's devices (joined to room `user:{id}` via socket)
-    req.app.get('io')?.to(`user:${authorId}`).emit('status_posted', {
+    const io = req.app.get('io');
+    io?.to(`user:${authorId}`).emit('status_posted', {
       id: saved.id,
       authorId,
     });
+
+    // ALSO notify each audience recipient (if we have keys generated)
+    try {
+      const keys = await prisma.statusKey.findMany({
+        where: { statusId: saved.id },
+        select: { userId: true },
+      });
+      const audienceUserIds = keys.map(k => k.userId).filter(uid => uid !== authorId);
+      for (const uid of audienceUserIds) {
+        io?.to(`user:${uid}`).emit('status_posted', { id: saved.id, authorId });
+      }
+    } catch {}
 
     return res.status(201).json(saved);
   })
@@ -135,9 +139,7 @@ async function isMutual({ viewerId, authorId }) {
 }
 
 /**
- * GET /status/feed?limit=20&cursor=<id>
- * Returns { items, nextCursor } of active (non-expired) stories
- * Only items the viewer can decrypt (via StatusKey).
+ * GET /status/feed
  */
 router.get(
   '/feed',
@@ -203,8 +205,6 @@ router.get(
 
 /**
  * GET /status/:id
- * Returns the status + aggregated reactionSummary (emoji -> count)
- * Enforces audience/visibility rules.
  */
 router.get(
   '/:id',
@@ -293,8 +293,6 @@ router.get(
 
 /**
  * PATCH /status/:id/view
- * Marks as viewed (idempotent). Returns 204.
- * Enforces audience/visibility similarly to GET /status/:id (non-PUBLIC must have a key).
  */
 router.patch('/:id/view', requireAuth, asyncHandler(async (req, res) => {
   const statusId = Number(req.params.id);
@@ -348,10 +346,7 @@ router.patch('/:id/view', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 /**
- * POST /status/:id/reactions  (toggle/add)
- * Body: { emoji }
- * Validates ID and maps foreign-key errors to 404.
- * Enforces audience/visibility similarly to GET /status/:id (non-PUBLIC must have a key).
+ * POST /status/:id/reactions
  */
 router.post(
   '/:id/reactions',
@@ -424,7 +419,6 @@ router.post(
 
 /**
  * DELETE /status/:id
- * Only author (or global ADMIN) can delete.
  */
 router.delete(
   '/:id',
@@ -446,7 +440,22 @@ router.delete(
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    // Get recipients BEFORE delete so we can notify them
+    const keys = await prisma.statusKey.findMany({
+      where: { statusId: id },
+      select: { userId: true },
+    });
+    const audienceUserIds = keys.map(k => k.userId).filter(uid => uid !== s.authorId);
+
     await prisma.status.delete({ where: { id } });
+
+    const io = req.app.get('io');
+    io?.to(`user:${s.authorId}`).emit('status_deleted', { id });
+
+    for (const uid of audienceUserIds) {
+      io?.to(`user:${uid}`).emit('status_deleted', { id });
+    }
+
     return res.json({ ok: true });
   })
 );

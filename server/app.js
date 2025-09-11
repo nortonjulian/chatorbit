@@ -36,6 +36,9 @@ export function createApp() {
   const app = express();
   const isProd = process.env.NODE_ENV === 'production';
 
+  // behind proxy/CDN (needed for secure cookies)
+  app.set('trust proxy', 1);
+
   /* =========================
    *   Sentry (init + handlers first, prod only)
    * ========================= */
@@ -85,11 +88,19 @@ export function createApp() {
     })
   );
   app.use(compression());
+
+  // CORS: exact origin (or comma-separated list) + credentials
+  const allowedOrigins = String(process.env.FRONTEND_ORIGIN || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
       origin: (origin, cb) => {
+        // allow same-origin / non-browser tools (no Origin header)
         if (!origin) return cb(null, true);
-        if (origin.startsWith('http://localhost')) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, true);
         return cb(new Error('CORS blocked'));
       },
       credentials: true,
