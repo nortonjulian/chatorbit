@@ -5,6 +5,7 @@ import { BrowserTracing } from '@sentry/react';
 import { Replay } from '@sentry/replay';
 
 import { MantineProvider, createTheme } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { BrowserRouter } from 'react-router-dom';
 
 import '@mantine/core/styles.css';
@@ -63,6 +64,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <MantineProvider theme={theme} defaultColorScheme="light">
+        <Notifications position="top-right" />
         <UserProvider>
           <CallProvider>
             <BrowserRouter>

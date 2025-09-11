@@ -6,6 +6,7 @@ import {
   IconChevronRight,
   IconMoodSmile,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import axiosClient from '../api/axiosClient';
 
 export default function StatusViewer({ opened, onClose, author, stories }) {
@@ -32,6 +33,21 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
       .catch(() => {});
   };
 
+  // Optional: expose delete for authors; call this from a kebab menu/button in your UI
+  const handleDelete = async (id) => {
+    try {
+      await axiosClient.delete(`/status/${id}`);
+      notifications.show({ color: 'green', title: 'Deleted', message: 'Status removed.' });
+      onClose?.();
+    } catch (err) {
+      notifications.show({
+        color: 'red',
+        title: 'Delete failed',
+        message: err?.response?.data?.message ?? 'Try again.',
+      });
+    }
+  };
+
   return (
     <Modal
       opened={opened}
@@ -48,7 +64,7 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
             {idx + 1}/{stories?.length || 0}
           </Text>
         </Group>
-        <ActionIcon onClick={onClose}>
+        <ActionIcon onClick={onClose} aria-label="Close">
           <IconX size={18} />
         </ActionIcon>
       </Group>
@@ -109,6 +125,7 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
           variant="light"
           onClick={() => setIdx((i) => Math.max(0, i - 1))}
           disabled={idx === 0}
+          aria-label="Previous"
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
@@ -120,6 +137,7 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
               variant="light"
               onClick={() => react(e)}
               title={`React ${e}`}
+              aria-label={`React ${e}`}
             >
               <IconMoodSmile size={16} />
               <span style={{ marginLeft: 4 }}>{e}</span>
@@ -132,6 +150,7 @@ export default function StatusViewer({ opened, onClose, author, stories }) {
             setIdx((i) => Math.min((stories?.length || 1) - 1, i + 1))
           }
           disabled={idx >= (stories?.length || 1) - 1}
+          aria-label="Next"
         >
           <IconChevronRight size={18} />
         </ActionIcon>

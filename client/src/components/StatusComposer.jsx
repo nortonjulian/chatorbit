@@ -8,6 +8,7 @@ import {
   Select,
   Text,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import axiosClient from '../api/axiosClient';
 
 const AUDIENCE = [
@@ -33,15 +34,29 @@ export default function StatusComposer({ opened, onClose }) {
       form.append('expireSeconds', String(Number(ttl) || 86400));
       if (audience === 'CUSTOM') form.append('customAudienceIds', custom);
       files.forEach((f) => form.append('files', f));
+
       await axiosClient.post('/status', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      notifications.show({
+        color: 'green',
+        title: 'Posted',
+        message: 'Your status is live.',
+      });
+
       setCaption('');
       setFiles([]);
       setCustom('[]');
       setAudience('MUTUALS');
       setTtl('86400');
       onClose?.();
+    } catch (err) {
+      notifications.show({
+        color: 'red',
+        title: 'Post failed',
+        message: err?.response?.data?.message ?? 'Try again.',
+      });
     } finally {
       setLoading(false);
     }

@@ -27,7 +27,7 @@
     "@mantine/core": "^8.2.7",
     "@mantine/dates": "^8.2.7",
     "@mantine/hooks": "^8.2.7",
-    "@mantine/notifications": "^8.2.7",
+    "@mantine/notifications": "^8.2.8",
     "@prisma/client": "^6.13.0",
     "@sentry/react": "^10.11.0",
     "@socket.io/redis-adapter": "^8.3.0",

@@ -6,7 +6,6 @@ import {
   Text,
   Tooltip,
   Loader,
-  Badge,
 } from '@mantine/core';
 import axiosClient from '../api/axiosClient';
 import socket from '../lib/socket';
@@ -20,8 +19,10 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
     setLoading(true);
     try {
       const { data } = await axiosClient.get('/status/feed');
+      const list = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+
       // Decrypt captions by tricking decryptFetchedMessages with a minimal shape.
-      const fakeMsgs = data.map((s) => ({
+      const fakeMsgs = list.map((s) => ({
         id: s.id,
         contentCiphertext: s.captionCiphertext,
         encryptedKeyForMe: s.encryptedKeyForMe,
@@ -30,7 +31,7 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
       const decrypted = await decryptFetchedMessages(fakeMsgs, currentUserId);
       const map = new Map(decrypted.map((m) => [m.id, m.decryptedContent]));
       setItems(
-        data.map((s) => ({
+        list.map((s) => ({
           ...s,
           caption: map.get(s.id) || '',
         }))
@@ -49,11 +50,14 @@ export default function StatusBar({ currentUserId, onOpenViewer }) {
   useEffect(() => {
     const onPosted = () => load();
     const onExpired = () => load();
+    const onDeleted = () => load();
     socket.on('status_posted', onPosted);
     socket.on('status_expired', onExpired);
+    socket.on('status_deleted', onDeleted);
     return () => {
       socket.off('status_posted', onPosted);
       socket.off('status_expired', onExpired);
+      socket.off('status_deleted', onDeleted);
     };
   }, []);
 

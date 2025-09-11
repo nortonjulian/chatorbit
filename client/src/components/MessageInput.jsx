@@ -9,6 +9,7 @@ import {
   Button,
   Badge,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { IconSend, IconPaperclip } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
 import StickerPicker from './StickerPicker.jsx';
@@ -82,11 +83,23 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
       });
 
       onMessageSent?.(saved);
+
+      notifications.show({
+        color: 'green',
+        title: 'Sent',
+        message: 'Message delivered.',
+      });
+
       // reset
       setContent('');
       setUploaded([]);
       setInlinePicks([]);
     } catch (err) {
+      notifications.show({
+        color: 'red',
+        title: 'Send failed',
+        message: 'Check connection and try again.',
+      });
       console.error('Error sending message', err);
     } finally {
       setSending(false);
