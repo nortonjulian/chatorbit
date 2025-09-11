@@ -1,31 +1,46 @@
 import express from 'express';
 import multer from 'multer';
-import Boom from '@hapi/boom';
+// import Boom from '@hapi/boom'; // no longer needed
 import { requireAuth } from '../middleware/auth.js';
-import { prisma } from '../utils/prismaClient.js';
+import prisma from '../utils/prismaClient.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createStatusService } from '../services/statusService.js';
 
 const router = express.Router();
+
+if (process.env.NODE_ENV !== 'production') {
+  const _get = router.get.bind(router);
+  const _post = router.post.bind(router);
+  const _patch = router.patch.bind(router);
+  router.get = (p, ...h) => { console.log('[status] GET', p); return _get(p, ...h); };
+  router.post = (p, ...h) => { console.log('[status] POST', p); return _post(p, ...h); };
+  router.patch = (p, ...h) => { console.log('[status] PATCH', p); return _patch(p, ...h); };
+}
+
 const upload = multer({ dest: 'uploads/' });
 
 /**
  * POST /status  (create)
  * Body fields:
  *  - caption?: string
- *  - audience?: 'MUTUALS'|'FOLLOWERS'|'PUBLIC'|'CUSTOM'
+ *  - audience?: 'MUTUALS'|'FRIENDS'|'CONTACTS'|'PUBLIC'|'CUSTOM'
  *  - customAudienceIds?: JSON string [userId,...]
  *  - expireSeconds?: number (default 24h)
  *  - attachmentsInline?: JSON string [{ kind, url, ... }]
  * Files: files[] (up to 5)
  */
+
+router.get('/__iam_status_router', (_req, res) => {
+  res.json({ ok: true, router: 'status' });
+});
+
 router.post(
   '/',
   requireAuth,
   upload.array('files', 5),
   asyncHandler(async (req, res) => {
     const authorId = req.user.id;
-    const {
+    let {
       caption,
       audience = 'MUTUALS',
       customAudienceIds,
@@ -33,24 +48,25 @@ router.post(
       attachmentsInline,
     } = req.body || {};
 
-    // Uploads → assets (demo local storage; swap to R2 if desired)
+    // Normalize some aliases from UI/curl
+    const A = String(audience || '').toUpperCase();
+    if (A === 'FRIENDS') audience = 'MUTUALS';
+    else if (['MUTUALS', 'CONTACTS', 'CUSTOM', 'PUBLIC'].includes(A)) audience = A;
+    else audience = 'MUTUALS';
+
+    // Uploads → assets (demo local storage; swap to R2/S3 if desired)
     const uploaded = (req.files || []).map((f) => {
       const mt = f.mimetype || '';
-      const kind = mt.startsWith('image/')
-        ? 'IMAGE'
-        : mt.startsWith('video/')
-          ? 'VIDEO'
-          : mt.startsWith('audio/')
-            ? 'AUDIO'
-            : 'FILE';
+      const kind =
+        mt.startsWith('image/') ? 'IMAGE' :
+        mt.startsWith('video/') ? 'VIDEO' :
+        mt.startsWith('audio/') ? 'AUDIO' : 'FILE';
       return { kind, url: `/uploads/${f.filename}`, mimeType: mt };
     });
 
     // Inline assets (stickers/GIF/remote)
     let inline = [];
-    try {
-      inline = JSON.parse(attachmentsInline || '[]') || [];
-    } catch {}
+    try { inline = JSON.parse(attachmentsInline || '[]') || []; } catch {}
     inline = inline.map((a) => ({
       kind: a.kind,
       url: a.url,
@@ -63,18 +79,25 @@ router.post(
 
     // Custom audience ids
     let customIds = [];
-    try {
-      customIds = JSON.parse(customAudienceIds || '[]') || [];
-    } catch {}
+    try { customIds = JSON.parse(customAudienceIds || '[]') || []; } catch {}
 
-    const saved = await createStatusService({
-      authorId,
-      caption,
-      files: [...uploaded, ...inline],
-      audience,
-      customAudienceIds: customIds,
-      expireSeconds: Number(expireSeconds) || 24 * 3600,
-    });
+    let saved;
+    try {
+      saved = await createStatusService({
+        authorId,
+        caption,
+        files: [...uploaded, ...inline],
+        audience,
+        customAudienceIds: customIds,
+        expireSeconds: Number(expireSeconds) || 24 * 3600,
+      });
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (/No audience/i.test(msg)) {
+        return res.status(400).json({ error: 'No audience (try CUSTOM or PUBLIC while testing)' });
+      }
+      return res.status(400).json({ error: msg || 'Bad request' });
+    }
 
     // Notify author's devices (joined to room `user:{id}` via socket)
     req.app.get('io')?.to(`user:${authorId}`).emit('status_posted', {
@@ -112,107 +135,8 @@ async function isMutual({ viewerId, authorId }) {
 }
 
 /**
- * GET /status/:id
- * Returns the status + aggregated reactionSummary (emoji -> count)
- * Now enforces audience/visibility rules.
- */
-router.get(
-  '/:id',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const statusId = Number(req.params.id);
-    if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
-
-    // Pull only fields we need to decide visibility (+ author & assets for response)
-    const status = await prisma.status.findUnique({
-      where: { id: statusId },
-      select: {
-        id: true,
-        authorId: true,
-        audience: true,            // 'MUTUALS'|'FOLLOWERS'|'PUBLIC'|'CUSTOM'
-        customAudienceIds: true,   // int[] (for CUSTOM)
-        createdAt: true,
-        expiresAt: true,
-        captionCiphertext: true,
-        assets: true,
-        author: { select: { id: true, username: true, avatarUrl: true } },
-        // If you store per-viewer keys, you may also want:
-        keys: { select: { userId: true, encryptedKey: true } },
-      },
-    });
-    if (!status) throw Boom.notFound('Not found');
-
-    // Expired?
-    if (status.expiresAt && status.expiresAt <= new Date()) {
-      throw Boom.notFound('Not found');
-    }
-
-    const me = req.user;
-    const isOwner = status.authorId === me.id;
-    const isAdmin = me.role === 'ADMIN';
-
-    let allowed = false;
-
-    if (isOwner || isAdmin) {
-      allowed = true;
-    } else if (status.audience === 'PUBLIC') {
-      allowed = true;
-    } else if (status.audience === 'FOLLOWERS') {
-      allowed = await isFollower({ viewerId: me.id, authorId: status.authorId });
-    } else if (status.audience === 'MUTUALS') {
-      allowed = await isMutual({ viewerId: me.id, authorId: status.authorId });
-    } else if (status.audience === 'CUSTOM') {
-      const list = Array.isArray(status.customAudienceIds)
-        ? status.customAudienceIds
-        : [];
-      allowed = list.includes(me.id);
-    }
-
-    // (Optional) Defense-in-depth: ensure viewer has a key if not owner/admin.
-    // If you enforce encryption on the client, this gate keeps /status/:id consistent with /status/feed.
-    if (allowed && !isOwner && !isAdmin) {
-      const hasKey =
-        Array.isArray(status.keys) &&
-        status.keys.some((k) => k.userId === me.id);
-      // If you require keys for any non-public audience, enforce here:
-      // allowed = hasKey;
-      // If PUBLIC should NOT require keys, only enforce for non-public:
-      if (status.audience !== 'PUBLIC') {
-        allowed = hasKey;
-      }
-    }
-
-    if (!allowed) throw Boom.forbidden('Forbidden');
-
-    // Aggregate reactions for this status
-    const reactionGroups = await prisma.statusReaction.groupBy({
-      by: ['emoji'],
-      where: { statusId },
-      _count: { emoji: true },
-    });
-    const reactionSummary = Object.fromEntries(
-      reactionGroups.map((r) => [r.emoji, r._count.emoji])
-    );
-
-    // Shape response
-    return res.json({
-      id: status.id,
-      author: status.author,
-      assets: status.assets,
-      captionCiphertext: status.captionCiphertext,
-      // Include encrypted key for the viewer (if you want)
-      encryptedKeyForMe:
-        status.keys?.find((k) => k.userId === me.id)?.encryptedKey ?? null,
-      expiresAt: status.expiresAt,
-      createdAt: status.createdAt,
-      reactionSummary,
-    });
-  })
-);
-
-/**
  * GET /status/feed?limit=20&cursor=<id>
- * Returns { items, nextCursor } for active (non-expired) stories
+ * Returns { items, nextCursor } of active (non-expired) stories
  * Only items the viewer can decrypt (via StatusKey).
  */
 router.get(
@@ -223,7 +147,6 @@ router.get(
     const limit = Math.min(Math.max(1, Number(req.query.limit ?? 20)), 50);
     const cursor = req.query.cursor ? Number(req.query.cursor) : null;
 
-    // Fetch a page of visible statuses for this viewer
     const items = await prisma.status.findMany({
       where: {
         expiresAt: { gt: new Date() },
@@ -247,7 +170,6 @@ router.get(
 
     const ids = items.map((s) => s.id);
 
-    // Aggregate reactions in SQL, then fold into a map
     let reactionSummaryByStatus = {};
     if (ids.length) {
       const grouped = await prisma.statusReaction.groupBy({
@@ -273,50 +195,163 @@ router.get(
       reactionSummary: reactionSummaryByStatus[s.id] || {},
     }));
 
-    const nextCursor =
-      shaped.length === limit ? shaped[shaped.length - 1].id : null;
+    const nextCursor = shaped.length === limit ? shaped[shaped.length - 1].id : null;
 
     return res.json({ items: shaped, nextCursor });
   })
 );
 
 /**
- * PATCH /status/:id/view
- * Marks a status as viewed by current user (idempotent)
+ * GET /status/:id
+ * Returns the status + aggregated reactionSummary (emoji -> count)
+ * Enforces audience/visibility rules.
  */
-router.patch(
-  '/:id/view',
+router.get(
+  '/:id',
   requireAuth,
   asyncHandler(async (req, res) => {
     const statusId = Number(req.params.id);
-    if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
-
-    const viewerId = req.user.id;
-
-    await prisma.statusView.upsert({
-      where: { statusId_viewerId: { statusId, viewerId } },
-      update: {},
-      create: { statusId, viewerId },
-    });
-
-    const author = await prisma.status.findUnique({
-      where: { id: statusId },
-      select: { authorId: true },
-    });
-    if (author) {
-      req.app.get('io')?.to(`user:${author.authorId}`).emit('status_viewed', {
-        statusId,
-        viewerId,
-      });
+    if (!Number.isFinite(statusId)) {
+      return res.status(400).json({ error: 'Invalid id' });
     }
 
-    return res.json({ ok: true });
+    const status = await prisma.status.findUnique({
+      where: { id: statusId },
+      select: {
+        id: true,
+        authorId: true,
+        audience: true, // 'MUTUALS'|'FRIENDS'|'CONTACTS'|'PUBLIC'|'CUSTOM'|'FOLLOWERS'
+        createdAt: true,
+        expiresAt: true,
+        captionCiphertext: true,
+        assets: true,
+        author: { select: { id: true, username: true, avatarUrl: true } },
+        keys: { select: { userId: true, encryptedKey: true } },
+      },
+    });
+    if (!status) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Expired?
+    if (status.expiresAt && status.expiresAt <= new Date()) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const me = req.user;
+    const isOwner = status.authorId === me.id;
+    const isAdmin = me.role === 'ADMIN';
+    const hasKey = Array.isArray(status.keys) && status.keys.some(k => k.userId === me.id);
+
+    let allowed = false;
+
+    if (isOwner || isAdmin) {
+      allowed = true;
+    } else if (status.audience === 'PUBLIC') {
+      allowed = true;
+    } else if (status.audience === 'FOLLOWERS') {
+      allowed = await isFollower({ viewerId: me.id, authorId: status.authorId });
+    } else if (status.audience === 'MUTUALS' || status.audience === 'FRIENDS') {
+      allowed = await isMutual({ viewerId: me.id, authorId: status.authorId });
+    } else if (status.audience === 'CUSTOM') {
+      // For CUSTOM, enforce via presence of a StatusKey for the viewer
+      allowed = hasKey;
+    }
+
+    // Optional defense-in-depth: for non-public, ensure viewer has a key
+    if (allowed && !isOwner && !isAdmin && status.audience !== 'PUBLIC') {
+      if (!hasKey) allowed = false;
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Aggregate reactions
+    const reactionGroups = await prisma.statusReaction.groupBy({
+      by: ['emoji'],
+      where: { statusId },
+      _count: { emoji: true },
+    });
+    const reactionSummary = Object.fromEntries(
+      reactionGroups.map((r) => [r.emoji, r._count.emoji])
+    );
+
+    return res.json({
+      id: status.id,
+      author: status.author,
+      assets: status.assets,
+      captionCiphertext: status.captionCiphertext,
+      encryptedKeyForMe:
+        status.keys?.find((k) => k.userId === me.id)?.encryptedKey ?? null,
+      expiresAt: status.expiresAt,
+      createdAt: status.createdAt,
+      reactionSummary,
+    });
   })
 );
 
 /**
- * POST /status/:id/reactions  (toggle)
+ * PATCH /status/:id/view
+ * Marks as viewed (idempotent). Returns 204.
+ * Enforces audience/visibility similarly to GET /status/:id (non-PUBLIC must have a key).
+ */
+router.patch('/:id/view', requireAuth, asyncHandler(async (req, res) => {
+  const statusId = Number(req.params.id);
+  if (!Number.isInteger(statusId) || statusId <= 0) {
+    return res.status(400).json({ error: 'Invalid status id' });
+  }
+
+  const status = await prisma.status.findUnique({
+    where: { id: statusId },
+    select: {
+      id: true,
+      authorId: true,
+      audience: true,
+      expiresAt: true,
+      keys: { select: { userId: true } },
+    },
+  });
+  if (!status) return res.status(404).json({ error: 'Status not found' });
+  if (status.expiresAt && status.expiresAt <= new Date()) {
+    return res.status(404).json({ error: 'Status not found' });
+  }
+
+  const me = req.user;
+  const isOwner = status.authorId === me.id;
+  const isAdmin = me.role === 'ADMIN';
+  const hasKey = Array.isArray(status.keys) && status.keys.some(k => k.userId === me.id);
+
+  let allowed = false;
+  if (isOwner || isAdmin) {
+    allowed = true;
+  } else if (status.audience === 'PUBLIC') {
+    allowed = true;
+  } else {
+    // For non-public, require key (feed parity)
+    allowed = hasKey;
+  }
+  if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+
+  await prisma.statusView.upsert({
+    where: { statusId_viewerId: { statusId, viewerId: me.id } },
+    update: {},
+    create: { statusId, viewerId: me.id },
+  });
+
+  req.app.get('io')?.to(`user:${status.authorId}`).emit('status_viewed', {
+    statusId,
+    viewerId: me.id,
+  });
+
+  return res.status(204).end();
+}));
+
+/**
+ * POST /status/:id/reactions  (toggle/add)
  * Body: { emoji }
+ * Validates ID and maps foreign-key errors to 404.
+ * Enforces audience/visibility similarly to GET /status/:id (non-PUBLIC must have a key).
  */
 router.post(
   '/:id/reactions',
@@ -324,32 +359,66 @@ router.post(
   asyncHandler(async (req, res) => {
     const statusId = Number(req.params.id);
     const userId = req.user.id;
-    const { emoji } = req.body || {};
-    if (!Number.isFinite(statusId)) throw Boom.badRequest('Invalid id');
-    if (!emoji || typeof emoji !== 'string')
-      throw Boom.badRequest('emoji required');
+    const emoji = String(req.body?.emoji || '').slice(0, 16);
 
-    const existing = await prisma.statusReaction.findUnique({
-      where: { statusId_userId_emoji: { statusId, userId, emoji } },
+    if (!Number.isInteger(statusId) || statusId <= 0) {
+      return res.status(400).json({ error: 'Invalid status id' });
+    }
+    if (!emoji) return res.status(400).json({ error: 'Missing emoji' });
+
+    const status = await prisma.status.findUnique({
+      where: { id: statusId },
+      select: {
+        id: true,
+        authorId: true,
+        audience: true,
+        expiresAt: true,
+        keys: { select: { userId: true } },
+      },
     });
+    if (!status) return res.status(404).json({ error: 'Status not found' });
+    if (status.expiresAt && status.expiresAt <= new Date()) {
+      return res.status(404).json({ error: 'Status not found' });
+    }
 
-    if (existing) {
-      await prisma.statusReaction.delete({
+    const me = req.user;
+    const isOwner = status.authorId === me.id;
+    const isAdmin = me.role === 'ADMIN';
+    const hasKey = Array.isArray(status.keys) && status.keys.some(k => k.userId === me.id);
+
+    let allowed = false;
+    if (isOwner || isAdmin) {
+      allowed = true;
+    } else if (status.audience === 'PUBLIC') {
+      allowed = true;
+    } else {
+      // For non-public, require key (feed parity)
+      allowed = hasKey;
+    }
+    if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+
+    try {
+      const existing = await prisma.statusReaction.findUnique({
         where: { statusId_userId_emoji: { statusId, userId, emoji } },
       });
 
-      // Recompute count for this emoji (optional but nice)
-      const count = await prisma.statusReaction.count({
-        where: { statusId, emoji },
-      });
-      return res.json({ ok: true, op: 'removed', emoji, count });
-    }
+      if (existing) {
+        await prisma.statusReaction.delete({
+          where: { statusId_userId_emoji: { statusId, userId, emoji } },
+        });
+        const count = await prisma.statusReaction.count({ where: { statusId, emoji } });
+        return res.json({ ok: true, op: 'removed', emoji, count });
+      }
 
-    await prisma.statusReaction.create({ data: { statusId, userId, emoji } });
-    const count = await prisma.statusReaction.count({
-      where: { statusId, emoji },
-    });
-    return res.json({ ok: true, op: 'added', emoji, count });
+      await prisma.statusReaction.create({ data: { statusId, userId, emoji } });
+      const count = await prisma.statusReaction.count({ where: { statusId, emoji } });
+      return res.json({ ok: true, op: 'added', emoji, count });
+    } catch (e) {
+      if (e?.code === 'P2003') {
+        return res.status(404).json({ error: 'Status not found' });
+      }
+      throw e;
+    }
   })
 );
 
@@ -362,15 +431,19 @@ router.delete(
   requireAuth,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) throw Boom.badRequest('Invalid id');
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
 
     const s = await prisma.status.findUnique({
       where: { id },
       select: { authorId: true },
     });
-    if (!s) throw Boom.notFound('Not found');
+    if (!s) {
+      return res.status(404).json({ error: 'Not found' });
+    }
     if (req.user.role !== 'ADMIN' && s.authorId !== req.user.id) {
-      throw Boom.forbidden('Forbidden');
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     await prisma.status.delete({ where: { id } });

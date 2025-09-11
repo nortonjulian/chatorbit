@@ -1,6 +1,5 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
@@ -13,6 +12,10 @@ import path from 'path';
 import fs from 'fs';
 
 const router = express.Router();
+
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
 const prisma = new PrismaClient();
 
 /* ---------------------- PUBLIC: create user ---------------------- */

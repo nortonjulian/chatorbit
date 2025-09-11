@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 /** CORS origins */
 function parseOrigins() {
   // Prefer explicit dev origins to avoid '*' + credentials issues
-  const fallback = ['http://localhost:5173', 'http://localhost:5001'];
+  const fallback = ['http://localhost:5173', 'http://localhost:5002'];
   const raw = process.env.CORS_ORIGINS || process.env.WEB_ORIGIN || '';
   const list = raw
     .split(',')

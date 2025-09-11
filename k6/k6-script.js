@@ -4,20 +4,20 @@ import { Trend, Rate } from "k6/metrics";
 
 /**
  * ========= Env Vars =========
- * BASE_URL         e.g. http://localhost:5001   (required)
+ * BASE_URL         e.g. http://localhost:5002   (required)
  * AUTH_MODE        COOKIE | BEARER | RAW_COOKIE (default COOKIE)
  * RAW_COOKIE       "name=value" if AUTH_MODE=RAW_COOKIE
  * USERNAME         email/username (required unless RAW_COOKIE)
  * PASSWORD         password       (required unless RAW_COOKIE)
  * LOGIN_PATH       default: /auth/login
- * FEED_PATH        default: /status?limit=20
+ * FEED_PATH        default: /status/feed?limit=20
  * VIEW_PATH_TMPL   default: /status/{id}/view
  * REACT_PATH_TMPL  default: /status/{id}/reactions
- * CHAT_ROOM_IDS    "1,2,3" (optional)
- * STATUS_IDS       "101,102" (optional)
+ * CHAT_ROOM_IDS    "1,2,3" (optional; disable message writes unless provided)
+ * STATUS_IDS       "101,102" (optional; otherwise taken from feed)
  * RAMP_TO          default 50
  * DURATION         default "5m"
- * WRITE_RATIO      default 0.2
+ * WRITE_RATIO      default 0.0 (disabled by default)
  * ORIGIN           default "http://localhost:5173"
  * DEBUG            "1" to print login debug
  * LOG_FIRST        how many first responses to log per endpoint (default 0)
@@ -35,19 +35,19 @@ if (AUTH_MODE !== "RAW_COOKIE" && (!USERNAME || !PASSWORD)) {
 }
 
 const LOGIN_PATH = __ENV.LOGIN_PATH || "/auth/login";
-const FEED_PATH = __ENV.FEED_PATH || "/status?limit=20";
+const FEED_PATH = __ENV.FEED_PATH || "/status/feed?limit=20";
 const MESSAGE_PATH = __ENV.MESSAGE_PATH || "/messages";
 const VIEW_PATH_TMPL = __ENV.VIEW_PATH_TMPL || "/status/{id}/view";
 const REACT_PATH_TMPL = __ENV.REACT_PATH_TMPL || "/status/{id}/reactions";
 const RAMP_TO = Number(__ENV.RAMP_TO || 50);
 const DURATION = __ENV.DURATION || "5m";
-const WRITE_RATIO = Math.min(Math.max(Number(__ENV.WRITE_RATIO || 0.2), 0), 1);
+const WRITE_RATIO = Math.min(Math.max(Number(__ENV.WRITE_RATIO || 0.0), 0), 1); // default OFF to avoid 4xx
 const ORIGIN = __ENV.ORIGIN || "http://localhost:5173";
 const DEBUG = (__ENV.DEBUG || "0") === "1";
 const LOG_FIRST = Number(__ENV.LOG_FIRST || 0);
 
-const CHAT_ROOM_IDS = (__ENV.CHAT_ROOM_IDS || "1").split(",").map(s => s.trim()).filter(Boolean);
-const STATUS_IDS = (__ENV.STATUS_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
+const CHAT_ROOM_IDS = (__ENV.CHAT_ROOM_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
+const PRESET_STATUS_IDS = (__ENV.STATUS_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
 
 // Metrics
 const feedDuration = new Trend("feed_duration");
@@ -85,7 +85,7 @@ export const options = {
   summaryTrendStats: ["avg", "p(90)", "p(95)", "p(99)", "max"],
 };
 
-// ---------- helpers (no global 'auth' usage) ----------
+// ---------- helpers ----------
 function splitCookieKV(s) {
   const i = s.indexOf("=");
   if (i === -1) return [s, ""];
@@ -102,40 +102,31 @@ function think(minMs = 200, maxMs = 800) {
 function setAuth(state, extra = {}) {
   const headers = {
     "X-Requested-With": "XMLHttpRequest",
-    Origin: __ENV.ORIGIN || "http://localhost:5173",
+    Origin: ORIGIN,
     ...extra,
   };
-
   if (state.mode === "COOKIE" || state.mode === "RAW_COOKIE") {
     const jar = http.cookieJar();
-    // Set in the jar…
     jar.set(state.baseUrl, state.cookieName, state.cookieVal, { path: "/" });
-    // …and ALSO force-send via header in case the jar gets ignored by the server
     const cookiePair = `${state.cookieName}=${state.cookieVal}`;
     headers.Cookie = headers.Cookie ? `${headers.Cookie}; ${cookiePair}` : cookiePair;
     return { headers };
   }
-
   if (state.mode === "BEARER") {
     headers.Authorization = `Bearer ${state.token}`;
     return { headers };
   }
-
   return { headers };
 }
 
-
-// -----------------------------------------------------
-
 export function setup() {
-  // everything we need for auth is returned as 'state'
   if (AUTH_MODE === "RAW_COOKIE") {
     if (!RAW_COOKIE) throw new Error("RAW_COOKIE is empty but AUTH_MODE=RAW_COOKIE");
     const [cookieName, cookieVal] = splitCookieKV(RAW_COOKIE);
-    return { mode: "RAW_COOKIE", baseUrl: BASE_URL, cookieName, cookieVal, token: null };
+    return { mode: "RAW_COOKIE", baseUrl: BASE_URL, cookieName, cookieVal, token: null, statusIds: PRESET_STATUS_IDS };
   }
 
-  // Try email/password OR username/password automatically
+  // Try email/password OR username/password
   const loginUrl = `${BASE_URL}${LOGIN_PATH}`;
   const attempts = [
     { email: USERNAME, password: PASSWORD },
@@ -162,20 +153,30 @@ export function setup() {
 
   if (AUTH_MODE === "BEARER") {
     let token = null;
-    try {
-      const json = res.json();
-      token = json?.token || json?.jwt || json?.accessToken || null;
-    } catch (_) { /* ignore */ }
+    try { token = res.json()?.token || res.json()?.jwt || res.json()?.accessToken || null; } catch {}
     if (!token) throw new Error("BEARER mode: no token in login JSON (expected token/jwt/accessToken).");
-    return { mode: "BEARER", baseUrl: BASE_URL, cookieName: null, cookieVal: null, token };
+    return { mode: "BEARER", baseUrl: BASE_URL, cookieName: null, cookieVal: null, token, statusIds: PRESET_STATUS_IDS };
   }
 
-  // COOKIE mode: require Set-Cookie
+  // COOKIE mode
   const setCookie = res.headers["Set-Cookie"];
   if (!setCookie) throw new Error("COOKIE mode: login did not return Set-Cookie.");
   const cookieKV = String(setCookie).split(";")[0];
   const [cookieName, cookieVal] = splitCookieKV(cookieKV);
-  return { mode: "COOKIE", baseUrl: BASE_URL, cookieName, cookieVal, token: null };
+
+  // Pull a fresh feed to get real status IDs (if any)
+  const feedRes = http.get(`${BASE_URL}${FEED_PATH}`, {
+    headers: { Origin: ORIGIN, Cookie: `${cookieName}=${cookieVal}` },
+    tags: { endpoint: "feed_setup" },
+  });
+  let ids = [];
+  try {
+    const arr = feedRes.json();
+    if (Array.isArray(arr)) ids = arr.map(x => x?.id).filter(Boolean);
+  } catch {}
+  const statusIds = PRESET_STATUS_IDS.length ? PRESET_STATUS_IDS : ids;
+
+  return { mode: "COOKIE", baseUrl: BASE_URL, cookieName, cookieVal, token: null, statusIds };
 }
 
 let _logFeed = 0, _logView = 0, _logReact = 0, _logMsg = 0;
@@ -194,9 +195,10 @@ export default function (state) {
 
   think();
 
-  // VIEW/REACT (only if STATUS_IDS provided)
-  if (STATUS_IDS.length > 0) {
-    const id = randomChoice(STATUS_IDS);
+  // VIEW/REACT only if we have IDs
+  const ids = state.statusIds || [];
+  if (ids.length > 0) {
+    const id = randomChoice(ids);
     const viewRes = http.patch(`${BASE_URL}${VIEW_PATH_TMPL.replace("{id}", id)}`, null, setAuth(state));
     if (_logView++ < LOG_FIRST) {
       console.log("VIEW status:", viewRes.status);
@@ -228,10 +230,10 @@ export default function (state) {
     think();
   }
 
-  // MESSAGE write (probabilistic)
-  if (Math.random() < WRITE_RATIO) {
+  // MESSAGE write (disabled unless you set CHAT_ROOM_IDS and WRITE_RATIO>0)
+  if (CHAT_ROOM_IDS.length > 0 && Math.random() < WRITE_RATIO) {
     const roomId = randomChoice(CHAT_ROOM_IDS);
-    const payload = { chatRoomId: /^\d+$/.test(roomId) ? Number(roomId) : roomId, text: `k6 hello ${Math.random().toString(36).slice(2, 8)}` };
+    const payload = { chatRoomId: /^\d+$/.test(roomId) ? Number(roomId) : roomId, content: `k6 hello ${Math.random().toString(36).slice(2, 8)}` };
     const msgRes = http.post(`${BASE_URL}${MESSAGE_PATH}`, JSON.stringify(payload), setAuth(state, { "Content-Type": "application/json" }));
     if (_logMsg++ < LOG_FIRST) {
       console.log("MSG status:", msgRes.status);

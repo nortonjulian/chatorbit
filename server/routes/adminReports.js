@@ -1,8 +1,12 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
 
 const prisma = new PrismaClient();
+
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
+
 const router = express.Router();
 
 // GET /admin/reports?status=OPEN&take=50&skip=0

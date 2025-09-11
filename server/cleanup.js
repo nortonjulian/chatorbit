@@ -1,6 +1,7 @@
-// server/cleanup.js
 import cron from 'node-cron';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
 const prisma = new PrismaClient();
 
 // Every hour at minute 5

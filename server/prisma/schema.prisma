@@ -41,6 +41,7 @@ enum AttachmentKind {
 }
 
 enum StatusAudience {
+  EVERYONE
   CONTACTS
   MUTUALS
   CUSTOM

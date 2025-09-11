@@ -6,7 +6,7 @@ const baseURL =
     process.env &&
     (process.env.VITE_API_URL || process.env.VITE_API_BASE_URL)) ||
   (typeof window !== 'undefined' && window.__API_URL__) ||
-  'http://localhost:5001';
+  'http://localhost:5002';
 
 const axiosClient = axios.create({
   baseURL,

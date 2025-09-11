@@ -1,7 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
+
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
 
 const prisma = new PrismaClient();
 const router = express.Router();

@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const URL =
   import.meta.env.VITE_SOCKET_URL ??
   import.meta.env.VITE_API_URL ??
-  'http://localhost:5001';
+  'http://localhost:5002';
 
 // Create a single shared client
 const socket = io(URL, {

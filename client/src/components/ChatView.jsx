@@ -129,7 +129,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     if (!newText || newText === msg.rawContent) return;
 
     try {
-      const res = await fetch(`http://localhost:5001/messages/${msg.id}/edit`, {
+      const res = await fetch(`http://localhost:5002/messages/${msg.id}/edit`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,

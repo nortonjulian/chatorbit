@@ -1,5 +1,5 @@
 export const API_BASE_URL =
-  import.meta.env?.VITE_API_BASE_URL ?? 'http://localhost:5001';
+  import.meta.env?.VITE_API_BASE_URL ?? 'http://localhost:5002';
 
 export const WS_URL =
   import.meta.env?.VITE_WS_URL ?? API_BASE_URL;

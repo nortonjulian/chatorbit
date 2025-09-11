@@ -3,7 +3,6 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import rateLimit from 'express-rate-limit';
-import { PrismaClient } from '@prisma/client';
 
 import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
@@ -11,6 +10,10 @@ import { generateKeyPair } from '../utils/encryption.js';
 import { issueResetToken, consumeResetToken } from '../utils/resetTokens.js';
 
 const router = express.Router();
+
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
 const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET; // asserted in index.js

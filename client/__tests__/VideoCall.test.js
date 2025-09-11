@@ -7,8 +7,8 @@ import { render, waitFor } from '@testing-library/react';
 // --- Mock config so the component never touches import.meta ---
 jest.mock('@/config', () => ({
   __esModule: true,
-  API_BASE: 'http://localhost:5001',
-  SOCKET_URL: 'http://localhost:5001',
+  API_BASE: 'http://localhost:5002',
+  SOCKET_URL: 'http://localhost:5002',
 }));
 
 // --- Mock the shared socket BEFORE importing component ---

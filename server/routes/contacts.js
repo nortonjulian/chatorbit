@@ -1,9 +1,12 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 
 const router = express.Router();
+
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
 const prisma = new PrismaClient();
 
 const normalizePhone = (s) => (s || '').toString().replace(/[^\d+]/g, '');
