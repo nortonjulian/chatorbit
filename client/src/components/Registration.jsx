@@ -111,7 +111,13 @@ export default function Registration() {
             size="md"
           />
 
-          <Button type="submit" loading={!!submitting} onClick={onSubmit} fullWidth>
+          <Button 
+            type="submit" 
+            loading={!!submitting} 
+            onClick={onSubmit} 
+            fullWidth
+            aria-label="Register"
+          >
             Create account
           </Button>
         </Stack>

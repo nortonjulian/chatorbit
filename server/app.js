@@ -5,6 +5,17 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import listEndpoints from 'express-list-endpoints';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Sentry + logging
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import pinoHttp from 'pino-http';
+import logger from './utils/logger.js';
+
+// Deep health
+import healthzRouter from './routes/healthz.js';
 
 // Routers / middleware
 import statusRoutes from './routes/status.js';
@@ -18,17 +29,59 @@ import invitesRouter from './routes/invites.js';
 import mediaRouter from './routes/media.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export function createApp() {
   const app = express();
+  const isProd = process.env.NODE_ENV === 'production';
 
   /* =========================
-   *   Middleware
+   *   Sentry (init + handlers first, prod only)
+   * ========================= */
+  if (isProd) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'dev',
+      release: process.env.COMMIT_SHA, // unified name
+      integrations: [nodeProfilingIntegration()],
+      tracesSampleRate: Number(process.env.SENTRY_TRACES_RATE ?? 0.2),
+      profilesSampleRate: Number(process.env.SENTRY_PROFILES_RATE ?? 0.1),
+      beforeSend(event) {
+        if (event.request) {
+          delete event.request.headers?.cookie;
+          delete event.request.headers?.authorization;
+        }
+        return event;
+      },
+    });
+    app.use(Sentry.Handlers.requestHandler());
+    app.use(Sentry.Handlers.tracingHandler());
+  }
+
+  /* =========================
+   *   HTTP structured logs
+   * ========================= */
+  app.use(
+    pinoHttp({
+      logger,
+      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
+      customLogLevel: (req, res, err) => {
+        if (err || res.statusCode >= 500) return 'error';
+        if (res.statusCode >= 400) return 'warn';
+        return 'info';
+      },
+    })
+  );
+
+  /* =========================
+   *   Core middleware
    * ========================= */
   app.use(cookieParser());
   app.use(express.json());
   app.use(
     helmet({
-      contentSecurityPolicy: false, // keep your tuned CSP if you like
+      contentSecurityPolicy: false, // keep your tuned CSP if desired
     })
   );
   app.use(compression());
@@ -42,6 +95,17 @@ export function createApp() {
       credentials: true,
     })
   );
+
+  /* =========================
+   *   Static assets (uploads)
+   * ========================= */
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+  /* =========================
+   *   Health endpoints
+   * ========================= */
+  app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.use('/healthz', healthzRouter); // DB + Redis checks
 
   /* =========================
    *   Rate limiters
@@ -60,8 +124,6 @@ export function createApp() {
    *   Base routes
    * ========================= */
   app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
-  app.get('/health', (_req, res) => res.json({ ok: true }));
-  app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
   // Primary routers
   app.use('/auth', authRouter);
@@ -78,13 +140,10 @@ export function createApp() {
    * ========================= */
   const STATUS_ENABLED =
     String(process.env.STATUS_ENABLED || '').toLowerCase() === 'true';
-  console.log('STATUS_ENABLED =', STATUS_ENABLED);
+  logger.info({ STATUS_ENABLED }, 'Status routes feature flag');
   if (STATUS_ENABLED) {
-    console.log('✅ Status routes ENABLED');
     app.use('/status', statusReadLimiter);
     app.use('/status', statusRoutes);
-  } else {
-    console.log('🚫 Status routes DISABLED');
   }
 
   /* =========================
@@ -109,12 +168,13 @@ export function createApp() {
   }
 
   /* =========================
-   *   Errors last
+   *   Error handlers (Sentry first in prod)
    * ========================= */
+  if (isProd) {
+    app.use(Sentry.Handlers.errorHandler());
+  }
   app.use(notFoundHandler);
   app.use(errorHandler);
 
   return app;
 }
-
-

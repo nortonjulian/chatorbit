@@ -1,19 +1,11 @@
 import http from 'http';
 import { createApp } from './app.js';
-import statusRouter from './routes/status.js';
 import { initSocket } from './socket.js';
 
 export function makeApp() {
   const app = createApp();
 
-  const statusEnabled =
-    String(process.env.STATUS_ENABLED || '').toLowerCase() === 'true';
-
-  if (statusEnabled) {
-    app.use('/status', statusRouter);
-  }
-
-  // robust route dumper for tests
+  // Robust route dumper for tests (kept here; does not duplicate health/status)
   app.get('/__routes_dump', (req, res) => {
     const layers = app._router?.stack || [];
     const hasStatusRouter = layers.some((layer) => {
@@ -29,8 +21,6 @@ export function makeApp() {
       hasStatusRouter,
     });
   });
-
-  app.get('/health', (_req, res) => res.json({ ok: true }));
 
   return app;
 }

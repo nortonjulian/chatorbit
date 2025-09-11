@@ -1,5 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import * as Sentry from '@sentry/react';
+import { BrowserTracing } from '@sentry/react';
+import { Replay } from '@sentry/replay';
+
 import { MantineProvider, createTheme } from '@mantine/core';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -13,6 +17,25 @@ import { CallProvider } from './context/CallContext';
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 
+const isProd = import.meta.env.MODE === 'production';
+
+if (isProd && import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    release: import.meta.env.VITE_COMMIT_SHA, // keep this name consistent with your CI
+    integrations: [
+      new BrowserTracing(),
+      new Replay(),
+    ],
+    tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_RATE ?? 0.15),
+    // Caution: tune these for cost/privacy
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+  });
+}
+
+// --- Mantine theme config ---
 const theme = createTheme({
   fontFamily:
     'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
@@ -49,6 +72,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </UserProvider>
       </MantineProvider>
     </ErrorBoundary>
-</React.StrictMode>
+  </React.StrictMode>
 );
-

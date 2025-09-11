@@ -1,25 +1,18 @@
-import { jest } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
 import multer from 'multer';
 import prisma from '../utils/prismaClient.js';
 
+// --- build absolute file:// specifiers so ESM resolver can't get confused
+const authUrl = new URL('../middleware/auth.js', import.meta.url).href;
+const planUrl = new URL('../middleware/plan.js', import.meta.url).href;
+
 process.env.NODE_ENV = 'test';
 process.env.STATUS_ENABLED = 'true';
 process.env.DEV_FALLBACKS = 'true';
 
-await jest.unstable_mockModule('../middleware/auth.js', () => ({
-  requireAuth: (req, _res, next) => {
-    const headerId = req.headers['x-test-user-id'];
-    const id = headerId ? Number(headerId) : 1;
-    req.user = req.user || { id, role: 'USER', plan: 'FREE' };
-    next();
-  },
-}));
-await jest.unstable_mockModule('../middleware/plan.js', () => ({
-  requirePremium: (_req, _res, next) => next(),
-}));
 
+// Now import the router (will receive the mocked modules)
 const { default: statusRouter } = await import('../routes/status.js');
 
 function buildApp() {
