@@ -3,7 +3,7 @@ import { useCall } from '../context/CallContext';
 export default function IncomingCallModal() {
   const call = useCall();
 
-  // Defensive guard: if context missing or no incoming call
+  // guard: if context missing or no incoming call
   if (!call || !call.incoming) return null;
 
   const { incoming, acceptCall, rejectCall } = call;

@@ -12,94 +12,120 @@ import {
   ScrollArea,
   Stack,
   Badge,
+  Tooltip,
 } from '@mantine/core';
 
 export default function RandomChat({ currentUser }) {
-  const [roomId, setRoomId] = useState(null);
-  const [partner, setPartner] = useState(null);
+  const [roomId, setRoomId] = useState(null);         // number or string (AI)
+  const [partnerName, setPartnerName] = useState(null);
+  const [partnerId, setPartnerId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [status, setStatus] = useState('Searching...');
+  const [status, setStatus] = useState('Searching…');
   const [offerAI, setOfferAI] = useState(false);
 
   const endRef = useRef(null);
   const viewportRef = useRef(null);
 
   useEffect(() => {
-    socket.emit('find_random_chat', currentUser.username);
+    // Begin matching
+    socket.emit('find_random_chat');
 
-    socket.on('waiting', (msg) => setStatus(msg));
-
-    socket.on('no_partner', ({ message }) => {
-      setStatus(message);
+    const onWaiting = (msg) => setStatus(msg || 'Looking for a partner…');
+    const onNoPartner = ({ message }) => {
+      setStatus(message || 'No partner found right now.');
       setOfferAI(true);
-    });
-
-    socket.on('pair_found', ({ roomId, partner }) => {
+    };
+    const onPairFound = ({ roomId, partner, partnerId }) => {
       setRoomId(roomId);
-      setPartner(partner);
-      setStatus(`Connected to ${partner}`);
+      setPartnerName(partner || 'Partner');
+      setPartnerId(partnerId ?? null);
+      setStatus(`Connected to ${partner || 'Partner'}`);
       setMessages([]);
-    });
-
-    socket.on('chat_skipped', (msg) => {
-      setStatus(msg);
+    };
+    const onSkipped = (msg) => {
+      setStatus(msg || 'Stopped searching.');
       setRoomId(null);
-      setPartner(null);
-    });
-
-    socket.on('partner_disconnected', (msg) => {
-      setStatus(msg);
+      setPartnerName(null);
+      setPartnerId(null);
+    };
+    const onPartnerLeft = (msg) => {
+      setStatus(msg || 'Partner disconnected.');
       setRoomId(null);
-      setPartner(null);
+      setPartnerName(null);
+      setPartnerId(null);
       setOfferAI(false);
-    });
+    };
+    const onReceive = (msg) => {
+      // Expect: { content, senderId, randomChatRoomId, sender, createdAt }
+      if (!roomId) return;
+      if (String(msg.randomChatRoomId) !== String(roomId)) return;
+      setMessages((prev) => [...prev, msg]);
+    };
 
-    socket.on('receive_message', (msg) => {
-      if (msg.randomChatRoomId === roomId) {
-        setMessages((prev) => [...prev, msg]);
-      }
-    });
+    socket.on('waiting', onWaiting);
+    socket.on('no_partner', onNoPartner);
+    socket.on('pair_found', onPairFound);
+    socket.on('chat_skipped', onSkipped);
+    socket.on('partner_disconnected', onPartnerLeft);
+    socket.on('receive_message', onReceive);
 
     return () => {
-      socket.off('waiting');
-      socket.off('no_partner');
-      socket.off('pair_found');
-      socket.off('chat_skipped');
-      socket.off('partner_disconnected');
-      socket.off('receive_message');
+      socket.off('waiting', onWaiting);
+      socket.off('no_partner', onNoPartner);
+      socket.off('pair_found', onPairFound);
+      socket.off('chat_skipped', onSkipped);
+      socket.off('partner_disconnected', onPartnerLeft);
+      socket.off('receive_message', onReceive);
     };
-  }, [currentUser.username, roomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   const handleSend = () => {
-    if (!input.trim()) return;
-    const newMsg = {
-      content: input,
+    const text = input.trim();
+    if (!text || !roomId) return;
+
+    const outgoing = {
+      content: text,
       senderId: currentUser.id,
-      chatRoomId: roomId,
       randomChatRoomId: roomId,
     };
-    socket.emit('send_message', newMsg);
-    setMessages((prev) => [...prev, { ...newMsg, sender: currentUser }]);
+
+    socket.emit('send_message', outgoing);
+
+    // Optimistic append
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...outgoing,
+        sender: { id: currentUser.id, username: currentUser.username },
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setInput('');
   };
 
   const handleSkip = () => {
     socket.emit('skip_random_chat');
     setMessages([]);
-    setPartner(null);
+    setPartnerName(null);
+    setPartnerId(null);
     setRoomId(null);
     setOfferAI(false);
   };
 
   const handleSave = async () => {
+    if (!partnerId || !roomId || typeof roomId === 'string') {
+      alert('This chat cannot be saved (no human partner).');
+      return;
+    }
     try {
       await axiosClient.post('/random-chats', {
         messages: messages.map((m) => ({
           content: m.content,
-          senderId: m.senderId,
+          senderId: m.senderId ?? m.sender?.id ?? currentUser.id,
         })),
-        participants: [currentUser.id], // partner ID handled server-side
+        participants: [currentUser.id, partnerId],
       });
       alert('Chat saved!');
     } catch (error) {
@@ -109,10 +135,9 @@ export default function RandomChat({ currentUser }) {
   };
 
   const handleStartAI = () => {
-    socket.emit('start_ai_chat', currentUser.username);
+    socket.emit('start_ai_chat');
     setStatus('Connected to OrbitBot');
     setOfferAI(false);
-    setRoomId(`random-${socket.id}-AI`);
     setMessages([]);
   };
 
@@ -134,10 +159,11 @@ export default function RandomChat({ currentUser }) {
         <Title order={4}>Random Chat</Title>
         {roomId ? (
           <Badge variant="light" radius="sm">
-            {partner || 'OrbitBot'}
+            {partnerName || 'OrbitBot'}
           </Badge>
         ) : null}
       </Group>
+
       <Text size="sm" c="dimmed">
         {status}
       </Text>
@@ -158,30 +184,35 @@ export default function RandomChat({ currentUser }) {
       <ScrollArea style={{ flex: 1 }} mt="md" viewportRef={viewportRef}>
         <Stack gap="xs" p="xs">
           {messages.map((m, i) => {
-            const isMe = m.senderId === currentUser.id;
-            const bubbleProps = isMe
-              ? { bg: 'orbit.6', c: 'white' }
-              : { bg: 'gray.2', c: 'black' };
+            const mine = (m.senderId ?? m.sender?.id) === currentUser.id;
+            const bubbleStyles = mine
+              ? { background: 'var(--mantine-color-orbit-6, #4c6ef5)', color: 'white' }
+              : { background: 'var(--mantine-color-gray-2)', color: 'black' };
 
             return (
               <Box
-                key={i}
+                key={`${i}-${m.createdAt || ''}`}
                 style={{
                   display: 'flex',
-                  justifyContent: isMe ? 'flex-end' : 'flex-start',
+                  justifyContent: mine ? 'flex-end' : 'flex-start',
                 }}
               >
                 <Box
                   px="md"
                   py="xs"
-                  radius="lg"
-                  style={{ maxWidth: 360 }}
-                  {...bubbleProps}
+                  style={{ maxWidth: 420, borderRadius: 16, ...bubbleStyles }}
                 >
-                  <Text size="xs" fw={600} c={isMe ? 'white' : 'dark.6'} mb={4}>
-                    {isMe ? 'You' : m.sender?.username || partner || 'OrbitBot'}
+                  <Tooltip
+                    label={new Date(m.createdAt || Date.now()).toLocaleTimeString()}
+                    withArrow
+                  >
+                    <Text size="xs" fw={600} c={mine ? 'white' : 'dark.6'} mb={4}>
+                      {mine ? 'You' : m.sender?.username || partnerName || 'OrbitBot'}
+                    </Text>
+                  </Tooltip>
+                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                    {m.content}
                   </Text>
-                  <Text size="sm">{m.content}</Text>
                 </Box>
               </Box>
             );
@@ -195,7 +226,7 @@ export default function RandomChat({ currentUser }) {
         <Group mt="sm" wrap="nowrap" align="end">
           <TextInput
             style={{ flex: 1 }}
-            placeholder="Type a message..."
+            placeholder="Type a message…"
             value={input}
             onChange={(e) => setInput(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -211,7 +242,17 @@ export default function RandomChat({ currentUser }) {
           <Button color="yellow" onClick={handleSkip} variant="filled">
             Skip
           </Button>
-          <Button color="green" onClick={handleSave} variant="filled">
+          <Button
+            color="green"
+            onClick={handleSave}
+            variant="filled"
+            disabled={!partnerId || typeof roomId === 'string'}
+            title={
+              !partnerId || typeof roomId === 'string'
+                ? 'Only human-to-human chats can be saved'
+                : undefined
+            }
+          >
             Save
           </Button>
         </Group>

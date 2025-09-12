@@ -1,35 +1,34 @@
-import { isPremiumPlan } from '../utils/subscription.js';
-
 import pkg from '@prisma/client';
 const { PrismaClient } = pkg;
 
 const prisma = new PrismaClient();
 
 /**
- * Requires req.user (set by requireAuth) and checks DB for plan.
- * Keeps auth cookie/JWT minimal and avoids trusting client-provided plan.
+ * DB-backed premium check to avoid trusting JWT claims.
+ * Allows ADMIN to bypass (optional).
  */
 export async function requirePremium(req, res, next) {
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
-    const dbUser = await prisma.user.findUnique({
-      where: { id: Number(req.user.id) },
-      select: { id: true, plan: true, role: true },
-    });
-    if (!dbUser) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Admins bypass (optional)
-    if (dbUser.role === 'ADMIN' || isPremiumPlan(dbUser.plan)) {
-      req.userPlan = dbUser.plan; // handy if an endpoint wants it
+    const me = await prisma.user.findUnique({
+      where: { id: Number(req.user.id) },
+      select: { plan: true, role: true },
+    });
+    if (!me) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (me.role === 'ADMIN' || me.plan === 'PREMIUM') {
+      req.userPlan = me.plan;
       return next();
     }
+
     return res.status(402).json({
       error: 'Payment Required',
       code: 'PREMIUM_REQUIRED',
-      message: 'This feature needs a Premium plan.',
+      message: 'This feature requires a Premium plan.',
     });
   } catch (e) {
-    console.error('requirePremium failed', e);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('requirePremium error', e);
+    return res.status(500).json({ error: 'Server error' });
   }
 }

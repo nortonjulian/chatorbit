@@ -134,7 +134,7 @@ model User {
   role                        String  @default("USER")
   enableAIResponder           Boolean @default(false)
   enableSmartReplies          Boolean @default(false)
-  theme                       String @default("light")
+  theme                       String  @default("light")
 
   autoResponderMode        AutoResponderMode @default(DM)
   autoResponderCooldownSec Int               @default(120)
@@ -149,6 +149,8 @@ model User {
   privateKey String?
 
   // Relations
+  followers                  Follow[]            @relation("follower") // who follows THIS user
+  following                  Follow[]            @relation("following")
   messages                   Message[]           @relation("UserMessages")
   participants               Participant[]
   reports                    Report[]            @relation("UserReports")
@@ -182,31 +184,43 @@ model User {
   sttUsage STTUsage[] @relation("UserSTTUsage")
 
   // Settings
-  plan                      Plan    @default(FREE)
-  autoDeleteSeconds         Int?
-  showReadReceipts          Boolean @default(true)
-  avatarUrl                 String?
-  emojiTag                  String?
-  messageTone               String? @default("default.mp3")
-  ringtone                  String? @default("classic.mp3")
+  plan              Plan    @default(FREE)
+  autoDeleteSeconds Int?
+  showReadReceipts  Boolean @default(true)
+  avatarUrl         String?
+  emojiTag          String?
+  messageTone       String? @default("default.mp3")
+  ringtone          String? @default("classic.mp3")
 
-  privacyBlurEnabled        Boolean @default(false)
-  privacyHoldToReveal       Boolean @default(false)
-  notifyOnCopy              Boolean @default(false)
+  privacyBlurEnabled  Boolean @default(false)
+  privacyHoldToReveal Boolean @default(false)
+  notifyOnCopy        Boolean @default(false)
 
-  ageBand                   AgeBand?
-  ageAttestedAt             DateTime?
-  wantsAgeFilter            Boolean   @default(true)
-  randomChatAllowedBands    Json?
+  ageBand                AgeBand?
+  ageAttestedAt          DateTime?
+  wantsAgeFilter         Boolean   @default(true)
+  randomChatAllowedBands Json?
 
   // Accessibility preferences (hearing-impaired support)
-  a11yVisualAlerts          Boolean @default(true)  // banners/title-blink instead of relying on sound
-  a11yVibrate               Boolean @default(true)
-  a11yFlashOnCall           Boolean @default(false) // optional screen flash on incoming call
-  a11yLiveCaptions          Boolean @default(false) // premium toggle for live call captions
-  a11yVoiceNoteSTT          Boolean @default(true)  // auto-transcribe voice notes
-  a11yCaptionFont           String  @default("lg")  // sm|md|lg|xl
-  a11yCaptionBg             String  @default("dark") // light|dark|transparent
+  a11yVisualAlerts Boolean @default(true) // banners/title-blink instead of relying on sound
+  a11yVibrate      Boolean @default(true)
+  a11yFlashOnCall  Boolean @default(false) // optional screen flash on incoming call
+  a11yLiveCaptions Boolean @default(false) // premium toggle for live call captions
+  a11yVoiceNoteSTT Boolean @default(true) // auto-transcribe voice notes
+  a11yCaptionFont  String  @default("lg") // sm|md|lg|xl
+  a11yCaptionBg    String  @default("dark") // light|dark|transparent
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  followerId  Int
+  following   User     @relation("following", fields: [followingId], references: [id])
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
 }
 
 model Device {
@@ -427,29 +441,28 @@ model ScheduledMessage {
 
   @@index([chatRoomId])
   @@index([senderId])
-  @@index([scheduledAt])  // ⬅️ new
+  @@index([scheduledAt]) // ⬅️ new
 }
 
 // ===================== 4) Contacts, Reports, Auditing =====================
 
 model Contact {
-  id Int @id @default(autoincrement())
-
-  ownerId Int
-  owner   User @relation("ContactsOwned", fields: [ownerId], references: [id], onDelete: Cascade)
-
-  userId Int?
-  user   User? @relation("ContactsSaved", fields: [userId], references: [id], onDelete: SetNull)
-
-  externalPhone String? @db.VarChar(32)
+  id            Int      @id @default(autoincrement())
+  ownerId       Int
+  userId        Int?
+  externalPhone String?  // normalized digits with optional +
   externalName  String?
+  alias         String?
+  favorite      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  alias     String?
-  favorite  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  // name the two different relations to User:
+  owner User  @relation("ContactsOwned",  fields: [ownerId], references: [id])
+  user  User? @relation("ContactsSaved",  fields: [userId],  references: [id])
 
-  @@unique([ownerId, userId])
-  @@unique([ownerId, externalPhone])
+  @@unique([ownerId, userId], name: "ownerId_userId")
+  @@unique([ownerId, externalPhone], name: "ownerId_externalPhone")
   @@index([ownerId])
   @@index([userId])
 }
@@ -624,22 +637,26 @@ model BotEventLog {
 // ===================== 7) Calls =====================
 
 model Call {
-  id         String     @id @default(uuid())
-  callerId   Int
-  calleeId   Int
-  chatId     Int?
-  mode       CallMode
-  status     CallStatus @default(INITIATED)
-  createdAt  DateTime   @default(now())
-  acceptedAt DateTime?
-  endedAt    DateTime?
+  id       Int        @id @default(autoincrement())
+  roomId   Int?
+  callerId Int
+  calleeId Int
+  mode     CallMode
+  status   CallStatus @default(RINGING)
 
+  offerSdp  String?
+  answerSdp String?
+  createdAt DateTime  @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  // ⬇️ use the SAME relation names as User.callsPlaced / callsReceived
   caller User @relation("CallCaller", fields: [callerId], references: [id])
   callee User @relation("CallCallee", fields: [calleeId], references: [id])
 
   @@index([callerId])
   @@index([calleeId])
-  @@index([createdAt])
+  @@index([roomId])
 }
 
 // ===================== 8) Phone Numbers =====================
@@ -687,10 +704,10 @@ model NumberReservation {
 model Transcript {
   id        String   @id @default(uuid())
   userId    Int
-  callId    String?  // if generated during a call
-  messageId Int?     // if generated from a voice note
-  language  String?  // e.g., "en-US"
-  segments  Json     // [{start,end,text}, ...]
+  callId    String? // if generated during a call
+  messageId Int? // if generated from a voice note
+  language  String? // e.g., "en-US"
+  segments  Json // [{start,end,text}, ...]
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
@@ -700,11 +717,10 @@ model Transcript {
   @@index([messageId])
 }
 
-
 model STTUsage {
   id        Int      @id @default(autoincrement())
   userId    Int
-  monthKey  String   // e.g., '2025-08'
+  monthKey  String // e.g., '2025-08'
   seconds   Int      @default(0) // consumed STT seconds (voice notes + live captions)
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

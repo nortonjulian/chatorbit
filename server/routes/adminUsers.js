@@ -1,6 +1,4 @@
-// server/routes/adminUsers.js
 import express from 'express';
-
 import pkg from '@prisma/client';
 const { PrismaClient } = pkg;
 
@@ -68,7 +66,16 @@ router.patch('/:id/role', async (req, res) => {
     if (!['ADMIN', 'USER'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
+
     const updated = await prisma.user.update({ where: { id }, data: { role } });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_CHANGE_ROLE',
+      targetUserId: id,
+      notes: `Role -> ${role}`,
+    };
+
     res.json(updated);
   } catch (e) {
     console.error(e);
@@ -87,7 +94,16 @@ router.patch('/:id/flags', async (req, res) => {
       'enableAIResponder',
       'enableReadReceipts',
     ].forEach((k) => req.body[k] !== undefined && (data[k] = !!req.body[k]));
+
     const updated = await prisma.user.update({ where: { id }, data });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_UPDATE_FLAGS',
+      targetUserId: id,
+      notes: JSON.stringify(data),
+    };
+
     res.json(updated);
   } catch (e) {
     console.error(e);
@@ -99,10 +115,20 @@ router.patch('/:id/flags', async (req, res) => {
 router.post('/:id/ban', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const reason = (req.body?.reason || '').toString();
+
     const updated = await prisma.user.update({
       where: { id },
       data: { isBanned: true, bannedAt: new Date() },
     });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_BAN_USER',
+      targetUserId: id,
+      notes: reason || 'no reason provided',
+    };
+
     res.json({
       success: true,
       user: { id: updated.id, isBanned: updated.isBanned },
@@ -113,14 +139,24 @@ router.post('/:id/ban', async (req, res) => {
   }
 });
 
-// POST /admin/users/:id/unban
+// POST /admin/users/:id/unban { reason? }
 router.post('/:id/unban', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const reason = (req.body?.reason || '').toString();
+
     const updated = await prisma.user.update({
       where: { id },
       data: { isBanned: false, bannedAt: null },
     });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_UNBAN_USER',
+      targetUserId: id,
+      notes: reason || '',
+    };
+
     res.json({
       success: true,
       user: { id: updated.id, isBanned: updated.isBanned },
@@ -136,6 +172,14 @@ router.delete('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     await prisma.user.delete({ where: { id } });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_DELETE_USER',
+      targetUserId: id,
+      notes: 'hard delete',
+    };
+
     res.json({ success: true });
   } catch (e) {
     console.error(e);

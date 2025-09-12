@@ -1,4 +1,3 @@
-// client/src/pages/AdminLayout.jsx
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AppShell, ScrollArea, Title, Stack } from '@mantine/core';
 

@@ -32,7 +32,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   const server = http.createServer(app);
 
-  // wire sockets against the server
+  // Wire Socket.IO against the server
   const { io, emitToUser } = initSocket(server);
   app.set('io', io);
   app.set('emitToUser', emitToUser);

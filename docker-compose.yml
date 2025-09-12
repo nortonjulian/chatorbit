@@ -1,0 +1,54 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: chatorbit_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chatorbit
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatorbit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: chatorbit_api
+    environment:
+      # Core envs; add your real secrets locally via an .env file if you prefer
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/chatorbit
+      JWT_SECRET: devsecret
+      COOKIE_DOMAIN: localhost
+      NODE_ENV: development
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        # Point the client at the API
+        VITE_API_BASE_URL: http://localhost:8080
+    container_name: chatorbit_web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+# Optional extras you can add later:
+#  redis:
+#    image: redis:7-alpine
+#  clamav:
+#    image: clamav/clamav:stable
+#  minio:
+#    image: minio/minio

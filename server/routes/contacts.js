@@ -2,45 +2,97 @@ import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 
-const router = express.Router();
-
 import pkg from '@prisma/client';
 const { PrismaClient } = pkg;
 
 const prisma = new PrismaClient();
+const router = express.Router();
 
 const normalizePhone = (s) => (s || '').toString().replace(/[^\d+]/g, '');
 
-// GET /contacts  -> all contacts for the authed user (both linked + external)
-// server/routes/contacts.js (example)
+// ------------------------------
+// GET /contacts
+// Lists ONLY the authed user's contacts (internal + external)
+// Supports pagination (?limit=, ?cursor=contactId) and search (?q=)
+//   - search matches alias, externalName, externalPhone (digits only), and linked user's username/displayName
+// Response: { items: [...], nextCursor, count }
+// ------------------------------
 router.get(
   '/',
   requireAuth,
   asyncHandler(async (req, res) => {
+    const ownerId = req.user.id;
+
     const limitRaw = Number(req.query.limit ?? 50);
     const limit = Math.min(Math.max(1, limitRaw), 100);
+
     const cursorId = req.query.cursor ? Number(req.query.cursor) : null;
 
-    const where = {}; // add search filters if needed
+    const q = (req.query.q || '').toString().trim();
+    const qDigits = normalizePhone(q);
 
-    const items = await prisma.user.findMany({
+    const where = {
+      ownerId,
+      ...(q
+        ? {
+            OR: [
+              { alias: { contains: q, mode: 'insensitive' } },
+              { externalName: { contains: q, mode: 'insensitive' } },
+              ...(qDigits
+                ? [{ externalPhone: { contains: qDigits } }]
+                : []),
+              {
+                user: {
+                  OR: [
+                    { username: { contains: q, mode: 'insensitive' } },
+                    { displayName: { contains: q, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const items = await prisma.contact.findMany({
       where,
       orderBy: { id: 'asc' },
       take: limit,
       ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-      select: { id: true, username: true, avatarUrl: true },
+      select: {
+        id: true,
+        alias: true,
+        favorite: true,
+        externalPhone: true,
+        externalName: true,
+        createdAt: true,
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+      },
     });
 
-    const nextCursor =
-      items.length === limit ? items[items.length - 1].id : null;
+    const nextCursor = items.length === limit ? items[items.length - 1].id : null;
     res.json({ items, nextCursor, count: items.length });
   })
 );
 
-// POST /contacts  -> create or update (upsert) a contact
-// Accepts either { userId } OR { externalPhone }, with optional { alias, externalName, favorite }
-router.post('/', requireAuth, async (req, res) => {
-  try {
+// ------------------------------
+// POST /contacts
+// Upsert a contact for the authed user by either { userId } OR { externalPhone }
+// Optional: { alias, externalName, favorite }
+// Enforces uniqueness via composite keys (ownerId,userId) and (ownerId,externalPhone)
+// ------------------------------
+router.post(
+  '/',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const ownerId = req.user.id;
     let { userId, alias, externalPhone, externalName, favorite } = req.body;
 
@@ -52,23 +104,38 @@ router.post('/', requireAuth, async (req, res) => {
     if (userId) {
       contact = await prisma.contact.upsert({
         where: { ownerId_userId: { ownerId, userId: Number(userId) } },
-        update: { alias: alias ?? undefined, favorite: favorite ?? undefined },
+        update: {
+          alias: alias ?? undefined,
+          favorite: typeof favorite === 'boolean' ? favorite : undefined,
+        },
         create: {
           ownerId,
           userId: Number(userId),
           alias: alias ?? undefined,
           favorite: !!favorite,
         },
-        include: { user: true },
+        select: {
+          id: true,
+          alias: true,
+          favorite: true,
+          externalPhone: true,
+          externalName: true,
+          createdAt: true,
+          user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+        },
       });
     } else {
       externalPhone = normalizePhone(externalPhone);
+      if (!externalPhone) {
+        return res.status(400).json({ error: 'externalPhone invalid' });
+      }
+
       contact = await prisma.contact.upsert({
         where: { ownerId_externalPhone: { ownerId, externalPhone } },
         update: {
           alias: alias ?? undefined,
           externalName: externalName ?? undefined,
-          favorite: favorite ?? undefined,
+          favorite: typeof favorite === 'boolean' ? favorite : undefined,
         },
         create: {
           ownerId,
@@ -77,20 +144,30 @@ router.post('/', requireAuth, async (req, res) => {
           alias: alias ?? undefined,
           favorite: !!favorite,
         },
-        include: { user: true },
+        select: {
+          id: true,
+          alias: true,
+          favorite: true,
+          externalPhone: true,
+          externalName: true,
+          createdAt: true,
+          user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+        },
       });
     }
 
     res.status(201).json(contact);
-  } catch (err) {
-    console.error('Error creating/upserting contact:', err);
-    res.status(500).json({ error: 'Failed to save contact' });
-  }
-});
+  })
+);
 
-// PATCH /contacts  -> update by composite key (userId or externalPhone)
-router.patch('/', requireAuth, async (req, res) => {
-  try {
+// ------------------------------
+// PATCH /contacts
+// Update by composite key (userId or externalPhone)
+// ------------------------------
+router.patch(
+  '/',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const ownerId = req.user.id;
     let { userId, externalPhone, alias, externalName, favorite } = req.body;
 
@@ -112,21 +189,31 @@ router.patch('/', requireAuth, async (req, res) => {
       data: {
         alias: alias ?? undefined,
         externalName: externalName ?? undefined,
-        favorite: favorite ?? undefined,
+        favorite: typeof favorite === 'boolean' ? favorite : undefined,
       },
-      include: { user: true },
+      select: {
+        id: true,
+        alias: true,
+        favorite: true,
+        externalPhone: true,
+        externalName: true,
+        createdAt: true,
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+      },
     });
 
     res.json(updated);
-  } catch (err) {
-    console.error('Error updating contact:', err);
-    res.status(500).json({ error: 'Failed to update contact' });
-  }
-});
+  })
+);
 
-// DELETE /contacts  -> delete by composite key (userId or externalPhone)
-router.delete('/', requireAuth, async (req, res) => {
-  try {
+// ------------------------------
+// DELETE /contacts
+// Delete by composite key (userId or externalPhone)
+// ------------------------------
+router.delete(
+  '/',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const ownerId = req.user.id;
     let { userId, externalPhone } = req.body;
 
@@ -145,21 +232,26 @@ router.delete('/', requireAuth, async (req, res) => {
 
     await prisma.contact.delete({ where });
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting contact:', err);
-    res.status(500).json({ error: 'Failed to delete contact' });
-  }
-});
+  })
+);
 
-// (Optional legacy) DELETE /contacts/:id by numeric contact id
-router.delete('/:id', requireAuth, async (req, res) => {
-  try {
-    await prisma.contact.delete({ where: { id: Number(req.params.id) } });
+// (Optional legacy) DELETE /contacts/:id by numeric contact id (owner-scoped hardening)
+router.delete(
+  '/:id',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const contactId = Number(req.params.id);
+    const ownerId = req.user.id;
+
+    // ensure the contact belongs to the requester
+    const c = await prisma.contact.findUnique({ where: { id: contactId }, select: { ownerId: true } });
+    if (!c || c.ownerId !== ownerId) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    await prisma.contact.delete({ where: { id: contactId } });
     res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting contact by id:', err);
-    res.status(500).json({ error: 'Failed to delete contact' });
-  }
-});
+  })
+);
 
 export default router;

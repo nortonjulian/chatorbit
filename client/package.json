@@ -84,6 +84,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.0.2",
     "babel-jest": "^29.7.0",
+    "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "emoji-picker-react": "^4.13.2",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",

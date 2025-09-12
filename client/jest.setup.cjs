@@ -1,6 +1,46 @@
 // CommonJS so Jest can require it without ESM loader headaches
 require('@testing-library/jest-dom');
 
+// ---- Vite envs used in code (now read as process.env by the plugin) ----
+process.env.VITE_SOCKET_ORIGIN = process.env.VITE_SOCKET_ORIGIN || 'http://localhost:5002';
+
+// ---- Minimal Media / WebRTC shims for VideoCall ----
+class MediaStreamMock { addTrack() {} }
+global.MediaStream = MediaStreamMock;
+
+if (!global.navigator) global.navigator = {};
+global.navigator.mediaDevices = {
+  getUserMedia: jest.fn().mockResolvedValue(new MediaStreamMock()),
+};
+
+// Very light RTCPeerConnection mock good enough for unit tests
+global.RTCPeerConnection = jest.fn().mockImplementation(() => {
+  const pc = {
+    addTrack: jest.fn(),
+    addIceCandidate: jest.fn(),
+    createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'v=0' }),
+    setLocalDescription: jest.fn().mockResolvedValue(),
+    setRemoteDescription: jest.fn().mockResolvedValue(),
+    onicecandidate: null,
+    ontrack: null,
+    close: jest.fn(),
+  };
+  // Let tests manually trigger ICE events if needed:
+  setTimeout(() => pc.onicecandidate && pc.onicecandidate({ candidate: null }), 0);
+  return pc;
+});
+
+// ---- Silence Mantine Notifications ESM/CJS edge by stubbing API ----
+jest.mock('@mantine/notifications', () => {
+  const api = {
+    show: jest.fn(),
+    hide: jest.fn(),
+    update: jest.fn(),
+    clean: jest.fn(),
+  };
+  return { notifications: api, Notifications: () => null };
+});
+
 // If your app touches crypto.subtle in tests, keep a stub:
 if (!global.crypto) global.crypto = {};
 if (!global.crypto.subtle) {

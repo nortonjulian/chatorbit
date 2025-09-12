@@ -7,6 +7,20 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        ports: [ '5432:5432' ]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,13 +32,22 @@ jobs:
       - name: Install (workspaces)
         run: npm ci
 
+      - name: Prisma generate (server)
+        run: npx prisma generate
+        working-directory: server
+
       - name: Lint
         run: npm run lint --workspaces
+
+      # If you have TS in either workspace, keep this. If not, remove.
+      - name: Typecheck (server/client)
+        run: npm run typecheck --workspaces
+        continue-on-error: true
 
       - name: Test (server)
         run: npm run test --workspace server
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/testdb" # adjust or use sqlite for tests
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 
       - name: Test (client)
         run: npm run test --workspace client
@@ -34,3 +57,12 @@ jobs:
 
       - name: Build (client)
         run: npm run build --workspace client
+
+      - name: Upload junit / coverage (if available)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts
+          path: |
+            **/junit*.xml
+            **/coverage/**

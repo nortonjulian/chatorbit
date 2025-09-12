@@ -15,6 +15,7 @@ import './i18n';
 
 import { UserProvider } from './context/UserContext';
 import { CallProvider } from './context/CallContext';
+import { SocketProvider } from './context/SocketContext';  // ✅ NEW
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 
@@ -24,13 +25,9 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    release: import.meta.env.VITE_COMMIT_SHA, // keep this name consistent with your CI
-    integrations: [
-      new BrowserTracing(),
-      new Replay(),
-    ],
+    release: import.meta.env.VITE_COMMIT_SHA,
+    integrations: [new BrowserTracing(), new Replay()],
     tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_RATE ?? 0.15),
-    // Caution: tune these for cost/privacy
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
   });
@@ -67,9 +64,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Notifications position="top-right" />
         <UserProvider>
           <CallProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            {/* ✅ Wrap in SocketProvider so all components share one socket */}
+            <SocketProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </SocketProvider>
           </CallProvider>
         </UserProvider>
       </MantineProvider>

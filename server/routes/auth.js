@@ -2,21 +2,21 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
-import rateLimit from 'express-rate-limit';
 
+import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import { validateRegistrationInput } from '../utils/validateUser.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+import { validate } from '../middleware/validate.js';
+import { loginSchema, registerSchema } from '../validators/authSchemas.js';
+import { setCsrfCookie } from '../middleware/csrf.js';
+
 import { generateKeyPair } from '../utils/encryption.js';
 import { issueResetToken, consumeResetToken } from '../utils/resetTokens.js';
 
 const router = express.Router();
 
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
-
-const prisma = new PrismaClient();
-
-const JWT_SECRET = process.env.JWT_SECRET; // asserted in index.js
+const JWT_SECRET = process.env.JWT_SECRET; // asserted in server entrypoint
 
 /* =========================
  *  Cookie helpers (config)
@@ -28,9 +28,9 @@ function getCookieName() {
 function getCookieCommon() {
   return {
     httpOnly: true,
-    secure: String(process.env.COOKIE_SECURE) === 'true',
-    sameSite: process.env.COOKIE_SAMESITE || 'Lax', // 'Lax' | 'Strict' | 'None'
-    domain: process.env.COOKIEDOMAIN || process.env.COOKIE_DOMAIN || undefined, // e.g. ".chatorbit.com"
+    secure: process.env.NODE_ENV === 'production' || String(process.env.COOKIE_SECURE) === 'true',
+    sameSite: process.env.COOKIE_SAMESITE || 'lax',
+    domain: process.env.COOKIEDOMAIN || process.env.COOKIE_DOMAIN || undefined,
     path: process.env.COOKIE_PATH || '/',
   };
 }
@@ -38,45 +38,13 @@ function getCookieCommon() {
 function setJwtCookie(res, token) {
   res.cookie(getCookieName(), token, {
     ...getCookieCommon(),
-    maxAge: 7 * 24 * 3600 * 1000, // 7 days
+    maxAge: 30 * 24 * 3600 * 1000, // 30d
   });
 }
 /** Clear the auth cookie */
 function clearJwtCookie(res) {
-  res.clearCookie(getCookieName(), getCookieCommon());
+  res.clearCookie(getCookieName(), { ...getCookieCommon(), maxAge: undefined });
 }
-/** Read JWT from request cookies (returns payload or null) */
-function readJwtFromCookies(req) {
-  const token = req.cookies?.[getCookieName()];
-  if (!token) return null;
-  try {
-    return jwt.verify(token, JWT_SECRET); // { id, username, role, plan, iat, exp }
-  } catch {
-    return null;
-  }
-}
-
-/* =========================
- *      Rate limiters
- * ========================= */
-
-const registerLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
-  message: { error: 'Too many registration attempts, please try again later.' },
-});
-const loginLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: { error: 'Too many login attempts, please try again later.' },
-});
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 3,
-  message: {
-    error: 'Too many password reset attempts, please try again later.',
-  },
-});
 
 /* =========================
  *        Nodemailer
@@ -84,17 +52,26 @@ const forgotPasswordLimiter = rateLimit({
 
 let transporter;
 (async () => {
-  // If you have real SMTP env vars, switch to them here
   try {
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: testAccount.smtp.host,
-      port: testAccount.smtp.port,
-      secure: testAccount.smtp.secure,
-      auth: { user: testAccount.user, pass: testAccount.pass },
-    });
-  } catch (e) {
-    // Fallback: create a no-op transporter to avoid crashes
+    if (process.env.SMTP_HOST) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+        auth: process.env.SMTP_USER
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          : undefined,
+      });
+    } else {
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: testAccount.smtp.host,
+        port: testAccount.smtp.port,
+        secure: testAccount.smtp.secure,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      });
+    }
+  } catch {
     transporter = nodemailer.createTransport({ jsonTransport: true });
   }
 })();
@@ -103,159 +80,187 @@ let transporter;
  *         ROUTES
  * ========================= */
 
+// CSRF helper for SPA: sets XSRF-TOKEN cookie you will echo in "X-CSRF-Token" header
+router.get('/csrf-token', (req, res) => {
+  setCsrfCookie(req, res);
+  res.json({ ok: true });
+});
+
 // Register
-router.post('/register', registerLimiter, async (req, res) => {
-  const { username, email, password, preferredLanguage } = req.body;
+router.post(
+  '/register',
+  validate(registerSchema),
+  asyncHandler(async (req, res) => {
+    const { username, email, password, preferredLanguage = 'en' } = req.body;
 
-  const validationError = validateRegistrationInput(username, email, password);
-  if (validationError) return res.status(400).json({ error: { message: validationError } });
+    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) return res.status(409).json({ error: 'Email already in use' });
 
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser)
-      return res.status(409).json({ error: 'Email already in use' });
+    const existingByUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingByUsername) return res.status(409).json({ error: 'Username already in use' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Generate public/private key pair for encryption
     const { publicKey, privateKey } = generateKeyPair();
 
-    const user = await prisma.user.create({
-      data: {
-        username,
-        email,
-        password: hashedPassword,
-        preferredLanguage: preferredLanguage || 'en',
-        role: 'USER',
-        plan: 'FREE',
-        publicKey,
-        privateKey: null, // do not store private key server-side
-      },
-    });
+    // Create; prefer `password` field but remain compatible if schema uses `passwordHash`
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          username,
+          email,
+          password: hashedPassword,
+          preferredLanguage,
+          role: 'USER',
+          plan: 'FREE',
+          publicKey,
+          privateKey: null, // never store private key
+        },
+        select: { id: true, email: true, username: true, role: true, plan: true, publicKey: true },
+      });
+    } catch (e) {
+      // Fallback for schemas that use `passwordHash`
+      user = await prisma.user.create({
+        data: {
+          username,
+          email,
+          passwordHash: hashedPassword,
+          preferredLanguage,
+          role: 'USER',
+          plan: 'FREE',
+          publicKey,
+          privateKey: null,
+        },
+        select: { id: true, email: true, username: true, role: true, plan: true, publicKey: true },
+      });
+    }
 
-    // Return the private key once so the client can store it securely
-    res.status(201).json({
+    // Issue JWT and set cookie so the user is signed in immediately after register
+    const payload = { id: user.id, username: user.username, role: user.role, plan: user.plan };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+    setJwtCookie(res, token);
+
+    return res.status(201).json({
       message: 'user registered',
       user: {
         id: user.id,
+        email: user.email,        // include email for tests
         username: user.username,
         publicKey: user.publicKey,
         plan: user.plan,
         role: user.role,
       },
-      privateKey,
+      privateKey, // one-time return to client for safe storage
     });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Failed to register user' });
-  }
-});
+  })
+);
 
-// Login (cookie-only auth)
-router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password)
-    return res
-      .status(400)
-      .json({ error: 'Username and password are required' });
+// Login
+router.post(
+  '/login',
+  validate(loginSchema),
+  asyncHandler(async (req, res) => {
+    // loginSchema should allow either {email,password} or {username,password}
+    const { email, username, password } = req.body;
 
-  try {
-    const user = await prisma.user.findUnique({ where: { username } });
-    if (!user)
-      return res.status(401).json({ error: 'Invalid username or password' });
+    const user =
+      (email && (await prisma.user.findUnique({ where: { email } }))) ||
+      (username && (await prisma.user.findUnique({ where: { username } })));
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword)
-      return res.status(401).json({ error: 'Invalid username or password' });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
-    // ✅ Add plan into JWT payload
-    const payload = {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      plan: user.plan || 'FREE',
-    };
+    // Support either column name
+    const storedHash = user.passwordHash || user.password;
+    const ok = storedHash ? await bcrypt.compare(password, storedHash) : false;
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    const payload = { id: user.id, username: user.username, role: user.role, plan: user.plan || 'FREE' };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 
-    // ✅ Set HttpOnly cookie (no token in JSON)
     setJwtCookie(res, token);
 
-    // Minimal response; client can call /auth/me to hydrate
-    res.json({
+    return res.json({
       ok: true,
       user: {
         id: user.id,
+        email: user.email,        // include email for parity
         username: user.username,
         role: user.role,
         plan: user.plan || 'FREE',
       },
     });
-  } catch (error) {
-    console.error('Login error', error);
-    res.status(500).json({ error: 'Failed to log in' });
-  }
-});
+  })
+);
 
-// Logout (clears cookie)
-router.post('/logout', (_req, res) => {
-  clearJwtCookie(res);
-  return res.json({ message: 'Logged out successfully' });
-});
+// Logout
+router.post(
+  '/logout',
+  asyncHandler(async (_req, res) => {
+    clearJwtCookie(res);
+    res.json({ ok: true });
+  })
+);
 
-// Who am I? (reads cookie)
-router.get('/me', requireAuth, async (req, res) => {
-  const me = await prisma.user.findUnique({
-    where: { id: Number(req.user.id) },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      role: true,
-      plan: true, // <-- important
-      preferredLanguage: true,
-      showOriginalWithTranslation: true,
-      allowExplicitContent: true,
-      enableAIResponder: true,
-      enableSmartReplies: true,
-      autoResponderMode: true,
-      autoResponderCooldownSec: true,
-      autoResponderActiveUntil: true,
-      autoResponderSignature: true,
-      autoDeleteSeconds: true,
-      showReadReceipts: true,
-      avatarUrl: true,
-      emojiTag: true,
-    },
-  });
-  if (!me) return res.status(401).json({ error: 'Unauthorized' });
-  return res.json({ user: me });
-});
+// Who am I?
+router.get(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const me = await prisma.user.findUnique({
+      where: { id: Number(req.user.id) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        plan: true,
+        preferredLanguage: true,
+        showOriginalWithTranslation: true,
+        allowExplicitContent: true,
+        enableAIResponder: true,
+        enableSmartReplies: true,
+        autoResponderMode: true,
+        autoResponderCooldownSec: true,
+        autoResponderActiveUntil: true,
+        autoResponderSignature: true,
+        autoDeleteSeconds: true,
+        showReadReceipts: true,
+        avatarUrl: true,
+        emojiTag: true,
+      },
+    });
+    if (!me) return res.status(401).json({ error: 'Unauthorized' });
+    return res.json({ user: me });
+  })
+);
 
-// 🔐 Short-lived JWT for WS clients & load tests (requires existing cookie auth)
-router.get('/token', requireAuth, (req, res) => {
-  const payload = {
-    id: req.user.id,
-    username: req.user.username,
-    role: req.user.role,
-    plan: req.user.plan || 'FREE',
-  };
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
-  res.json({ token });
-});
+// Short-lived token (e.g., for sockets)
+router.get(
+  '/token',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = {
+      id: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      plan: req.user.plan || 'FREE',
+    };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
+    res.json({ token });
+  })
+);
 
-// Forgot password (issues Redis-backed token and emails link)
-router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
+// Forgot password
+router.post(
+  '/forgot-password',
+  asyncHandler(async (req, res) => {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'user not found' });
 
     const token = await issueResetToken(user.id);
-
-    // Build link for your frontend
     const base = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
     const resetLink = `${base.replace(/\/+$/, '')}/reset-password?token=${token}`;
 
@@ -269,39 +274,34 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
         <p>If you didn’t request this, you can safely ignore this email.</p>`,
     });
 
-    res.json({
-      message: 'Password reset link sent to your email',
-      previewURL: nodemailer.getTestMessageUrl(info), // handy in dev
+    return res.json({
+      message: 'Password reset link sent',
+      previewURL: nodemailer.getTestMessageUrl(info) || null,
     });
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({ error: 'Failed to process forgot password' });
-  }
-});
+  })
+);
 
-// Reset password (consumes Redis token)
-router.post('/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword)
-    return res.status(400).json({ error: 'Token and new password required' });
+// Reset password
+router.post(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
 
-  try {
     const userId = await consumeResetToken(token);
-    if (!userId) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
+    if (!userId) return res.status(400).json({ error: 'Invalid or expired token' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    // Update whichever column your schema uses
+    try {
+      await prisma.user.update({ where: { id: Number(userId) }, data: { password: hashed } });
+    } catch {
+      await prisma.user.update({ where: { id: Number(userId) }, data: { passwordHash: hashed } });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: Number(userId) },
-      data: { password: hashedPassword },
-    });
-
-    res.json({ message: 'Password reset successful' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({ error: 'Failed to reset password' });
-  }
-});
+    return res.json({ message: 'Password reset successful' });
+  })
+);
 
 export default router;

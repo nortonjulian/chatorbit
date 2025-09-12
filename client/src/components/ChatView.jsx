@@ -207,17 +207,20 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
   // --- Initial load / room change ---
   useEffect(() => {
-    setMessages([]);
-    setCursor(null);
-    setShowNewMessage(false);
-    if (chatroom?.id) {
-      loadMore(true);
-      socket.emit('join_room', chatroom.id);
-    }
-    return () => {
-      if (chatroom?.id) socket.emit('leave_room', chatroom.id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  setMessages([]);
+  setCursor(null);
+  setShowNewMessage(false);
+  if (chatroom?.id) {
+    loadMore(true);
+    // NEW: prefer bulk join event with single room for consistency
+    socket.emit('join:rooms', [String(chatroom.id)]);
+    // Back-compat (okay to keep during transition)
+    socket.emit('join_room', chatroom.id);
+  }
+  return () => {
+    if (chatroom?.id) socket.emit('leave_room', chatroom.id);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroom?.id]);
 
   // --- Infinite scroll: load older when near TOP ---

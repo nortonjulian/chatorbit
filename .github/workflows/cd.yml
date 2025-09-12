@@ -1,23 +1,16 @@
-name: CD
-on:
-  push:
-    branches: [ main ]
-
-env:
-  NODE_VERSION: '20'
-
 jobs:
   deploy-staging:
-    name: Deploy to Staging
     runs-on: ubuntu-latest
     environment: staging
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Install jq (needed for parsing Render responses)
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Install (workspaces)
         run: npm ci
@@ -28,14 +21,12 @@ jobs:
       - name: Build client
         run: npm run build --workspace client
 
-      # ---------- MIGRATIONS (STAGING) ----------
       - name: Prisma migrate deploy (staging)
         run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 
-      # ---------- RENDER DEPLOY (STAGING) ----------
       - name: Render Deploy (staging)
         id: render-deploy-staging
         run: |
@@ -49,6 +40,7 @@ jobs:
 
       - name: Wait for Render deploy (staging)
         if: steps.render-deploy-staging.outputs.deploy_id != 'null'
+        shell: bash
         run: |
           DEPLOY_ID=${{ steps.render-deploy-staging.outputs.deploy_id }}
           for i in {1..60}; do
@@ -61,7 +53,6 @@ jobs:
           done
           echo "Timed out waiting for Render deploy"; exit 1
 
-      # ---------- CURL SMOKE (STAGING) ----------
       - name: Smoke check (curl)
         run: |
           set -e
@@ -71,7 +62,6 @@ jobs:
           echo "HTTP $code"
           test "$code" -eq 200
 
-      # ---------- K6 SMOKE (STAGING) ----------
       - name: Setup k6
         uses: grafana/setup-k6-action@v1
 
@@ -80,31 +70,26 @@ jobs:
         env:
           BASE_URL: ${{ secrets.STAGING_BASE_URL }}
 
-      # ---------- (OPTIONAL) VERCEL DEPLOY (STAGING) ----------
-      - name: Deploy client to Vercel (staging) [optional]
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
-        run: |
-          npm i -g vercel@latest
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
-          vercel build --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
-          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --cwd=client \
-            --scope=${{ secrets.VERCEL_ORG_ID }} \
-            --project=${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-smoke
+          path: k6/*.json
 
   promote-prod:
-    name: Promote to Production
     needs: [deploy-staging]
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      # require manual approval in GitHub Environments
+    environment: production
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Install (workspaces)
         run: npm ci
@@ -115,14 +100,12 @@ jobs:
       - name: Build client
         run: npm run build --workspace client
 
-      # ---------- MIGRATIONS (PROD) ----------
       - name: Prisma migrate deploy (prod)
         run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
 
-      # ---------- RENDER DEPLOY (PROD) ----------
       - name: Render Deploy (prod)
         id: render-deploy-prod
         run: |
@@ -136,6 +119,7 @@ jobs:
 
       - name: Wait for Render deploy (prod)
         if: steps.render-deploy-prod.outputs.deploy_id != 'null'
+        shell: bash
         run: |
           DEPLOY_ID=${{ steps.render-deploy-prod.outputs.deploy_id }}
           for i in {1..60}; do
@@ -147,14 +131,3 @@ jobs:
             sleep 10
           done
           echo "Timed out waiting for Render deploy"; exit 1
-
-      # ---------- (OPTIONAL) VERCEL DEPLOY (PROD) ----------
-      - name: Deploy client to Vercel (prod) [optional]
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
-        run: |
-          npm i -g vercel@latest
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd=client
-          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd=client \
-            --scope=${{ secrets.VERCEL_ORG_ID }} \
-            --project=${{ secrets.VERCEL_PROJECT_ID_PROD }}

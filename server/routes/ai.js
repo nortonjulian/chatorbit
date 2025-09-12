@@ -39,6 +39,18 @@ function tryParseJson(str) {
   return null;
 }
 
+// basic profanity masker (opt-in)
+function maskProfanity(s) {
+  if (!s) return s;
+  const words = (process.env.AI_PROFANITY_WORDS || '')
+    .split(',')
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean);
+  if (!words.length) return s;
+  const re = new RegExp(`\\b(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
+  return s.replace(re, (m) => m[0] + '*'.repeat(Math.max(0, m.length - 2)) + (m.length > 1 ? m[m.length - 1] : ''));
+}
+
 async function callOpenAIForSuggestions({ snippets, locale }) {
   const safe = (snippets || []).slice(-3).map((s) => ({
     role: s.role,
@@ -119,23 +131,41 @@ router.post(
   '/suggest-replies',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { snippets, locale } = req.body || {};
+    const { snippets, locale, filterProfanity } = req.body || {};
     if (!Array.isArray(snippets) || snippets.length === 0) {
       throw Boom.badRequest('snippets required');
     }
+
+    // Input length guard (total recent text)
+    const totalLen = snippets.reduce((n, s) => n + (s?.text?.length || 0), 0);
+    const maxChars = Number(process.env.AI_SUGGEST_MAX_INPUT || 4000);
+    if (totalLen > maxChars) {
+      throw Boom.entityTooLarge(`snippets too long (>${maxChars} chars)`);
+    }
+
     const suggestions = await callOpenAIForSuggestions({ snippets, locale });
-    return res.json({ suggestions });
+
+    // Optional profanity masking
+    const masked = filterProfanity
+      ? suggestions.map((s) => ({ ...s, text: maskProfanity(s.text) }))
+      : suggestions;
+
+    return res.json({ suggestions: masked });
   })
 );
 
 // POST /ai/translate (Free by default; you may gate later)
+// NOTE: translateText() should implement 10m cache, autodetect, DeepL->OpenAI fallback.
 router.post(
   '/translate',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { text, targetLang, sourceLang } = req.body ?? {};
+    const { text, targetLang, sourceLang, maxChars = 5000 } = req.body ?? {};
     if (!text || !targetLang) {
       throw Boom.badRequest('text and targetLang required');
+    }
+    if (String(text).length > Number(maxChars)) {
+      throw Boom.entityTooLarge(`text too long (>${maxChars} chars)`);
     }
     const out = await translateText({ text, targetLang, sourceLang });
     return res.json(out);

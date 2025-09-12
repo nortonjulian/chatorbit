@@ -1,5 +1,4 @@
 import express from 'express';
-
 import pkg from '@prisma/client';
 const { PrismaClient } = pkg;
 
@@ -47,7 +46,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /admin/reports/:id/resolve
+// PATCH /admin/reports/:id/resolve { notes? }
 router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -60,6 +59,14 @@ router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
         resolvedAt: new Date(),
       },
     });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_RESOLVE_REPORT',
+      targetReportId: id,
+      notes: notes || '',
+    };
+
     res.json(updated);
   } catch (e) {
     console.error(e);
@@ -67,67 +74,84 @@ router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// POST /admin/reports/users/:userId/warn
-router.post(
-  '/users/:userId/warn',
-  requireAuth,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const userId = Number(req.params.userId);
-      const { notes } = req.body || {};
-      // (Optional) Persist a warning model or AuditLog here
-      res.json({ success: true, userId, notes: notes || 'warned' });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: 'Failed to warn user' });
-    }
-  }
-);
+// POST /admin/reports/users/:userId/warn { notes? }
+router.post('/users/:userId/warn', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    const { notes } = req.body || {};
 
-// POST /admin/reports/users/:userId/ban
-router.post(
-  '/users/:userId/ban',
-  requireAuth,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const userId = Number(req.params.userId);
-      const { reason } = req.body || {};
-      const updated = await prisma.user.update({
-        where: { id: userId },
-        data: { isBanned: true, bannedAt: new Date() },
-      });
-      res.json({
-        success: true,
-        user: { id: updated.id, isBanned: updated.isBanned },
-        reason: reason || '',
-      });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: 'Failed to ban user' });
-    }
+    // audit only (optional persistence if you add a Warning model)
+    res.locals.audit = {
+      action: 'ADMIN_WARN_USER',
+      targetUserId: userId,
+      notes: notes || 'warned',
+    };
+
+    res.json({ success: true, userId, notes: notes || 'warned' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to warn user' });
   }
-);
+});
+
+// POST /admin/reports/users/:userId/ban { reason? }
+router.post('/users/:userId/ban', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    const { reason } = req.body || {};
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { isBanned: true, bannedAt: new Date() },
+    });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_BAN_USER',
+      targetUserId: userId,
+      notes: reason || '',
+    };
+
+    res.json({
+      success: true,
+      user: { id: updated.id, isBanned: updated.isBanned },
+      reason: reason || '',
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
 
 // DELETE /admin/reports/messages/:messageId
-router.delete(
-  '/messages/:messageId',
-  requireAuth,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const messageId = Number(req.params.messageId);
-      await prisma.message.update({
-        where: { id: messageId },
-        data: { deletedBySender: true },
-      });
-      res.json({ success: true });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: 'Failed to delete message' });
-    }
+// Admin removal for everyone: blank content fields but keep the record for ordering/audit
+router.delete('/messages/:messageId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const messageId = Number(req.params.messageId);
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        contentCiphertext: '',
+        rawContent: null,
+        translatedContent: null,
+        // if your schema has a dedicated flag, set it here as well:
+        // deletedByAdmin: true,
+      },
+      select: { id: true, chatRoomId: true, senderId: true },
+    });
+
+    // audit
+    res.locals.audit = {
+      action: 'ADMIN_DELETE_MESSAGE',
+      targetMessageId: messageId,
+      notes: 'content blanked by admin',
+    };
+
+    res.json({ success: true, message: updated });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete message' });
   }
-);
+});
 
 export default router;

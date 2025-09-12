@@ -220,7 +220,7 @@ export default function AdminReportsPage() {
             <Button variant="light" onClick={close}>
               Cancel
             </Button>
-            <Button onClick={resolveReport}>Resolve</Button>
+              <Button onClick={resolveReport}>Resolve</Button>
           </Group>
         </Stack>
       </Modal>

@@ -3,7 +3,7 @@ import asyncHandler from 'express-async-handler';
 import Boom from '@hapi/boom';
 
 import { requireAuth } from '../middleware/auth.js';
-import { prisma } from '../utils/prismaClient.js';
+import prisma from '../utils/prismaClient.js';
 
 // Rank-based helpers (assumes you created these in utils/roomAuth.js)
 import {
@@ -35,6 +35,35 @@ const requireRoomOwner = async (req, _res, next) => {
 
   return next();
 };
+
+/* ==========================================
+ * Minimal create endpoint the tests expect:
+ * POST /rooms  body: { name, isGroup }
+ * returns 201 with { id } (tests also accept { room:{id} })
+ * ========================================== */
+router.post(
+  '/',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ownerId = Number(req.user.id);
+    const { name = 'Room', isGroup = true } = req.body || {};
+
+    const created = await prisma.chatRoom.create({
+      data: {
+        name,
+        isGroup: !!isGroup,
+        ownerId,
+        participants: {
+          create: { userId: ownerId, role: 'ADMIN' }, // owner is ADMIN; ownerId field is the source of truth
+        },
+      },
+      select: { id: true },
+    });
+
+    // Both shapes are accepted by the tests
+    return res.status(201).json({ id: created.id, room: created });
+  })
+);
 
 // GET /chatrooms  (cursor by updatedAt,id; optional membership filter)
 router.get(
@@ -129,10 +158,11 @@ router.post(
     const newChatRoom = await prisma.chatRoom.create({
       data: {
         isGroup: false,
+        ownerId: userId1,
         participants: {
           create: [
-            { user: { connect: { id: userId1 } } },
-            { user: { connect: { id: userId2 } } },
+            { user: { connect: { id: userId1 } }, role: 'ADMIN' },
+            { user: { connect: { id: userId2 } }, role: 'MEMBER' },
           ],
         },
       },
@@ -143,7 +173,7 @@ router.post(
   })
 );
 
-// POST /chatrooms/group  (exact participant-set match check, else create)
+// POST /chatrooms/group
 router.post(
   '/group',
   requireAuth,
@@ -171,8 +201,12 @@ router.post(
       data: {
         name: name || 'Group chat',
         isGroup: true,
+        ownerId: Number(req.user.id),
         participants: {
-          create: ids.map((id) => ({ user: { connect: { id } } })),
+          create: ids.map((id) => ({
+            user: { connect: { id } },
+            role: id === Number(req.user.id) ? 'ADMIN' : 'MEMBER',
+          })),
         },
       },
       include: { participants: true },
@@ -367,7 +401,6 @@ router.delete(
 );
 
 // PATCH /chatrooms/:id/participants/:userId/role
-// (only owner can grant ADMIN; admins can set MODERATOR/MEMBER)
 router.patch(
   '/:id/participants/:userId/role',
   requireAuth,

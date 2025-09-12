@@ -1,6 +1,6 @@
 // ------------------------------------------------------------
 // Responsibilities in this file:
-// 1) Decrypt fetched messages (your existing logic)
+// 1) Decrypt fetched messages (updated to use `encryptedKeyForMe`)
 // 2) Report message helper (unchanged)
 // 3) Local key storage with encrypt-at-rest (IndexedDB + WebCrypto)
 // 4) Provisioning helpers used by Device Management UI
@@ -11,6 +11,7 @@ import { decryptMessageForUserBrowser } from './decryptionClient.js';
 
 /**
  * Decrypts an array of messages for the current user.
+ * Expects server to include `encryptedKeyForMe` (preferred) or legacy `encryptedKeys[currentUserId]`.
  * @param {Array} messages - Messages fetched from backend.
  * @param {string} currentUserPrivateKey - Base64 private key.
  * @param {Object} senderPublicKeys - Object mapping senderId → publicKey (base64).
@@ -25,11 +26,17 @@ export async function decryptFetchedMessages(
   return Promise.all(
     messages.map(async (msg) => {
       try {
-        const encryptedKey = msg.encryptedKeys?.[currentUserId];
-        const senderPublicKey = senderPublicKeys?.[msg.sender?.id];
+        const encryptedKey =
+          msg.encryptedKeyForMe ??
+          (msg.encryptedKeys && msg.encryptedKeys[currentUserId]) ??
+          null;
+
+        const senderPublicKey =
+          senderPublicKeys?.[msg.sender?.id] || msg.sender?.publicKey || null;
 
         if (!encryptedKey || !senderPublicKey) {
-          throw new Error('Missing encrypted key or sender public key');
+          // Graceful UX: show placeholder and allow "request key" in future
+          return { ...msg, decryptedContent: '[Encrypted – key unavailable]' };
         }
 
         const decrypted = await decryptMessageForUserBrowser(
@@ -42,7 +49,7 @@ export async function decryptFetchedMessages(
         return { ...msg, decryptedContent: decrypted };
       } catch (err) {
         console.warn(`Decryption failed for message ${msg.id}:`, err);
-        return { ...msg, decryptedContent: '[Encrypted message]' };
+        return { ...msg, decryptedContent: '[Encrypted – could not decrypt]' };
       }
     })
   );

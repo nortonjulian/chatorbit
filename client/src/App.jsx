@@ -1,10 +1,4 @@
 import { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider, createTheme } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
-
-import { UserProvider, useUser } from '@/context/UserContext';
-import BootstrapUser from '@/components/BootstrapUser';
 import AppRoutes from './AppRoutes';
 import socket from '@/lib/socket';
 

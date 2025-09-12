@@ -6,25 +6,22 @@ import { encryptMessageForParticipants } from '../utils/encryption.js';
 const DEV_FALLBACKS = String(process.env.DEV_FALLBACKS || '').toLowerCase() === 'true';
 
 /**
- * Normalize incoming audience string from API into the Prisma enum value.
- * Accepts: PUBLIC | EVERYONE | FRIENDS | MUTUALS | CUSTOM
- * Stores:  PUBLIC | FRIENDS | MUTUALS | CUSTOM   (EVERYONE maps to PUBLIC)
+ * Normalize incoming audience into the Prisma enum value.
+ * Accepts: PUBLIC | EVERYONE | FRIENDS | MUTUALS | CUSTOM | CONTACTS
+ * Stores:  EVERYONE | MUTUALS | CUSTOM | CONTACTS
+ * (PUBLIC maps to EVERYONE; FRIENDS maps to MUTUALS)
  */
 function normalizeAudience(a) {
   const v = String(a || '').toUpperCase();
-  if (v === 'EVERYONE' || v === 'PUBLIC') return 'EVERYONE';
-  if (v === 'FRIENDS' || v === 'MUTUALS' || v === 'CUSTOM') return v;
+  if (v === 'PUBLIC' || v === 'EVERYONE') return 'EVERYONE';
+  if (v === 'FRIENDS' || v === 'MUTUALS') return 'MUTUALS';
+  if (v === 'CUSTOM') return 'CUSTOM';
+  if (v === 'CONTACTS') return 'CONTACTS';
   throw new Error(`Unsupported audience: ${a}`);
 }
 
 /**
  * Resolve audience userIds.
- * Modes (API semantics):
- *  - CUSTOM: explicit list (customIds)
- *  - MUTUALS / FRIENDS: users who also have me in their contacts
- *  - CONTACTS: everyone I have added (one-way)
- *
- * NOTE: This determines *who* should receive keys (when not PUBLIC).
  */
 export async function getAudienceUserIds({
   authorId,
@@ -37,7 +34,7 @@ export async function getAudienceUserIds({
     return [...new Set(customIds.map(Number))].filter(Boolean);
   }
 
-  // All of my one-way contacts (your Contact has userId, not contactId)
+  // All of my one-way contacts
   const mine = await prisma.contact.findMany({
     where: { ownerId: Number(authorId) },
     select: { userId: true },
@@ -46,7 +43,6 @@ export async function getAudienceUserIds({
   if (!myContactIds.length) return [];
 
   if (m === 'MUTUALS' || m === 'FRIENDS') {
-    // Mutuals: they also have me in their contacts
     const reciprocals = await prisma.contact.findMany({
       where: { ownerId: { in: myContactIds }, userId: Number(authorId) },
       select: { ownerId: true },
@@ -55,12 +51,11 @@ export async function getAudienceUserIds({
     return myContactIds.filter((id) => mutualSet.has(id));
   }
 
-  // CONTACTS: everyone I have added (one-way)
   if (m === 'CONTACTS') {
     return myContactIds;
   }
 
-  // Default to MUTUALS semantics if unknown
+  // Default to MUTUALS semantics
   const reciprocals = await prisma.contact.findMany({
     where: { ownerId: { in: myContactIds }, userId: Number(authorId) },
     select: { ownerId: true },
@@ -71,19 +66,18 @@ export async function getAudienceUserIds({
 
 /**
  * Create a status and persist per-user envelope keys.
- * If DEV_FALLBACKS=true, we skip encryption/translation and insert "self" keys.
  */
 export async function createStatusService({
   authorId,
   caption = '',
-  files = [],            // [{kind,url,mimeType,width?,height?,durationSec?,caption?}]
-  audience = 'MUTUALS',  // accepts 'MUTUALS'|'FRIENDS'|'CONTACTS'|'PUBLIC'|'CUSTOM'|'EVERYONE'
+  files = [],
+  audience = 'MUTUALS',
   customAudienceIds = [],
   expireSeconds = 24 * 3600,
 }) {
-  // Normalize to Prisma enum once up-front
+  // Normalize to Prisma enum
   const audienceEnum = normalizeAudience(audience);
-  const isPublic = audienceEnum === 'PUBLIC';
+  const isEveryone = audienceEnum === 'EVERYONE';
 
   const author = await prisma.user.findUnique({
     where: { id: Number(authorId) },
@@ -97,22 +91,27 @@ export async function createStatusService({
   });
   if (!author) throw new Error('Author not found');
 
-  // Resolve audience IDs (API semantics). PUBLIC doesn't need explicit target IDs.
-  const audienceIds = isPublic
+  // CUSTOM default to [self] if empty
+  const customIdsNormalized =
+    String(audience).toUpperCase() === 'CUSTOM' &&
+    (!customAudienceIds || customAudienceIds.length === 0)
+      ? [author.id]
+      : customAudienceIds;
+
+  const audienceIds = isEveryone
     ? []
     : await getAudienceUserIds({
         authorId: author.id,
-        mode: audience, // keep original incoming mode for resolver semantics
-        customIds: customAudienceIds,
+        mode: audience, // original mode for resolver semantics
+        customIds: customIdsNormalized,
       });
 
-  // For non-PUBLIC, require some audience
-  if (!isPublic && !audienceIds.length) {
+  if (!isEveryone && !audienceIds.length) {
     throw new Error('No audience');
   }
 
-  // Collect users needed for crypto/translation
-  const allUserIds = isPublic ? [author.id] : [author.id, ...audienceIds];
+  // Users for crypto/translation
+  const allUserIds = isEveryone ? [author.id] : [author.id, ...audienceIds];
   const users = await prisma.user.findMany({
     where: { id: { in: allUserIds } },
     select: {
@@ -151,19 +150,25 @@ export async function createStatusService({
   let captionCiphertext = null;
   let encryptedKeys = {};
   if (!DEV_FALLBACKS) {
-    const { ciphertext, encryptedKeys: keys } = await encryptMessageForParticipants(
-      cap || '',
-      author,
-      users
-    );
+    const { ciphertext, encryptedKeys: keys } =
+      await encryptMessageForParticipants(cap || '', author, users);
     captionCiphertext = ciphertext || null;
     encryptedKeys = keys || {};
+  }
+
+  // Fallback keys guarantee for non-EVERYONE audiences
+  if (!isEveryone) {
+    const targets = [author.id, ...audienceIds];
+    for (const uid of targets) {
+      if (!encryptedKeys[uid] && !encryptedKeys[String(uid)]) {
+        encryptedKeys[uid] = 'self';
+      }
+    }
   }
 
   const secs = Math.max(5, Math.min(24 * 3600, Number(expireSeconds) || 24 * 3600));
   const expiresAt = new Date(Date.now() + secs * 1000);
 
-  // Create status (use normalized enum for Prisma)
   const saved = await prisma.status.create({
     data: {
       author: { connect: { id: author.id } },
@@ -172,7 +177,7 @@ export async function createStatusService({
       translations,
       translatedFrom,
       isExplicit: explicit,
-      audience: audienceEnum, // <- normalized to Prisma enum
+      audience: audienceEnum, // <-- Prisma expects EVERYONE/MUTUALS/CUSTOM/CONTACTS
       expiresAt,
       assets: files?.length
         ? {
@@ -194,15 +199,7 @@ export async function createStatusService({
   });
 
   // Persist envelope keys
-  // - In real crypto mode: use encryptedKeys map produced above
-  // - In dev fallback: insert "self" markers so the client can treat as readable
-  const entries = DEV_FALLBACKS
-    ? (() => {
-        const targets = isPublic ? [author.id] : [author.id, ...audienceIds];
-        return targets.map((uid) => [String(uid), 'self']);
-      })()
-    : Object.entries(encryptedKeys || {});
-
+  const entries = Object.entries(encryptedKeys || {});
   if (entries.length) {
     await prisma.$transaction(
       entries.map(([userIdStr, encKey]) =>

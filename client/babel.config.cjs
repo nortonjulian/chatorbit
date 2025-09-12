@@ -3,6 +3,10 @@ module.exports = {
     ['@babel/preset-env', { targets: { node: 'current' } }],
     ['@babel/preset-react', { runtime: 'automatic' }],
   ],
-  // If you ever add more packages, this keeps per-package .babelrcs working.
+  plugins: [
+    // Converts `import.meta.env.VITE_*` to `process.env.VITE_*` so Jest can parse it
+    'babel-plugin-transform-vite-meta-env',
+  ],
+  // If you ever add per-package .babelrc files, this allows resolving them.
   babelrcRoots: ['.', './client'],
 };

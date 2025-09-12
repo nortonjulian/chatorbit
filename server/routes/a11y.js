@@ -39,7 +39,7 @@ async function userCanAccessMessage(userId, messageId) {
 
 async function userInCall(userId, callId) {
   const call = await prisma.call.findUnique({
-    where: { id: callId },
+    where: { id: Number(callId) || 0 },
     select: { callerId: true, calleeId: true },
   });
   if (!call) return false;
@@ -48,6 +48,35 @@ async function userInCall(userId, callId) {
 
 // In-memory session map for captions (mock accumulation; fine to keep for now)
 const liveCaptionSessions = new Map(); // callId -> { userId, startedAt, language, segments: [] }
+
+// Compute quota budget and remaining seconds for current user (FREE vs PREMIUM)
+async function computeQuota(userId) {
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+
+  // Prefer daily minutes if configured, otherwise monthly
+  const perDayMin = Number(a11yConfig.FREE_STT_MIN_PER_DAY || 0);
+  const perMonthMin = Number(a11yConfig.FREE_STT_MIN_PER_MONTH || 0);
+  const period = perDayMin > 0 ? 'day' : 'month';
+  const budgetSec =
+    (period === 'day' ? perDayMin : perMonthMin) * 60;
+
+  // NOTE: getUsageSeconds() should internally track usage for the same period
+  const usedSec = await getUsageSeconds(userId, { period }); // second arg optional if your impl ignores it
+
+  if (me?.plan === 'PREMIUM') {
+    return { plan: 'PREMIUM', period, usedSec, remainingSec: Infinity, budgetSec: Infinity };
+  }
+  return {
+    plan: 'FREE',
+    period,
+    usedSec,
+    remainingSec: Math.max(0, budgetSec - usedSec),
+    budgetSec,
+  };
+}
 
 // ---------- routes ----------
 
@@ -88,6 +117,17 @@ router.patch('/users/me/a11y', requireAuth, async (req, res) => {
   }
 });
 
+// Current STT quota & remaining (FREE vs PREMIUM)
+router.get('/users/me/a11y/quota', requireAuth, async (req, res) => {
+  try {
+    const summary = await computeQuota(req.user.id);
+    res.json({ ok: true, quota: summary });
+  } catch (err) {
+    console.error('GET /users/me/a11y/quota error', err);
+    res.status(500).json({ error: 'Failed to fetch quota' });
+  }
+});
+
 // Transcribe a voice note (Free with quota; Premium unlimited)
 router.post('/media/:messageId/transcribe', requireAuth, async (req, res) => {
   try {
@@ -106,23 +146,48 @@ router.post('/media/:messageId/transcribe', requireAuth, async (req, res) => {
     const language = req.body?.language || 'en-US';
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { plan: true },
+      select: { plan: true, a11yStoreTranscripts: true },
     });
 
     // Quota for Free users
-    const durationSec = msg.audioDurationSec || 60;
+    const durationSec = msg.audioDurationSec ?? 60;
     if (me.plan === 'FREE') {
-      const usedSec = await getUsageSeconds(req.user.id);
-      const freeBudgetSec = Number(a11yConfig.FREE_STT_MIN_PER_MONTH || 0) * 60;
+      const perDayMin = Number(a11yConfig.FREE_STT_MIN_PER_DAY || 0);
+      const perMonthMin = Number(a11yConfig.FREE_STT_MIN_PER_MONTH || 0);
       const langIsFree = (a11yConfig.FREE_STT_LANGS || []).includes(language);
-      if (!langIsFree) return res.status(402).json({ code: 'PREMIUM_REQUIRED', reason: 'LANGUAGE' });
-      if (usedSec + durationSec > freeBudgetSec) {
+
+      if (!langIsFree) {
+        return res.status(402).json({ code: 'PREMIUM_REQUIRED', reason: 'LANGUAGE' });
+      }
+
+      const period = perDayMin > 0 ? 'day' : 'month';
+      const budgetSec = (period === 'day' ? perDayMin : perMonthMin) * 60;
+      const usedSec = await getUsageSeconds(req.user.id, { period });
+
+      if (usedSec + durationSec > budgetSec) {
         return res.status(402).json({ code: 'PREMIUM_REQUIRED', reason: 'QUOTA' });
       }
     }
 
     // Do the transcription
     const { segments } = await stt.transcribeFromUrl(msg.audioUrl, language);
+
+    // Track usage against quota regardless of persistence
+    await addUsageSeconds(req.user.id, durationSec);
+
+    // Respect "store transcripts" preference
+    if (me?.a11yStoreTranscripts === false) {
+      return res.json({
+        ok: true,
+        transcript: {
+          id: null,
+          language,
+          segments,
+          createdAt: new Date().toISOString(),
+          ephemeral: true,
+        },
+      });
+    }
 
     // Persist transcript
     const transcript = await prisma.transcript.create({
@@ -134,9 +199,6 @@ router.post('/media/:messageId/transcribe', requireAuth, async (req, res) => {
       },
       select: { id: true, language: true, segments: true, createdAt: true },
     });
-
-    // Track usage against quota
-    await addUsageSeconds(req.user.id, durationSec);
 
     res.json({ ok: true, transcript });
   } catch (err) {
@@ -183,7 +245,7 @@ router.post('/calls/:callId/captions/start', requireAuth, requirePremium, async 
     const wsUrl = `/ws/captions?callId=${encodeURIComponent(callId)}&lang=${encodeURIComponent(language)}`;
 
     // Track session start (optional: accumulate partials for persistence)
-    liveCaptionSessions.set(callId, { userId: req.user.id, startedAt: Date.now(), language, segments: [] });
+    liveCaptionSessions.set(String(callId), { userId: req.user.id, startedAt: Date.now(), language, segments: [] });
 
     res.json({ ok: true, wsUrl, language });
   } catch (err) {
@@ -192,32 +254,52 @@ router.post('/calls/:callId/captions/start', requireAuth, requirePremium, async 
   }
 });
 
-// Stop live captions, persist transcript snapshot, add usage
+// Stop live captions, optionally persist transcript snapshot, add usage
 router.post('/calls/:callId/captions/stop', requireAuth, requirePremium, async (req, res) => {
   try {
     const { callId } = req.params;
-    const sess = liveCaptionSessions.get(callId);
+    const sess = liveCaptionSessions.get(String(callId));
     if (!sess) return res.status(404).json({ error: 'No active caption session' });
 
     if (sess.userId !== req.user.id && !(await userInCall(req.user.id, callId))) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const me = await prisma.user.findUnique({
+      where: { id: sess.userId },
+      select: { a11yStoreTranscripts: true },
+    });
+
+    // Usage accounting (minutes billed to captions)
+    const elapsedSec = Math.max(0, Math.floor((Date.now() - sess.startedAt) / 1000));
+    await addUsageSeconds(sess.userId, elapsedSec);
+
+    liveCaptionSessions.delete(String(callId));
+
+    // Respect "store transcripts"
+    if (me?.a11yStoreTranscripts === false) {
+      return res.json({
+        ok: true,
+        transcript: {
+          id: null,
+          language: sess.language,
+          segments: sess.segments || [],
+          createdAt: new Date().toISOString(),
+          ephemeral: true,
+        },
+      });
+    }
+
     const transcript = await prisma.transcript.create({
       data: {
         userId: sess.userId,
-        callId,
+        callId: Number(callId),
         language: sess.language,
         segments: sess.segments || [], // if you later collect partials from WS
       },
       select: { id: true, language: true, segments: true, createdAt: true },
     });
 
-    // Usage accounting (minutes billed to captions)
-    const elapsedSec = Math.floor((Date.now() - sess.startedAt) / 1000);
-    await addUsageSeconds(sess.userId, elapsedSec);
-
-    liveCaptionSessions.delete(callId);
     res.json({ ok: true, transcript });
   } catch (err) {
     console.error('POST /calls/:callId/captions/stop error', err);
@@ -232,7 +314,7 @@ router.get('/calls/:callId/transcript', requireAuth, async (req, res) => {
     if (!(await userInCall(req.user.id, callId))) return res.status(403).json({ error: 'Forbidden' });
 
     const t = await prisma.transcript.findFirst({
-      where: { callId, userId: req.user.id },
+      where: { callId: Number(callId) || 0, userId: req.user.id },
       orderBy: { createdAt: 'desc' },
     });
     if (!t) return res.status(404).json({ error: 'Transcript not found' });
