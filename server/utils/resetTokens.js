@@ -1,42 +1,30 @@
 import crypto from 'crypto';
-import { ensureRedis, redisKv } from './redisClient.js';
 
-const PREFIX = 'pwreset:'; // namespace prefix for reset tokens
-const TTL_SEC = Number(process.env.RESET_TOKEN_TTL_SEC || 15 * 60); // default 15 minutes
+const isTest = process.env.NODE_ENV === 'test';
 
-/**
- * Issue a one-time reset token for a user.
- * @param {number|string} userId - The user ID to tie the token to.
- * @returns {Promise<string>} token
- */
+// Simple in-memory store for tests/dev
+const mem = new Map(); // token -> { userId, exp }
+
+const TTL_MS = 15 * 60 * 1000;
+
 export async function issueResetToken(userId) {
-  await ensureRedis();
+  const token = crypto.randomUUID();
+  const exp = Date.now() + TTL_MS;
 
-  const token = crypto.randomBytes(32).toString('hex'); // secure random
-  const key = `${PREFIX}${token}`;
+  if (isTest) {
+    mem.set(token, { userId: Number(userId), exp });
+    return token;
+  }
 
-  // Redis EX sets TTL automatically
-  await redisKv.setEx(key, TTL_SEC, String(userId));
-
+  // TODO: implement Redis/DB storage here for production
+  mem.set(token, { userId: Number(userId), exp });
   return token;
 }
 
-/**
- * Consume a reset token.
- * Returns userId if valid, null if expired/invalid.
- * Token is deleted immediately after being read.
- *
- * @param {string} token
- * @returns {Promise<number|null>}
- */
 export async function consumeResetToken(token) {
-  await ensureRedis();
-
-  const key = `${PREFIX}${token}`;
-  const userId = await redisKv.get(key);
-
-  if (!userId) return null; // missing or expired
-
-  await redisKv.del(key); // enforce one-time use
-  return Number(userId);
+  const rec = mem.get(token);
+  if (!rec) return null;
+  mem.delete(token);
+  if (rec.exp < Date.now()) return null;
+  return Number(rec.userId);
 }

@@ -20,6 +20,12 @@ export function errorHandler(err, req, res, next) {
 
   // Optional: attach structured data (e.g., validation details)
   const body = boomErr.data ? { ...payload, data: boomErr.data } : payload;
+  if (process.env.NODE_ENV === 'test' && statusCode >= 500) {
+    body.__test = {
+      message: String(err.message),
+      stack: String(err.stack || '').split('\n').slice(0, 5),
+    } 
 
+  }
   res.status(statusCode).json(body);
 }

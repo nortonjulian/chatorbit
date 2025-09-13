@@ -7,17 +7,14 @@
     "server"
   ],
   "scripts": {
-    "lint": "eslint \"{client,server}/**/*.{js,jsx}\"",
-    "lint:fix": "eslint \"{client,server}/**/*.{js,jsx}\" --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
     "test": "npm run -w client test && npm run -w server test",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:server": "NODE_OPTIONS=--experimental-vm-modules jest -c jest.server.config.js --runInBand",
-    "test:client": "NODE_OPTIONS=--experimental-vm-modules jest -c jest.client.config.js --runInBand",
-    "coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:server": "npm run -w server test",
+    "test:client": "npm run -w client test",
+    "test:watch": "npm run -w server test:server:watch",
+    "coverage": "npm run -w server coverage",
     "test:e2e": "playwright test",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:all": "npm run test && npm run test:e2e",
+    "postinstall": "npm run -w server prisma:generate || true"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.3",

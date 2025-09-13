@@ -5,8 +5,8 @@ const ENDPOINTS = {
   register: '/auth/register',
   login: '/auth/login',
   logout: '/auth/logout',
-  requestReset: '/auth/request-password-reset', // adjust if different
-  resetPassword: '/auth/reset-password',        // adjust if different
+  requestReset: '/auth/forgot-password',   // updated
+  resetPassword: '/auth/reset-password',
 };
 
 describe('Auth flows', () => {
@@ -44,26 +44,38 @@ describe('Auth flows', () => {
     await agent.post(ENDPOINTS.logout).expect(200);
   });
 
-  test.skip('password reset flow (request → reset)', async () => {
+  test('password reset flow (request → reset)', async () => {
     await agent.post(ENDPOINTS.register).send({ email, password, username }).expect(201);
 
+    // Request reset
     const reqRes = await agent
       .post(ENDPOINTS.requestReset)
       .send({ email })
       .expect(200);
 
-    // Depending on your implementation, a token may be emailed.
-    // If you persist a reset token in DB, fetch it here:
-    // const token = (await prisma.passwordResetToken.findFirst({ where: { email } })).token;
+    // In test env, route includes token in response
+    let token = reqRes.body.token;
 
-    const token = 'replace-with-fetched-token';
+    // If token not returned for any reason, fall back to DB lookup
+    if (!token) {
+      const user = await prisma.user.findUnique({ where: { email } });
+      // Support either PasswordResetToken or PasswordRestToken
+      const delegate = prisma.passwordResetToken || prisma.passwordRestToken;
+      const rec = await delegate.findFirst({ where: { userId: user.id } });
+      token = rec?.token;
+    }
+
+    expect(token).toBeDefined();
+
     const newPassword = 'NewStrongerPass!';
 
+    // Accepts either { newPassword } or { password }
     await agent
       .post(ENDPOINTS.resetPassword)
       .send({ token, password: newPassword })
       .expect(200);
 
+    // Login with new password should succeed
     await agent.post(ENDPOINTS.login).send({ email, password: newPassword }).expect(200);
   });
 });

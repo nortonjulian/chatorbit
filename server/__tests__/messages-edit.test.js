@@ -6,7 +6,6 @@ const ENDPOINTS = {
   createRoom: '/chatrooms',
   sendMessage: '/messages',
   editMessage: (id) => `/messages/${id}`,
-  // markRead: '/messages/mark-read'  // adjust when known
 };
 
 describe('Messages: edit rules', () => {
@@ -28,10 +27,14 @@ describe('Messages: edit rules', () => {
     await agent.post(ENDPOINTS.register).send({ email, password, username }).expect(201);
     await agent.post(ENDPOINTS.login).send({ email, password }).expect(200);
 
-    const r = await agent.post(ENDPOINTS.createRoom).send({ name: 'Room B', isGroup: false }).expect(201);
+    const r = await agent
+      .post(ENDPOINTS.createRoom)
+      .send({ name: 'Room B', isGroup: false })
+      .expect(201);
     roomId = r.body.id || r.body.room?.id;
 
-    const m = await agent.post(ENDPOINTS.sendMessage).send({ roomId, content: 'first', kind: 'TEXT' }).expect(201);
+    const m = await agent.post(ENDPOINTS.sendMessage)
+      .send({ chatRoomId: roomId, content: 'first', kind: 'TEXT' }).expect(201);
     messageId = m.body.id || m.body.message?.id;
   });
 
@@ -43,8 +46,6 @@ describe('Messages: edit rules', () => {
   });
 
   test.skip('fails to edit after a non-sender read (expect 409)', async () => {
-    // 1) log in as another user, mark as read
-    // 2) switch back, try edit → expect 409
-    // This requires your mark-read endpoint; unskip once confirmed.
+    // Implement when mark-read endpoint is ready.
   });
 });

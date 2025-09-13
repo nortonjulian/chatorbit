@@ -6,12 +6,10 @@ const ENDPOINTS = {
   createRoom: '/chatrooms',
   sendMessage: '/messages',
   react: (id) => `/messages/${id}/reactions`,
-  // For media: '/messages' with multipart/form-data
 };
 
 describe('Messages: create + reactions', () => {
   let agent;
-  let user;
   let roomId;
 
   beforeAll(() => {
@@ -36,25 +34,17 @@ describe('Messages: create + reactions', () => {
   test('create text message and add/remove reaction', async () => {
     const m = await agent
       .post(ENDPOINTS.sendMessage)
-      .send({ roomId, content: 'hello', kind: 'TEXT' })
+      .send({ chatRoomId: roomId, content: 'hello', kind: 'TEXT' })
       .expect(201);
 
     const messageId = m.body.id || m.body.message?.id;
     expect(messageId).toBeDefined();
 
     await agent.post(ENDPOINTS.react(messageId)).send({ emoji: '👍' }).expect(200);
-
-    // remove reaction — adjust to your API (DELETE or POST toggle)
-    await agent.delete(ENDPOINTS.react(messageId)).send({ emoji: '👍' }).expect(200);
+    await agent.delete(`/messages/${messageId}/reactions/${encodeURIComponent('👍')}`).expect(200);
   });
 
   test.skip('create media message (multipart) [TODO]', async () => {
-    // Example when you wire it up:
-    // await agent
-    //   .post(ENDPOINTS.sendMessage)
-    //   .field('roomId', String(roomId))
-    //   .field('kind', 'IMAGE')
-    //   .attach('files', Buffer.from('...'), 'pic.jpg')
-    //   .expect(201);
+    // wire up when media route is ready
   });
 });

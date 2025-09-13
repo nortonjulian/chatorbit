@@ -30,6 +30,7 @@ import contactRoutes from './routes/contacts.js';
 import invitesRouter from './routes/invites.js';
 import mediaRouter from './routes/media.js';
 import billingRouter from './routes/billing.js';   // static import (no top-level await)
+import billingWebhook from './routes/billingWebhook.js';
 
 // Errors
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -218,6 +219,7 @@ export function createApp() {
   app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
 
   // Webhook + Billing (the webhook raw body pre-route already ran)
+  app.use('/billing', billingWebhook);
   app.use('/billing', billingRouter);
 
   // Primary app routers

@@ -149,35 +149,37 @@ model User {
   privateKey String?
 
   // Relations
-  followers                  Follow[]            @relation("follower") // who follows THIS user
-  following                  Follow[]            @relation("following")
-  messages                   Message[]           @relation("UserMessages")
+  followers                  Follow[]             @relation("follower") // who follows THIS user
+  following                  Follow[]             @relation("following")
+  passwordResetTokens        PasswordResetToken[] @relation("UserPasswordResetTokens")
+  roomsOwned                 ChatRoom[]           @relation("ChatRoomOwner")
+  messages                   Message[]            @relation("UserMessages")
   participants               Participant[]
-  reports                    Report[]            @relation("UserReports")
-  randomChatRooms            RandomChatRoom[]    @relation("RandomChatParticipants")
-  readMessages               Message[]           @relation("ReadMessages")
-  contactsOwned              Contact[]           @relation("ContactsOwned")
-  contactsSaved              Contact[]           @relation("ContactsSaved")
-  auditLogs                  AuditLog[]          @relation("AuditActor")
+  reports                    Report[]             @relation("UserReports")
+  randomChatRooms            RandomChatRoom[]     @relation("RandomChatParticipants")
+  readMessages               Message[]            @relation("ReadMessages")
+  contactsOwned              Contact[]            @relation("ContactsOwned")
+  contactsSaved              Contact[]            @relation("ContactsSaved")
+  auditLogs                  AuditLog[]           @relation("AuditActor")
   messageKeys                MessageKey[]
   devices                    Device[]
-  deviceRevocations          Device[]            @relation("DeviceRevokedBy")
-  createdInvites             ChatRoomInvite[]    @relation("InviteCreator")
+  deviceRevocations          Device[]             @relation("DeviceRevokedBy")
+  createdInvites             ChatRoomInvite[]     @relation("InviteCreator")
   messageReactions           MessageReaction[]
   statusesAuthored           Status[]
   statusKeys                 StatusKey[]
   statusViews                StatusView[]
   statusReactions            StatusReaction[]
-  botsOwned                  Bot[]               @relation("BotsOwned")
-  botsAsService              Bot[]               @relation("BotServiceUser")
-  provisionLinks             ProvisionLink[]     @relation("ProvisionLinkUser")
-  provisionLinksCreated      ProvisionLink[]     @relation("ProvisionLinkCreator")
-  callsPlaced                Call[]              @relation("CallCaller")
-  callsReceived              Call[]              @relation("CallCallee")
-  scheduledMessagesAuthored  ScheduledMessage[]  @relation("ScheduledMessageSender")
-  messageSessionKeysReceived MessageSessionKey[] @relation("MsgSessionKeys_Recipient")
+  botsOwned                  Bot[]                @relation("BotsOwned")
+  botsAsService              Bot[]                @relation("BotServiceUser")
+  provisionLinks             ProvisionLink[]      @relation("ProvisionLinkUser")
+  provisionLinksCreated      ProvisionLink[]      @relation("ProvisionLinkCreator")
+  callsPlaced                Call[]               @relation("CallCaller")
+  callsReceived              Call[]               @relation("CallCallee")
+  scheduledMessagesAuthored  ScheduledMessage[]   @relation("ScheduledMessageSender")
+  messageSessionKeysReceived MessageSessionKey[]  @relation("MsgSessionKeys_Recipient")
   assignedNumbers            PhoneNumber[]
-  numberReservations         NumberReservation[] @relation("UserNumberReservations")
+  numberReservations         NumberReservation[]  @relation("UserNumberReservations")
   transcripts                Transcript[]
 
   // Usage/analytics
@@ -209,6 +211,17 @@ model User {
   a11yVoiceNoteSTT Boolean @default(true) // auto-transcribe voice notes
   a11yCaptionFont  String  @default("lg") // sm|md|lg|xl
   a11yCaptionBg    String  @default("dark") // light|dark|transparent
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+
+  user User @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Follow {
@@ -270,6 +283,8 @@ model ChatRoom {
   name            String?
   aiAssistantMode AIAssistantMode @default(OFF)
   isGroup         Boolean         @default(false)
+  ownerId         Int?
+  owner           User?           @relation("ChatRoomOwner", fields: [ownerId], references: [id])
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -283,6 +298,7 @@ model ChatRoom {
   botInstalls       BotInstall[]       @relation("BotInstallRoom")
   scheduledMessages ScheduledMessage[] @relation("ScheduledMessageRoom")
 
+  @@index([ownerId])
   @@index([updatedAt, id], map: "room_updated_id")
 }
 
@@ -298,7 +314,7 @@ model Participant {
   joinedAt   DateTime @default(now())
   allowAIBot Boolean  @default(true)
 
-  @@unique([userId, chatRoomId])
+  @@unique([chatRoomId, userId])
   @@index([chatRoomId], map: "part_room")
 }
 
@@ -331,10 +347,12 @@ model RandomChatRoom {
 
 model Message {
   id                Int       @id @default(autoincrement())
-  contentCiphertext String
+  contentCiphertext String    @default("")
   rawContent        String
   translations      Json?
   translatedFrom    String?
+  translatedContent String?
+  translatedTo      String?
   isExplicit        Boolean   @default(false)
   imageUrl          String?
   audioUrl          String?
@@ -450,7 +468,7 @@ model Contact {
   id            Int      @id @default(autoincrement())
   ownerId       Int
   userId        Int?
-  externalPhone String?  // normalized digits with optional +
+  externalPhone String? // normalized digits with optional +
   externalName  String?
   alias         String?
   favorite      Boolean  @default(false)
@@ -458,8 +476,8 @@ model Contact {
   updatedAt     DateTime @updatedAt
 
   // name the two different relations to User:
-  owner User  @relation("ContactsOwned",  fields: [ownerId], references: [id])
-  user  User? @relation("ContactsSaved",  fields: [userId],  references: [id])
+  owner User  @relation("ContactsOwned", fields: [ownerId], references: [id])
+  user  User? @relation("ContactsSaved", fields: [userId], references: [id])
 
   @@unique([ownerId, userId], name: "ownerId_userId")
   @@unique([ownerId, externalPhone], name: "ownerId_externalPhone")

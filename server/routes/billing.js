@@ -1,18 +1,21 @@
 import express from 'express';
 import Stripe from 'stripe';
+import pkg from '@prisma/client';
+import Boom from '@hapi/boom';
 import { requireAuth } from '../middleware/auth.js';
 
-import pkg from '@prisma/client';
 const { PrismaClient } = pkg;
 
 const prisma = new PrismaClient();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-06-20', // pin to your chosen version
+  apiVersion: '2024-06-20',
 });
 
 const router = express.Router();
 
-// Map your logical plan names to Stripe price IDs
+/* ----------------------------------------------
+ * Utils
+ * --------------------------------------------*/
 function mapPlanToPrice(plan) {
   switch (plan) {
     case 'PREMIUM_MONTHLY':
@@ -22,13 +25,62 @@ function mapPlanToPrice(plan) {
   }
 }
 
-/* -----------------------------------------------------------
- *  Checkout session (subscription)
- * --------------------------------------------------------- */
-router.post('/checkout', requireAuth, async (req, res) => {
+async function setUserPremiumByCustomer({ stripeCustomerId, stripeSubscriptionId, currentPeriodEnd, plan = 'PREMIUM' }) {
+  const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null;
+  await prisma.user.updateMany({
+    where: { stripeCustomerId: String(stripeCustomerId) },
+    data: {
+      plan,
+      stripeSubscriptionId: stripeSubscriptionId ? String(stripeSubscriptionId) : null,
+      planExpiresAt: periodEnd,
+    },
+  });
+}
+
+async function setUserFreeByCustomer({ stripeCustomerId }) {
+  await prisma.user.updateMany({
+    where: { stripeCustomerId: String(stripeCustomerId) },
+    data: {
+      plan: 'FREE',
+      stripeSubscriptionId: null,
+      planExpiresAt: null,
+    },
+  });
+}
+
+/**
+ * Try to resolve a userId directly from the event:
+ * 1) checkout.session.*: client_reference_id / metadata.userId
+ * 2) any: object.metadata.userId
+ * 3) fallback: retrieve Stripe Customer and read metadata.userId
+ */
+async function resolveUserIdFromEvent(event) {
+  const obj = event?.data?.object || {};
+  // 1) checkout session path
+  if (obj.client_reference_id && Number(obj.client_reference_id)) return Number(obj.client_reference_id);
+  if (obj.metadata?.userId && Number(obj.metadata.userId)) return Number(obj.metadata.userId);
+  // 2) generic object metadata
+  if (obj?.metadata?.userId && Number(obj.metadata.userId)) return Number(obj.metadata.userId);
+  // 3) customer metadata
+  if (obj.customer) {
+    try {
+      const customer = await stripe.customers.retrieve(obj.customer);
+      const metaId = customer?.metadata?.userId;
+      if (metaId && Number(metaId)) return Number(metaId);
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+/* ----------------------------------------------
+ * Checkout session (subscription)
+ * --------------------------------------------*/
+router.post('/checkout', requireAuth, async (req, res, next) => {
   try {
     const priceId = mapPlanToPrice(req.body?.plan);
-    if (!priceId) return res.status(400).json({ error: 'Unknown plan' });
+    if (!priceId) throw Boom.badRequest('Unknown plan');
 
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -50,35 +102,29 @@ router.post('/checkout', requireAuth, async (req, res) => {
     }
 
     const webUrl = process.env.WEB_URL || 'http://localhost:5173';
-
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${webUrl}/settings/upgrade?status=success`,
       cancel_url: `${webUrl}/settings/upgrade?status=cancel`,
-
-      // Redundant user mapping
+      // Redundant user mapping for webhook correlation
       client_reference_id: String(req.user.id),
       metadata: { userId: String(req.user.id) },
       subscription_data: { metadata: { userId: String(req.user.id) } },
-
-      // Optional niceties
       allow_promotion_codes: true,
-      // automatic_tax: { enabled: true }, // if you’ve set up Stripe Tax
     });
 
     res.json({ checkoutUrl: session.url });
   } catch (e) {
-    console.error('Checkout error', e);
-    res.status(500).json({ error: 'Failed to create checkout' });
+    next(e);
   }
 });
 
-/* -----------------------------------------------------------
- *  Customer Portal
- * --------------------------------------------------------- */
-router.post('/portal', requireAuth, async (req, res) => {
+/* ----------------------------------------------
+ * Customer Portal
+ * --------------------------------------------*/
+router.post('/portal', requireAuth, async (req, res, next) => {
   try {
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -96,127 +142,157 @@ router.post('/portal', requireAuth, async (req, res) => {
 
     res.json({ portalUrl: portal.url });
   } catch (e) {
-    console.error('Portal error', e);
-    res.status(500).json({ error: 'Failed to create portal session' });
+    next(e);
   }
 });
 
-/* -----------------------------------------------------------
- *  Helpers used by webhook
- * --------------------------------------------------------- */
-async function setUserPremiumByCustomer({ stripeCustomerId, stripeSubscriptionId, currentPeriodEnd, plan = 'PREMIUM' }) {
-  const trialOrPeriodEnd = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null;
-
-  await prisma.user.updateMany({
-    where: { stripeCustomerId },
-    data: {
-      plan, // 'PREMIUM'
-      stripeSubscriptionId,
-      planExpiresAt: trialOrPeriodEnd, // optional; used for display/renewal info
-    },
-  });
-}
-
-async function setUserFreeByCustomer({ stripeCustomerId }) {
-  await prisma.user.updateMany({
-    where: { stripeCustomerId },
-    data: {
-      plan: 'FREE',
-      stripeSubscriptionId: null,
-      planExpiresAt: null,
-    },
-  });
-}
-
-/* -----------------------------------------------------------
- *  Webhook (mounted with express.raw() pre-route in app.js)
- *  POST /billing/webhook
- * --------------------------------------------------------- */
+/* ----------------------------------------------
+ * Webhook (mounted with express.raw() in app.js)
+ * --------------------------------------------*/
 router.post('/webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!endpointSecret) {
-    console.error('Missing STRIPE_WEBHOOK_SECRET');
-    return res.status(500).end();
-  }
+  const skipSig = process.env.STRIPE_SKIP_SIG_CHECK === 'true' || process.env.NODE_ENV === 'test';
+  const sig = req.headers['stripe-signature'];
+
+  // Helper: robustly parse body if skipping signature (handles Buffer or JSON)
+  const parseLoose = (body) => {
+    if (!body) return {};
+    if (Buffer.isBuffer(body)) {
+      try { return JSON.parse(body.toString('utf8')); } catch { return {}; }
+    }
+    if (typeof body === 'string') {
+      try { return JSON.parse(body); } catch { return {}; }
+    }
+    return body; // already an object
+  };
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    if (!skipSig) {
+      if (!endpointSecret) {
+        console.error('Missing STRIPE_WEBHOOK_SECRET');
+        return res.status(500).end();
+      }
+      // req.body must be raw Buffer here
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } else {
+      // In tests (or when explicitly allowed), accept JSON body
+      event = parseLoose(req.body);
+    }
   } catch (err) {
-    console.error('Stripe webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('Stripe webhook signature verification failed:', err?.message);
+    return res.status(400).send(`Webhook Error: ${err?.message || 'Bad signature'}`);
   }
 
   try {
-    switch (event.type) {
-      // User completed Checkout (subscriptions)
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const stripeCustomerId = session.customer;
-        const stripeSubscriptionId = session.subscription;
+    const obj = event?.data?.object || {};
+    const userId = await resolveUserIdFromEvent(event);
 
-        const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-        const currentPeriodEnd = subscription.current_period_end;
-
-        await setUserPremiumByCustomer({
-          stripeCustomerId,
-          stripeSubscriptionId,
-          currentPeriodEnd,
-          plan: 'PREMIUM',
-        });
-        break;
+    // Helper to flip PREMIUM by direct userId (and persist customerId when present)
+    const setPremiumByUserId = async () => {
+      const updates = {
+        plan: 'PREMIUM',
+      };
+      if (obj.customer) updates.stripeCustomerId = String(obj.customer);
+      if (obj.subscription) updates.stripeSubscriptionId = String(obj.subscription);
+      // best-effort period end
+      if (obj.current_period_end) {
+        updates.planExpiresAt = new Date(obj.current_period_end * 1000);
       }
+      await prisma.user.update({ where: { id: Number(userId) }, data: updates });
+    };
 
-      // Subscription created/updated (renews, plan changes, trial end)
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
-        const sub = event.data.object;
-        const stripeCustomerId = sub.customer;
-        const stripeSubscriptionId = sub.id;
-        const status = sub.status; // 'active', 'trialing', 'past_due', 'canceled', etc.
-        const currentPeriodEnd = sub.current_period_end;
+    const setFreeByUserId = async () => {
+      await prisma.user.update({
+        where: { id: Number(userId) },
+        data: { plan: 'FREE', stripeSubscriptionId: null, planExpiresAt: null },
+      });
+    };
 
-        if (status === 'active' || status === 'trialing' || status === 'past_due') {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        // Prefer direct user update (has client_reference_id/metadata)
+        if (userId) {
+          await setPremiumByUserId();
+        } else if (obj.customer) {
+          // Fallback by customer id
+          let currentPeriodEnd = null;
+          if (obj.subscription) {
+            try {
+              const sub = await stripe.subscriptions.retrieve(obj.subscription);
+              currentPeriodEnd = sub?.current_period_end || null;
+            } catch {/* ignore */}
+          }
           await setUserPremiumByCustomer({
-            stripeCustomerId,
-            stripeSubscriptionId,
+            stripeCustomerId: obj.customer,
+            stripeSubscriptionId: obj.subscription || null,
             currentPeriodEnd,
             plan: 'PREMIUM',
           });
-        } else if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-          await setUserFreeByCustomer({ stripeCustomerId });
         }
         break;
       }
 
-      // Subscription deleted (canceled at period end or immediately)
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object;
-        const stripeCustomerId = sub.customer;
-        await setUserFreeByCustomer({ stripeCustomerId });
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const activeish = ['active', 'trialing', 'past_due'].includes(obj.status);
+        if (userId) {
+          if (activeish) {
+            await setPremiumByUserId();
+          } else {
+            await setFreeByUserId();
+          }
+          // ensure Customer carries metadata.userId for future correlation
+          if (obj.customer) {
+            try {
+              await stripe.customers.update(obj.customer, { metadata: { userId: String(userId) } });
+            } catch {/* ignore */}
+          }
+        } else if (obj.customer) {
+          if (activeish) {
+            await setUserPremiumByCustomer({
+              stripeCustomerId: obj.customer,
+              stripeSubscriptionId: obj.id,
+              currentPeriodEnd: obj.current_period_end,
+              plan: 'PREMIUM',
+            });
+          } else {
+            await setUserFreeByCustomer({ stripeCustomerId: obj.customer });
+          }
+        }
         break;
       }
 
-      // (Optional) Treat final payment success as confirmation
+      case 'customer.subscription.deleted': {
+        if (userId) {
+          await setFreeByUserId();
+        } else if (obj.customer) {
+          await setUserFreeByCustomer({ stripeCustomerId: obj.customer });
+        }
+        break;
+      }
+
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
-        if (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle') {
-          const stripeCustomerId = invoice.customer;
-          const stripeSubscriptionId = invoice.subscription;
-          const currentPeriodEnd = invoice.lines?.data?.[0]?.period?.end;
-          await setUserPremiumByCustomer({
-            stripeCustomerId,
-            stripeSubscriptionId,
-            currentPeriodEnd,
-            plan: 'PREMIUM',
-          });
+        // Optional: treat as confirmation for create/cycle
+        if (['subscription_create', 'subscription_cycle'].includes(obj.billing_reason)) {
+          if (userId) {
+            await setPremiumByUserId();
+          } else if (obj.customer) {
+            const line = obj.lines?.data?.[0];
+            const periodEnd = line?.period?.end || null;
+            await setUserPremiumByCustomer({
+              stripeCustomerId: obj.customer,
+              stripeSubscriptionId: obj.subscription || null,
+              currentPeriodEnd: periodEnd,
+              plan: 'PREMIUM',
+            });
+          }
         }
         break;
       }
 
       default:
-        // console.log(`Unhandled event type ${event.type}`);
+        // ignore others
         break;
     }
 

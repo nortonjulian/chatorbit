@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prismaClient.js';
+import prisma from '../utils/prismaClient.js';
 import { isExplicit, cleanText } from '../utils/filter.js';
 import { translateForTargets } from '../utils/translate.js';
 import { encryptMessageForParticipants } from '../utils/encryption.js';
