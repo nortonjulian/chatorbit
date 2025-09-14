@@ -12,7 +12,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 
 import { useUser } from '@/context/UserContext';
-import { RequireAuth, RequirePremium } from '@/routes/guards';
+import { RequirePremium } from '@/routes/guards';
 
 // pages / components
 import SettingsBackups from '@/pages/SettingsBackups.jsx';

@@ -40,6 +40,10 @@
     "fast-xml-parser": "^5.2.5"
   },
   "overrides": {
+    "@mantine/core": "8.2.7",
+    "@mantine/hooks": "8.2.7",
+    "@mantine/notifications": "8.2.7",
+    "@mantine/dates": "8.2.7",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "@tabler/icons-react": {

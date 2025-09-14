@@ -9,7 +9,7 @@ import {
   Button,
   Divider,
 } from '@mantine/core';
-import axiosClient from '../../api/axiosClient';
+import axiosClient from "@/api/axiosClient";
 import dayjs from 'dayjs';
 
 // NEW: skeleton + empty state components

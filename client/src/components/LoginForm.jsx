@@ -10,28 +10,66 @@ import { IconBrandGoogle, IconBrandApple } from '@tabler/icons-react';
 
 export default function LoginForm({ onLoginSuccess }) {
   const { setCurrentUser } = useUser();
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState(''); // username or email
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const idField = (import.meta.env.VITE_AUTH_ID_FIELD || 'username').toLowerCase();
+  const isEmailMode = idField === 'email';
+  const idLabel = isEmailMode ? 'Email' : 'Username';
+  const idPlaceholder = isEmailMode ? 'you@example.com' : 'Your username';
+  const idAutoComplete = isEmailMode ? 'email' : 'username';
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    const idValue = identifier.trim();
+    if (!idValue || !password) {
+      setError('Please enter your credentials.');
+      setLoading(false);
+      return;
+    }
+
+    const payload =
+      idField === 'email'
+        ? { email: idValue, password }
+        : idField === 'identifier'
+        ? { identifier: idValue, password }
+        : { username: idValue, password }; // default
+
     try {
-      // NOTE: test expects only username/password in payload
-      const res = await axiosClient.post('/auth/login', { username, password });
-      const { user } = res.data;
+      const res = await axiosClient.post('/auth/login', payload, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        withCredentials: true,
+      });
+
+      const user = res?.data?.user ?? res?.data;
       setCurrentUser(user);
       onLoginSuccess?.(user);
-      setUsername('');
+
+      setIdentifier('');
       setPassword('');
       navigate('/');
-    } catch {
-      setError('Invalid username or password');
+    } catch (err) {
+      const status = err?.response?.status;
+      const apiMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.response?.data?.details ||
+        '';
+
+      if (status === 422) {
+        setError(apiMsg || 'Invalid credentials or bad request.');
+      } else if (status === 401) {
+        setError('Invalid username/email or password.');
+      } else {
+        setError(apiMsg || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -61,12 +99,12 @@ export default function LoginForm({ onLoginSuccess }) {
       <form onSubmit={handleLogin} noValidate>
         <Stack gap="sm">
           <TextInput
-            label="Username"
-            placeholder="Your username"
-            value={username}
-            onChange={(e) => setUsername(e.currentTarget.value)}
+            label={idLabel}
+            placeholder={idPlaceholder}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.currentTarget.value)}
             required
-            autoComplete="username"
+            autoComplete={idAutoComplete}
           />
           <PasswordInput
             label="Password"

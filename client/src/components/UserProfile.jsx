@@ -709,7 +709,7 @@ import { toast } from '../utils/toast';
 import SoundSettings from './SoundSettings';
 import PremiumGuard from './PremiumGuard';
 import SettingsAccessibility from '../pages/SettingsAccessibility';
-import AISettings from '@/pages/Settings/AISettings';
+import AISettings from "@/pages/AISettings";
 import ThemeToggle from '@/components/ThemeToggle';
 
 function AdvancedTtlControls({ value, onChange }) {

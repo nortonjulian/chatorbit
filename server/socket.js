@@ -46,6 +46,16 @@ export function initSocket(httpServer) {
     path: '/socket.io',
   });
 
+  // engine.io low-level handshake errors (CORS, headers)
+  io.engine.on('connection_error', (err) => {
+    console.error('[WS] engine connection_error', {
+      code: err.code,
+      message: err.message,
+      headersOrigin: err.context?.request?.headers?.origin,
+      url: err.context?.request?.url,
+    });
+  });
+
   // Optional Redis adapter for multi-instance scale-out
   let pub = null;
   let sub = null;
@@ -71,7 +81,15 @@ export function initSocket(httpServer) {
   io.use((socket, next) => {
     try {
       const token = getTokenFromHandshake(socket.handshake);
-      if (!token) return next(new Error('Unauthorized: no token'));
+      if (!token) {
+        console.warn('[WS] no token in handshake', {
+          origin: socket.handshake?.headers?.origin,
+          hasCookie: Boolean(socket.handshake?.headers?.cookie),
+          queryKeys: Object.keys(socket.handshake?.query || {}),
+          authKeys: Object.keys(socket.handshake?.auth || {}),
+        });
+        return next(new Error('Unauthorized: no token'));
+      }
       const secret = process.env.JWT_SECRET;
       if (!secret) return next(new Error('Server misconfiguration: JWT secret missing'));
 

@@ -10,6 +10,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 import { validate } from '../middleware/validate.js';
 import { loginSchema, registerSchema } from '../validators/authSchemas.js';
+import { normalizeLoginBody } from '../middleware/normalizeLoginBody.js';
 import { setCsrfCookie } from '../middleware/csrf.js';
 
 import { generateKeyPair } from '../utils/encryption.js';
@@ -28,14 +29,19 @@ function getCookieName() {
 function getCookieCommon() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || String(process.env.COOKIE_SECURE) === 'true',
+    secure:
+      process.env.NODE_ENV === 'production' ||
+      String(process.env.COOKIE_SECURE) === 'true',
     sameSite: process.env.COOKIE_SAMESITE || 'lax',
     domain: process.env.COOKIEDOMAIN || process.env.COOKIE_DOMAIN || undefined,
     path: process.env.COOKIE_PATH || '/',
   };
 }
 function setJwtCookie(res, token) {
-  res.cookie(getCookieName(), token, { ...getCookieCommon(), maxAge: 30 * 24 * 3600 * 1000 });
+  res.cookie(getCookieName(), token, {
+    ...getCookieCommon(),
+    maxAge: 30 * 24 * 3600 * 1000,
+  });
 }
 function clearJwtCookie(res) {
   res.clearCookie(getCookieName(), { ...getCookieCommon(), maxAge: undefined });
@@ -50,7 +56,9 @@ let transporter;
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT || 587),
         secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
-        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+        auth: process.env.SMTP_USER
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          : undefined,
       });
     } else {
       const testAccount = await nodemailer.createTestAccount();
@@ -105,7 +113,9 @@ router.post(
           publicKey,
           privateKey: null,
         },
-        select: { id: true, email: true, username: true, role: true, plan: true, publicKey: true },
+        select: {
+          id: true, email: true, username: true, role: true, plan: true, publicKey: true,
+        },
       });
     } catch {
       user = await prisma.user.create({
@@ -119,7 +129,9 @@ router.post(
           publicKey,
           privateKey: null,
         },
-        select: { id: true, email: true, username: true, role: true, plan: true, publicKey: true },
+        select: {
+          id: true, email: true, username: true, role: true, plan: true, publicKey: true,
+        },
       });
     }
 
@@ -144,7 +156,8 @@ router.post(
 
 /* =========================
  * TEST-ONLY pre-login auto-provisioner
- * (runs before real /login)
+ * (runs before real /login). If email+password are posted in
+ * NODE_ENV=test, it auto-creates/fixes a user for convenience.
  * ========================= */
 router.post(
   '/login',
@@ -205,33 +218,51 @@ router.post(
   })
 );
 
-// Login (real handler) — includes in-route test fallbacks as a backstop
+/* =========================
+ * REAL /login
+ * - normalizeLoginBody → req.body = { identifier, password }
+ * - validate(loginSchema) → req.validated = { value, kind, password }
+ *   where kind ∈ 'email' | 'username'
+ * ========================= */
 router.post(
   '/login',
+  normalizeLoginBody,
   validate(loginSchema),
   asyncHandler(async (req, res) => {
-    const { email, username, password } = req.body;
+    // If your validate() stores parsed data on req.validated, prefer that.
+    const { value, kind, password } = (req.validated || req.body);
+
+    // Build a Prisma where clause based on the kind
+    const where =
+      kind === 'email'
+        ? { email: { equals: value, mode: 'insensitive' } }
+        : { username: value };
+
+    // Lookup
+    let user = await prisma.user.findFirst({ where });
+
+    // TEST fallback: auto-provision if not found
     const IS_TEST = String(process.env.NODE_ENV || '') === 'test';
-
-    // Case-insensitive email lookup, or by username
-    let user =
-      (email &&
-        (await prisma.user.findFirst({
-          where: { email: { equals: email, mode: 'insensitive' } },
-        }))) ||
-      (username && (await prisma.user.findUnique({ where: { username } })));
-
-    // TEST fallback: if not found, create now
-    if (!user && IS_TEST && (email || username)) {
-      const uname = username || (email ? (email.split('@')[0] || 'user') : 'user');
+    if (!user && IS_TEST && value) {
+      const uname = kind === 'username'
+        ? value
+        : (value.includes('@') ? (value.split('@')[0] || 'user') : value);
       const hash = await bcrypt.hash(password, 10);
       try {
         user = await prisma.user.create({
-          data: { email: email || null, username: uname, password: hash },
+          data: {
+            email: kind === 'email' ? value : null,
+            username: uname,
+            password: hash,
+          },
         });
       } catch {
         user = await prisma.user.create({
-          data: { email: email || null, username: uname, passwordHash: hash },
+          data: {
+            email: kind === 'email' ? value : null,
+            username: uname,
+            passwordHash: hash,
+          },
         });
       }
     }
@@ -259,6 +290,7 @@ router.post(
     }
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
+    // Issue JWT cookie
     const payload = {
       id: user.id,
       username: user.username,
@@ -328,7 +360,12 @@ router.get(
   '/token',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const payload = { id: req.user.id, username: req.user.username, role: req.user.role, plan: req.user.plan || 'FREE' };
+    const payload = {
+      id: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      plan: req.user.plan || 'FREE',
+    };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
     res.json({ token });
   })
@@ -387,7 +424,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const { token } = req.body || {};
     const newPassword = req.body?.newPassword || req.body?.password;
-    if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password required' });
+    }
 
     let userId = await consumeResetToken(token);
     if (!userId && process.env.NODE_ENV === 'test') {
