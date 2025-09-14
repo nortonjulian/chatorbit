@@ -8,16 +8,23 @@ import {
   Stack,
   Button,
   Divider,
-  Loader,
 } from '@mantine/core';
 import axiosClient from '../../api/axiosClient';
 import dayjs from 'dayjs';
+
+// NEW: skeleton + empty state components
+import StatusFeedSkeleton from '../skeletons/StatusFeedSkeleton';
+import EmptyState from '../empty/EmptyState';
 
 function StatusItem({ item }) {
   return (
     <Paper withBorder radius="lg" p="md">
       <Group align="center" gap="sm">
-        <Avatar src={item.author?.avatarUrl || '/default-avatar.png'} radius="xl" />
+        <Avatar
+          src={item.author?.avatarUrl || '/default-avatar.png'}
+          alt={`${item.author?.username || `User #${item.author?.id}`} avatar`}
+          radius="xl"
+        />
         <div>
           <Text fw={600}>{item.author?.username || `User #${item.author?.id}`}</Text>
           <Text size="xs" c="dimmed">
@@ -35,7 +42,7 @@ function StatusItem({ item }) {
   );
 }
 
-export default function StatusFeed() {
+export default function StatusFeed({ onOpenComposer }) {
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -82,13 +89,14 @@ export default function StatusFeed() {
       </Tabs>
 
       {loading ? (
-        <Group justify="center" mt="lg">
-          <Loader />
-        </Group>
+        <StatusFeedSkeleton />
       ) : items.length === 0 ? (
-        <Text c="dimmed" ta="center" my="lg">
-          Nothing here yet.
-        </Text>
+        <EmptyState
+          title="No statuses yet"
+          subtitle="Share what you’re up to."
+          cta="Post a status"
+          onCta={() => onOpenComposer?.()}
+        />
       ) : (
         <Stack>
           {items.map((it) => (
@@ -96,6 +104,7 @@ export default function StatusFeed() {
           ))}
           {cursor ? (
             <Button
+              aria-label="Load more statuses"
               variant="light"
               loading={loadingMore}
               onClick={() => loadFeed(false, tab, cursor)}

@@ -11,6 +11,7 @@ import {
   CopyButton,
   Tooltip,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import axiosClient from '../api/axiosClient';
 import QRCode from 'qrcode';
 
@@ -33,6 +34,9 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
         errorCorrectionLevel: 'M',
       });
       setQr(png);
+
+      // ✅ toast
+      notifications.show({ message: 'Invite link generated', withBorder: true });
     } finally {
       setLoading(false);
     }
@@ -46,7 +50,16 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
   }, [opened]);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Invite people" centered>
+    <Modal 
+      opened={opened} 
+      onClose={onClose} 
+      title="Invite people" 
+      centered
+      withCloseButton    
+      closeOnEscape       
+      trapFocus          
+      aria-label="Invite people"
+    >
       <Stack gap="md">
         <Group grow>
           <Select
@@ -79,7 +92,7 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
               <CopyButton value={invite.url} timeout={1500}>
                 {({ copied, copy }) => (
                   <Tooltip label={copied ? 'Copied!' : 'Copy'}>
-                    <Button variant="light" onClick={copy}>
+                    <Button variant="light" onClick={copy} aria-label="Copy invite link">
                       {copied ? 'Copied' : 'Copy link'}
                     </Button>
                   </Tooltip>
@@ -88,6 +101,7 @@ export default function RoomInviteModal({ opened, onClose, roomId }) {
               <Button
                 variant="light"
                 onClick={() => window.open(invite.url, '_blank')}
+                aria-label="Open invite link"
               >
                 Open
               </Button>

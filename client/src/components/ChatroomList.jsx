@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollArea, Stack, NavLink, Badge, Text, Box } from '@mantine/core';
+import ChatListSkeleton from '@/components/skeletons/ChatListSkeleton';
+import EmptyState from '@/components/empty/EmptyState';
 import socket from '../lib/socket';
 
-export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
+export default function ChatroomList({ onSelect, currentUser, selectedRoom, openNewChatModal }) {
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // start true to avoid initial flicker
   const viewportRef = useRef(null);
 
   async function loadMore(initial = false) {
@@ -39,7 +41,11 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
   useEffect(() => {
     setItems([]);
     setCursor(null);
-    loadMore(true);
+    // kick off initial load
+    (async () => {
+      setLoading(true);
+      await loadMore(true);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
@@ -48,8 +54,7 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
     const el = viewportRef.current;
     if (!el) return;
     const onScroll = () => {
-      const nearBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
+      const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
       if (nearBottom && cursor && !loading) loadMore(false);
     };
     el.addEventListener('scroll', onScroll);
@@ -63,55 +68,68 @@ export default function ChatroomList({ onSelect, currentUser, selectedRoom }) {
     onSelect?.(room);
   };
 
+  // Loading (first page)
+  if (loading && items.length === 0) {
+    return <ChatListSkeleton />;
+  }
+
+  // Empty state (no rooms)
+  if (!loading && items.length === 0) {
+    return (
+      <EmptyState
+        title="No conversations yet"
+        subtitle="Start a chat to get rolling."
+        cta="+ New Chat"
+        onCta={() => openNewChatModal?.(true)}
+      />
+    );
+  }
+
+  // Normal render
   return (
     <Box>
-      {items.length === 0 && !loading ? (
-        <Text c="dimmed" size="sm">
-          No chatrooms yet.
-        </Text>
-      ) : (
-        <ScrollArea.Autosize
-          mah="calc(100vh - 160px)"
-          type="auto"
-          viewportRef={viewportRef}
-        >
-          <Stack gap="xs" p={0}>
-            {items.map((room) => {
-              const isSelected = selectedRoom?.id === room.id;
-              const roomName = room.name || `Room #${room.id}`;
-              const isGroup = (room.participants?.length || 0) > 2;
+      <ScrollArea.Autosize
+        mah="calc(100vh - 160px)"
+        type="auto"
+        viewportRef={viewportRef}
+      >
+        <Stack gap="xs" p={0}>
+          {items.map((room) => {
+            const isSelected = selectedRoom?.id === room.id;
+            const roomName = room.name || `Room #${room.id}`;
+            const isGroup = (room.participants?.length || 0) > 2;
 
-              return (
-                <NavLink
-                  key={room.id}
-                  label={roomName}
-                  active={isSelected}
-                  onClick={() => handleSelect(room)}
-                  rightSection={
-                    isGroup ? (
-                      <Badge size="xs" variant="light" radius="sm">
-                        Group
-                      </Badge>
-                    ) : null
-                  }
-                  variant="light"
-                  radius="md"
-                />
-              );
-            })}
-            {loading && (
-              <Text ta="center" c="dimmed" py="xs">
-                Loading…
-              </Text>
-            )}
-            {!cursor && items.length > 0 && (
-              <Text ta="center" c="dimmed" py="xs">
-                No more chats
-              </Text>
-            )}
-          </Stack>
-        </ScrollArea.Autosize>
-      )}
+            return (
+              <NavLink
+                key={room.id}
+                label={roomName}
+                active={isSelected}
+                onClick={() => handleSelect(room)}
+                rightSection={
+                  isGroup ? (
+                    <Badge size="xs" variant="light" radius="sm">
+                      Group
+                    </Badge>
+                  ) : null
+                }
+                variant="light"
+                radius="md"
+                aria-label={`Open chat ${roomName}`}
+              />
+            );
+          })}
+          {loading && items.length > 0 && (
+            <Text ta="center" c="dimmed" py="xs">
+              Loading…
+            </Text>
+          )}
+          {!cursor && items.length > 0 && !loading && (
+            <Text ta="center" c="dimmed" py="xs">
+              No more chats
+            </Text>
+          )}
+        </Stack>
+      </ScrollArea.Autosize>
     </Box>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Textarea, Group, Button } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import axiosClient from '../api/axiosClient';
 import { useUser } from '../context/UserContext';
 
@@ -24,15 +25,29 @@ export default function RoomAboutModal({ opened, onClose, room, onSaved }) {
         description: value,
       });
       onSaved?.(data);
+      notifications.show({ message: 'Group description saved', withBorder: true });
       onClose();
+    } catch (e) {
+      notifications.show({ message: 'Failed to save description', color: 'red', withBorder: true });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="About this group" centered>
+    <Modal 
+      opened={opened} 
+      onClose={onClose} 
+      title="About this group" 
+      centered
+      withCloseButton    
+      closeOnEscape      
+      trapFocus           
+      aria-label="About this group"
+    >
       <Textarea
+        label="Group description"     
+        aria-label="Group description"
         value={value}
         onChange={(e) => setValue(e.currentTarget.value)}
         placeholder="Describe the purpose, rules, links, etc."
@@ -42,7 +57,7 @@ export default function RoomAboutModal({ opened, onClose, room, onSaved }) {
       />
       {canEdit && (
         <Group justify="flex-end" mt="md">
-          <Button onClick={save} loading={saving}>
+          <Button onClick={save} loading={saving} aria-label="Save group description">
             Save
           </Button>
         </Group>

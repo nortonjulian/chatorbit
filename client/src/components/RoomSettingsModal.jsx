@@ -13,6 +13,7 @@ import {
   Badge,
   Loader,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useUser } from '../context/UserContext';
 import axiosClient from '../api/axiosClient';
 
@@ -102,11 +103,13 @@ export default function RoomSettingsModal({
       { role }
     );
     await loadParticipants();
+    notifications.show({ message: 'Settings updated', withBorder: true });
   };
 
   const removeUser = async (userId) => {
     await axiosClient.delete(`/chatrooms/${room.id}/participants/${userId}`);
     await loadParticipants();
+    notifications.show({ message: 'Settings updated', withBorder: true });
   };
 
   // Room settings actions
@@ -122,6 +125,7 @@ export default function RoomSettingsModal({
       );
       onUpdated?.(data);
       onClose();
+      notifications.show({ message: 'Settings updated', withBorder: true });
     } finally {
       setSavingAIMode(false);
     }
@@ -138,6 +142,7 @@ export default function RoomSettingsModal({
       );
       setAutoTranslateMode(data.autoTranslateMode || value);
       onUpdated?.(data);
+      notifications.show({ message: 'Settings updated', withBorder: true });
     } finally {
       setSavingAutoTranslate(false);
     }
@@ -150,6 +155,7 @@ export default function RoomSettingsModal({
         allow: checked,
       });
       setAllowAIBot(!!data.allowAIBot);
+      notifications.show({ message: 'Settings updated', withBorder: true });
     } finally {
       setSavingAllow(false);
     }
@@ -162,6 +168,10 @@ export default function RoomSettingsModal({
       title="Room settings"
       centered
       size="lg"
+      withCloseButton
+      closeOnEscape
+      trapFocus
+      aria-label="Room settings"
     >
       <Stack gap="lg">
         {/* Participants & Roles */}
@@ -205,7 +215,7 @@ export default function RoomSettingsModal({
                           <Select
                             value={role}
                             data={ROLE_OPTS}
-                            onChange={(v) => changeRole(user.id, v)}
+                            onChange={(v) => v && changeRole(user.id, v)}
                             disabled={!isOwner && role === 'ADMIN'} // only owner can set/demote ADMINs
                             withinPortal
                           />
@@ -221,6 +231,7 @@ export default function RoomSettingsModal({
                             variant="light"
                             onClick={() => removeUser(user.id)}
                             disabled={!canEdit}
+                            aria-label={`Remove ${user.username || `user #${user.id}`}`}
                           >
                             Remove
                           </Button>
@@ -247,7 +258,11 @@ export default function RoomSettingsModal({
               withinPortal
             />
             <Group justify="flex-end">
-              <Button onClick={saveAIMode} loading={savingAIMode}>
+              <Button
+                onClick={saveAIMode}
+                loading={savingAIMode}
+                aria-label="Save AI assistant mode"
+              >
                 Save AI mode
               </Button>
             </Group>
@@ -261,7 +276,7 @@ export default function RoomSettingsModal({
               label="Auto-translation"
               data={AUTO_TRANSLATE_OPTS}
               value={autoTranslateMode}
-              onChange={(v) => saveAutoTranslate(v)}
+              onChange={(v) => v && saveAutoTranslate(v)}
               withinPortal
               disabled={savingAutoTranslate}
             />

@@ -69,6 +69,7 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
             <ChatroomList
               currentUser={currentUser}
               onSelect={setSelectedRoom}
+              openNewChatModal={(v) => setShowStartModal(v)}
             />
           </Box>
         </Stack>

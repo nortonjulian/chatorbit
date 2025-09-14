@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">13.55% </span>
+                <span class="strong">15.38% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>8/59</span>
+                <span class='fraction'>10/65</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">9.52% </span>
+                <span class="strong">17.3% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>4/42</span>
+                <span class='fraction'>9/52</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">14.81% </span>
+                <span class="strong">16.66% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/54</span>
+                <span class='fraction'>10/60</span>
             </div>
         
             
@@ -268,7 +268,18 @@
 <a name='L203'></a><a href='#L203'>203</a>
 <a name='L204'></a><a href='#L204'>204</a>
 <a name='L205'></a><a href='#L205'>205</a>
-<a name='L206'></a><a href='#L206'>206</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -326,6 +337,11 @@
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -341,6 +357,12 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -530,6 +552,11 @@ function <span class="fstat-no" title="function not covered" >makeObjectKey(</sp
 const REQUIRE_SIGNED = String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() === 'true';
 const PUBLIC_BASE = (process.env.R2_PUBLIC_BASE || '').replace(/\/+$/, ''); // e.g. https://media.chatorbit.com
 &nbsp;
+// Warn if running in PUBLIC mode without a CDN/base URL
+<span class="missing-if-branch" title="else path not taken" >E</span>if (!process.env.R2_PUBLIC_BASE &amp;&amp; String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() !== 'true') {
+  console.warn('[media] PUBLIC mode without R2_PUBLIC_BASE; returned URLs may not be CDN-backed');
+}
+&nbsp;
 /* --------------------------------- Upload -------------------------------- */
 // POST /media/upload  (field name: "file")
 router.post(
@@ -545,7 +572,13 @@ router.post(
 <span class="cstat-no" title="statement not covered" >        ACCEPTED_MIME.has(file.mimetype) ? cb(null, true) : cb(new Error('Unsupported file type')),</span>
     }).single('file');
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    upload(req, res, <span class="fstat-no" title="function not covered" >(e</span>rr) =&gt; (<span class="cstat-no" title="statement not covered" >err ? res.status(400).json({ error: err.message }) : next())</span>);</span>
+<span class="cstat-no" title="statement not covered" >    upload(req, res, <span class="fstat-no" title="function not covered" >(e</span>rr) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      if (!err) <span class="cstat-no" title="statement not covered" >return next();</span></span>
+<span class="cstat-no" title="statement not covered" >      if (String(err?.message || '').toLowerCase().includes('file too large')) {</span>
+<span class="cstat-no" title="statement not covered" >        return res.status(413).json({ error: 'File too large' });</span>
+      }
+<span class="cstat-no" title="statement not covered" >      return res.status(400).json({ error: err.message });</span>
+    });
   },
 <span class="fstat-no" title="function not covered" >  as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    try {</span>
@@ -685,7 +718,7 @@ export default router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-13T03:10:13.450Z
+                at 2025-09-14T02:06:48.484Z
             </div>
         <script src="../prettify.js"></script>
         <script>

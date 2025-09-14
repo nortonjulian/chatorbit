@@ -23,7 +23,7 @@ describe('Rooms: create/join/leave and permissions', () => {
   beforeEach(async () => {
     await resetDb();
 
-    // owner
+    // owner (register for cookie/session)
     const ownerReg = await ownerAgent
       .post(ENDPOINTS.register)
       .send({ email: 'owner@example.com', password: 'Test12345!', username: 'owner' })
@@ -34,7 +34,6 @@ describe('Rooms: create/join/leave and permissions', () => {
       .send({ email: 'owner@example.com', password: 'Test12345!' })
       .expect(200);
 
-    // Prefer id from API (register returns { user }, or /auth/me returns { user })
     ownerId = ownerReg.body?.user?.id;
     if (!ownerId) {
       const me = await ownerAgent.get(ENDPOINTS.me).expect(200);
@@ -42,7 +41,7 @@ describe('Rooms: create/join/leave and permissions', () => {
     }
     expect(ownerId).toBeDefined();
 
-    // member
+    // member (register for cookie/session)
     const memberReg = await memberAgent
       .post(ENDPOINTS.register)
       .send({ email: 'eve@example.com', password: 'Test12345!', username: 'eve' })
@@ -60,6 +59,7 @@ describe('Rooms: create/join/leave and permissions', () => {
     }
     expect(memberId).toBeDefined();
 
+    // Owner creates the room (API path)
     const r = await ownerAgent
       .post(ENDPOINTS.createRoom)
       .send({ name: 'Room D', isGroup: true })
@@ -70,17 +70,20 @@ describe('Rooms: create/join/leave and permissions', () => {
   });
 
   test('owner can promote to admin', async () => {
-    // Ensure member exists as participant first
+    const memberIdNum =
+      typeof memberId === 'string' && /^\d+$/.test(memberId) ? Number(memberId) : memberId;
+
+    // Ensure member is a participant (FKs are satisfied because /auth/register persisted users)
     await prisma.participant.upsert({
-      where: { chatRoomId_userId: { chatRoomId: roomId, userId: memberId } },
+      where: { chatRoomId_userId: { chatRoomId: roomId, userId: memberIdNum } },
       update: { role: 'MEMBER' },
-      create: { chatRoomId: roomId, userId: memberId, role: 'MEMBER' },
+      create: { chatRoomId: roomId, userId: memberIdNum, role: 'MEMBER' },
     });
 
     await ownerAgent.post(ENDPOINTS.promote(roomId, memberId)).expect(200);
 
     const after = await prisma.participant.findUnique({
-      where: { chatRoomId_userId: { chatRoomId: roomId, userId: memberId } },
+      where: { chatRoomId_userId: { chatRoomId: roomId, userId: memberIdNum } },
       select: { role: true },
     });
     expect(after?.role).toBe('ADMIN');

@@ -13,6 +13,7 @@ import {
   Badge,
   ActionIcon,
   Tooltip,
+  Skeleton,
 } from '@mantine/core';
 import {
   IconSettings,
@@ -22,14 +23,17 @@ import {
   IconPhoto,
   IconClock,
   IconSparkles,
+  IconRotateClockwise,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import MessageInput from './MessageInput';
 import ReactionBar from './ReactionBar.jsx';
 import EventSuggestionBar from './EventSuggestionBar.jsx';
 import socket from '../lib/socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient';
 import axiosClient from '../api/axiosClient';
+import { toast } from '../utils/toast';
 
 // ✅ Smart Replies
 import SmartReplyBar from './SmartReplyBar.jsx';
@@ -129,16 +133,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     if (!newText || newText === msg.rawContent) return;
 
     try {
-      const res = await fetch(`http://localhost:5002/messages/${msg.id}/edit`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ newContent: newText }),
+      const { data: updated } = await axiosClient.patch(`/messages/${msg.id}/edit`, {
+        newContent: newText,
       });
-      if (!res.ok) throw new Error('Failed to edit');
-      const updated = await res.json();
       setMessages((prev) =>
         prev.map((m) =>
           m.id === updated.id
@@ -146,8 +143,9 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
             : m
         )
       );
+      toast.ok('Message updated.');
     } catch (error) {
-      alert('Message edit failed');
+      toast.err('Message edit failed.');
       console.error(error);
     }
   };
@@ -199,6 +197,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
       addMessages(chatroom.id, chronological).catch(() => {});
     } catch (err) {
+      toast.err('Failed to load messages.');
       console.error('Failed to fetch/decrypt paged messages', err);
     } finally {
       setLoading(false);
@@ -207,20 +206,20 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
   // --- Initial load / room change ---
   useEffect(() => {
-  setMessages([]);
-  setCursor(null);
-  setShowNewMessage(false);
-  if (chatroom?.id) {
-    loadMore(true);
-    // NEW: prefer bulk join event with single room for consistency
-    socket.emit('join:rooms', [String(chatroom.id)]);
-    // Back-compat (okay to keep during transition)
-    socket.emit('join_room', chatroom.id);
-  }
-  return () => {
-    if (chatroom?.id) socket.emit('leave_room', chatroom.id);
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setMessages([]);
+    setCursor(null);
+    setShowNewMessage(false);
+    if (chatroom?.id) {
+      loadMore(true);
+      // NEW: prefer bulk join event with single room for consistency
+      socket.emit('join:rooms', [String(chatroom.id)]);
+      // Back-compat (okay to keep during transition)
+      socket.emit('join_room', chatroom.id);
+    }
+    return () => {
+      if (chatroom?.id) socket.emit('leave_room', chatroom.id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroom?.id]);
 
   // --- Infinite scroll: load older when near TOP ---
@@ -390,7 +389,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       console.log('AI power result', data);
     } catch (e) {
       console.error(e);
-      alert('Power AI failed.');
+      toast.err('Power AI failed.');
     }
   };
 
@@ -402,7 +401,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
     try {
       scheduledAt = new Date(iso).toISOString();
     } catch {
-      alert('Invalid date');
+      toast.err('Invalid date');
       return;
     }
     try {
@@ -410,12 +409,34 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
         content: '(scheduled message)',
         scheduledAt,
       });
-      alert('Scheduled ✓');
+      toast.ok('Scheduled ✓');
     } catch (e) {
       console.error(e);
-      alert('Schedule failed.');
+      toast.err('Schedule failed.');
     }
   };
+
+  // === Retry failed optimistic message ===
+  async function handleRetry(failedMsg) {
+    try {
+      const payload = {
+        chatRoomId: String(chatroom.id),
+        content: failedMsg.content || failedMsg.decryptedContent || '',
+        expireSeconds: failedMsg.expireSeconds || 0,
+        attachmentsInline: failedMsg.attachmentsInline || [],
+      };
+      const { data: saved } = await axiosClient.post('/messages', payload, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      // Replace failed temp with saved
+      setMessages((prev) =>
+        prev.map((m) => (m.id === failedMsg.id ? { ...saved } : m))
+      );
+      toast.ok('Message delivered.');
+    } catch (e) {
+      toast.err('Still failed. Check your connection and try again.');
+    }
+  }
 
   const renderReadBy = (msg) => {
     if (!currentUser?.showReadReceipts) return null;
@@ -479,21 +500,21 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
           {/* About */}
           <Tooltip label="About">
-            <ActionIcon variant="subtle" onClick={() => setAboutOpen(true)}>
+            <ActionIcon variant="subtle" onClick={() => setAboutOpen(true)} aria-label="About">
               <IconInfoCircle size={18} />
             </ActionIcon>
           </Tooltip>
 
           {/* Search */}
           <Tooltip label="Search">
-            <ActionIcon variant="subtle" onClick={() => setSearchOpen(true)}>
+            <ActionIcon variant="subtle" onClick={() => setSearchOpen(true)} aria-label="Search messages">
               <IconSearch size={18} />
             </ActionIcon>
           </Tooltip>
 
           {/* Media */}
           <Tooltip label="Media">
-            <ActionIcon variant="subtle" onClick={() => setGalleryOpen(true)}>
+            <ActionIcon variant="subtle" onClick={() => setGalleryOpen(true)} aria-label="Open media gallery">
               <IconPhoto size={18} />
             </ActionIcon>
           </Tooltip>
@@ -501,7 +522,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
           {/* Invite (owner/admin) */}
           {isOwnerOrAdmin && (
             <Tooltip label="Invite people">
-              <ActionIcon variant="subtle" onClick={() => setInviteOpen(true)}>
+              <ActionIcon variant="subtle" onClick={() => setInviteOpen(true)} aria-label="Invite people">
                 <IconUserPlus size={18} />
               </ActionIcon>
             </Tooltip>
@@ -513,6 +534,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
               <ActionIcon
                 variant="subtle"
                 onClick={() => setSettingsOpen(true)}
+                aria-label="Room settings"
               >
                 <IconSettings size={18} />
               </ActionIcon>
@@ -523,6 +545,22 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
       <ScrollArea style={{ flex: 1 }} viewportRef={scrollViewportRef} type="auto">
         <Stack gap="xs" p="xs">
+          {/* Initial skeleton while loading first page */}
+          {loading && messages.length === 0 && (
+            <>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Group key={i} justify={i % 2 ? 'flex-end' : 'flex-start'} align="flex-end">
+                  <Skeleton height={18} width={i % 2 ? 220 : 280} radius="lg" />
+                </Group>
+              ))}
+            </>
+          )}
+
+          {/* Empty state (after load) */}
+          {!loading && messages.length === 0 && (
+            <Text c="dimmed" ta="center" py="md">Say hello 👋</Text>
+          )}
+
           {messages.map((msg) => {
             const isCurrentUser = msg.sender?.id === currentUserId;
             const expMs = msg.expiresAt
@@ -530,9 +568,12 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
               : null;
             const fading = msg.expiresAt && expMs <= 5000;
 
+            // Use your theme color here; fallback to Mantine blue if custom not present
             const bubbleProps = isCurrentUser
-              ? { bg: 'orbit.6', c: 'white', ta: 'right' }
+              ? { bg: 'blue.6', c: 'white', ta: 'right' } // was orbitBlue.6 if you set custom theme
               : { bg: 'gray.2', c: 'black', ta: 'left' };
+
+            const ts = dayjs(msg.createdAt || msg.sentAt || msg.created_at).format('MMM D, YYYY • h:mm A');
 
             return (
               <Group
@@ -559,114 +600,130 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                   />
                 )}
 
-                <Paper
-                  className="message-bubble"
-                  px="md"
-                  py="xs"
-                  radius="lg"
-                  withBorder={false}
-                  style={{ maxWidth: 360, opacity: fading ? 0.5 : 1 }}
-                  {...bubbleProps}
-                >
-                  {!isCurrentUser && (
-                    <Text size="xs" fw={600} c="dark.6" mb={4} className="sender-name">
-                      {msg.sender?.username}
-                    </Text>
-                  )}
-
-                  <Text
-                    size="sm"
-                    onCopy={() => {
-                      if (currentUser?.notifyOnCopy && socket && msg?.id) {
-                        socket.emit('message_copied', { messageId: msg.id });
-                      }
-                    }}
+                <Tooltip label={ts} withinPortal>
+                  <Paper
+                    className="message-bubble"
+                    px="md"
+                    py="xs"
+                    radius="lg"
+                    withBorder={false}
+                    style={{ maxWidth: 360, opacity: fading ? 0.5 : 1 }}
+                    {...bubbleProps}
+                    aria-label={`Message sent ${ts}`}
                   >
-                    {msg.decryptedContent || msg.translatedForMe}
-                  </Text>
-
-                  {/* Images */}
-                  {Array.isArray(msg.attachments) &&
-                    msg.attachments.some((a) => a.kind === 'IMAGE') && (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(2, 1fr)',
-                          gap: 6,
-                          marginTop: 6,
-                        }}
-                      >
-                        {msg.attachments
-                          .filter((a) => a.kind === 'IMAGE')
-                          .map((a) => (
-                            <img
-                              key={a.id}
-                              src={a.url}
-                              alt={a.caption || 'image'}
-                              style={{
-                                width: 160,
-                                height: 160,
-                                objectFit: 'cover',
-                                borderRadius: 8,
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => {}}
-                            />
-                          ))}
-                      </div>
+                    {!isCurrentUser && (
+                      <Text size="xs" fw={600} c="dark.6" mb={4} className="sender-name">
+                        {msg.sender?.username}
+                      </Text>
                     )}
 
-                  {/* Videos */}
-                  {msg.attachments
-                    ?.filter((a) => a.kind === 'VIDEO')
-                    .map((a) => (
-                      <video key={a.id} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
-                    ))}
-
-                  {/* Audios */}
-                  {msg.attachments
-                    ?.filter((a) => a.kind === 'AUDIO')
-                    .map((a) => (
-                      <audio key={a.id} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
-                    ))}
-
-                  {/* Legacy per-message audio */}
-                  {msg.audioUrl && (
-                    <audio controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={msg.audioUrl} />
-                  )}
-
-                  {/* Captions summary */}
-                  {msg.attachments?.some((a) => a.caption) && (
-                    <Text size="xs" mt={4}>
-                      {msg.attachments.map((a) => a.caption).filter(Boolean).join(' • ')}
+                    <Text
+                      size="sm"
+                      onCopy={() => {
+                        if (currentUser?.notifyOnCopy && socket && msg?.id) {
+                          socket.emit('message_copied', { messageId: msg.id });
+                        }
+                      }}
+                    >
+                      {msg.decryptedContent || msg.translatedForMe || msg.content}
                     </Text>
-                  )}
 
-                  {/* Reactions */}
-                  <ReactionBar message={msg} currentUserId={currentUserId} />
+                    {/* Images */}
+                    {Array.isArray(msg.attachments) &&
+                      msg.attachments.some((a) => a.kind === 'IMAGE') && (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gap: 6,
+                            marginTop: 6,
+                          }}
+                        >
+                          {msg.attachments
+                            .filter((a) => a.kind === 'IMAGE')
+                            .map((a) => (
+                              <img
+                                key={a.id || a.url}
+                                src={a.url}
+                                alt={a.caption || 'image'}
+                                style={{
+                                  width: 160,
+                                  height: 160,
+                                  objectFit: 'cover',
+                                  borderRadius: 8,
+                                  cursor: 'pointer',
+                                }}
+                                onClick={() => {}}
+                              />
+                            ))}
+                        </div>
+                      )}
 
-                  {msg.translatedForMe && msg.rawContent && (
-                    <Text size="xs" mt={4} fs="italic">
-                      Original: {msg.rawContent}
-                    </Text>
-                  )}
+                    {/* Videos */}
+                    {msg.attachments
+                      ?.filter((a) => a.kind === 'VIDEO')
+                      .map((a) => (
+                        <video key={a.id || a.url} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
+                      ))}
 
-                  {msg.expiresAt && (
-                    <Text size="xs" mt={4} fs="italic" c="red.6" ta="right">
-                      Disappears in: {getTimeLeftString(msg.expiresAt)}
-                    </Text>
-                  )}
+                    {/* Audios */}
+                    {msg.attachments
+                      ?.filter((a) => a.kind === 'AUDIO')
+                      .map((a) => (
+                        <audio key={a.id || a.url} controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={a.url} />
+                      ))}
 
-                  {msg.isAutoReply && (
-                    <Group justify="flex-end" mt={4}>
-                      <Badge size="xs" variant="light" color="grape">
-                        Auto-reply
-                      </Badge>
-                    </Group>
-                  )}
+                    {/* Legacy per-message audio */}
+                    {msg.audioUrl && (
+                      <audio controls preload="metadata" style={{ width: 260, marginTop: 6 }} src={msg.audioUrl} />
+                    )}
 
-                  {renderReadBy(msg)}
-                </Paper>
+                    {/* Captions summary */}
+                    {msg.attachments?.some((a) => a.caption) && (
+                      <Text size="xs" mt={4}>
+                        {msg.attachments.map((a) => a.caption).filter(Boolean).join(' • ')}
+                      </Text>
+                    )}
+
+                    {/* Reactions */}
+                    <ReactionBar message={msg} currentUserId={currentUserId} />
+
+                    {msg.translatedForMe && msg.rawContent && (
+                      <Text size="xs" mt={4} fs="italic">
+                        Original: {msg.rawContent}
+                      </Text>
+                    )}
+
+                    {msg.expiresAt && (
+                      <Text size="xs" mt={4} fs="italic" c="red.6" ta="right">
+                        Disappears in: {getTimeLeftString(msg.expiresAt)}
+                      </Text>
+                    )}
+
+                    {msg.isAutoReply && (
+                      <Group justify="flex-end" mt={4}>
+                        <Badge size="xs" variant="light" color="grape">
+                          Auto-reply
+                        </Badge>
+                      </Group>
+                    )}
+
+                    {renderReadBy(msg)}
+                  </Paper>
+                </Tooltip>
+
+                {/* Retry icon for failed optimistic messages */}
+                {msg.failed && (
+                  <Tooltip label="Retry send">
+                    <ActionIcon
+                      variant="subtle"
+                      aria-label="Retry sending message"
+                      onClick={() => handleRetry(msg)}
+                    >
+                      <IconRotateClockwise size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
               </Group>
             );
           })}
@@ -675,14 +732,14 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       </ScrollArea>
 
       {typingUser && (
-        <Text size="sm" c="dimmed" fs="italic" mt="xs">
+        <Text size="sm" c="dimmed" fs="italic" mt="xs" aria-live="polite">
           {typingUser} is typing...
         </Text>
       )}
 
       {showNewMessage && (
         <Group justify="center" mt="xs">
-          <Button onClick={scrollToBottom}>New Messages</Button>
+          <Button onClick={scrollToBottom} aria-label="Jump to newest">New Messages</Button>
         </Group>
       )}
 
@@ -710,14 +767,14 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       {/* === Premium toolbar just above the composer (visible to everyone; guarded on click) === */}
       <Group mt="sm" justify="space-between">
         <Group gap="xs">
-          <Button leftSection={<IconSparkles size={16} />} onClick={runPowerAi}>
+          <Button leftSection={<IconSparkles size={16} />} onClick={runPowerAi} aria-label="Run AI Power Feature">
             Run AI Power Feature
           </Button>
           {!isPremium && <Badge size="sm" variant="light" color="yellow">Premium</Badge>}
         </Group>
 
         <Group gap="xs">
-          <Button variant="light" leftSection={<IconClock size={16} />} onClick={openSchedulePrompt}>
+          <Button variant="light" leftSection={<IconClock size={16} />} onClick={openSchedulePrompt} aria-label="Schedule message">
             Schedule Send
           </Button>
           {!isPremium && <Badge size="sm" variant="light" color="yellow">Premium</Badge>}

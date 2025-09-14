@@ -692,12 +692,12 @@ import {
   FileInput,
   NumberInput,
   Avatar,
-  Alert,
   Divider,
   Select,
   Card,
   Loader,
   Badge,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { IconUpload, IconCloudUpload } from '@tabler/icons-react';
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
@@ -705,12 +705,12 @@ import {
   exportEncryptedPrivateKey,
   importEncryptedPrivateKey,
 } from '../utils/keyBackup';
+import { toast } from '../utils/toast';
 import SoundSettings from './SoundSettings';
 import PremiumGuard from './PremiumGuard';
-
-// Settings sections
 import SettingsAccessibility from '../pages/SettingsAccessibility';
 import AISettings from '@/pages/Settings/AISettings';
+import ThemeToggle from '@/components/ThemeToggle';
 
 function AdvancedTtlControls({ value, onChange }) {
   const presets = [
@@ -749,6 +749,9 @@ export default function UserProfile({ onLanguageChange }) {
   const viewUserId = params.userId ? Number(params.userId) : null;
   const viewingAnother = !!(viewUserId && currentUser && viewUserId !== currentUser.id);
 
+  const { setColorScheme } = useMantineColorScheme();
+  const importFileRef = useRef(null);
+
   // ------- Viewing another user's profile (Follow UX) -------
   const [loadingView, setLoadingView] = useState(viewingAnother);
   const [viewUser, setViewUser] = useState(null);
@@ -771,13 +774,14 @@ export default function UserProfile({ onLanguageChange }) {
         }
       } catch (e) {
         console.error('load profile failed', e);
+        toast.err(t('profile.loadFailed', 'Failed to load profile'));
       } finally {
         if (!cancelled) setLoadingView(false);
       }
     };
     fetchAll();
     return () => { cancelled = true; };
-  }, [viewingAnother, viewUserId]);
+  }, [viewingAnother, viewUserId, t]);
 
   const doFollow = async () => {
     try {
@@ -785,6 +789,10 @@ export default function UserProfile({ onLanguageChange }) {
       await axiosClient.post(`/follows/${viewUserId}`);
       const { data: stats } = await axiosClient.get(`/follows/${viewUserId}/stats`);
       setFollowStats(stats);
+      toast.ok(t('profile.followed', 'Followed'));
+    } catch (e) {
+      console.error(e);
+      toast.err(t('profile.followFailed', 'Failed to follow'));
     } finally {
       setFollowBusy(false);
     }
@@ -795,6 +803,10 @@ export default function UserProfile({ onLanguageChange }) {
       await axiosClient.delete(`/follows/${viewUserId}`);
       const { data: stats } = await axiosClient.get(`/follows/${viewUserId}/stats`);
       setFollowStats(stats);
+      toast.ok(t('profile.unfollowed', 'Unfollowed'));
+    } catch (e) {
+      console.error(e);
+      toast.err(t('profile.unfollowFailed', 'Failed to unfollow'));
     } finally {
       setFollowBusy(false);
     }
@@ -822,11 +834,11 @@ export default function UserProfile({ onLanguageChange }) {
               <Group>
                 {followStats?.amIFollowing ? (
                   <Button variant="light" color="red" loading={followBusy} onClick={doUnfollow}>
-                    Unfollow
+                    {t('profile.unfollow', 'Unfollow')}
                   </Button>
                 ) : (
                   <Button variant="filled" loading={followBusy} onClick={doFollow}>
-                    Follow
+                    {t('profile.follow', 'Follow')}
                   </Button>
                 )}
               </Group>
@@ -835,11 +847,14 @@ export default function UserProfile({ onLanguageChange }) {
             <Divider />
 
             <Text c="dimmed" size="sm">
-              Their stories will appear in your <b>Following</b> feed if they post with audience <b>Followers</b> (or Public).
+              {t(
+                'profile.followHint',
+                'Their stories will appear in your Following feed if they post with audience Followers (or Public).'
+              )}
             </Text>
           </Stack>
         ) : (
-          <Text c="dimmed">User not found</Text>
+          <Text c="dimmed">{t('profile.userNotFound', 'User not found')}</Text>
         )}
       </Paper>
     );
@@ -884,19 +899,6 @@ export default function UserProfile({ onLanguageChange }) {
     currentUser.notifyOnCopy ?? false
   );
 
-  const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType] = useState('');
-  const importFileRef = useRef(null);
-
-  const setStatus = (msg, type = 'success') => {
-    setStatusMessage(msg);
-    setStatusType(type);
-    setTimeout(() => {
-      setStatusMessage('');
-      setStatusType('');
-    }, 3500);
-  };
-
   const saveSettings = async () => {
     try {
       await axiosClient.patch(`/users/${currentUser.id}`, {
@@ -927,10 +929,10 @@ export default function UserProfile({ onLanguageChange }) {
         notifyOnCopy,
       }));
 
-      setStatus(t('profile.saveSuccess', 'Settings saved'), 'success');
+      toast.ok(t('profile.saveSuccess', 'Settings saved'));
     } catch (error) {
       console.error('Failed to save settings', error);
-      setStatus(t('profile.saveError', 'Failed to save settings'), 'error');
+      toast.err(t('profile.saveError', 'Failed to save settings'));
     }
   };
 
@@ -944,13 +946,13 @@ export default function UserProfile({ onLanguageChange }) {
       });
       if (data.avatarUrl) {
         setCurrentUser((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
-        setStatus(t('profile.avatarSuccess', 'Avatar updated'), 'success');
+        toast.ok(t('profile.avatarSuccess', 'Avatar updated'));
       } else {
         throw new Error('No avatarUrl returned');
       }
     } catch (err) {
       console.error('Avatar upload failed', err);
-      setStatus(t('profile.avatarError', 'Failed to upload avatar'), 'error');
+      toast.err(t('profile.avatarError', 'Failed to upload avatar'));
     }
   };
 
@@ -958,7 +960,7 @@ export default function UserProfile({ onLanguageChange }) {
     try {
       const { privateKey } = await loadKeysLocal();
       if (!privateKey) {
-        setStatus(t('profile.noPrivateKey', 'No private key found'), 'error');
+        toast.err(t('profile.noPrivateKey', 'No private key found'));
         return;
       }
       const pwd = window.prompt(
@@ -976,10 +978,10 @@ export default function UserProfile({ onLanguageChange }) {
       a.remove();
       URL.revokeObjectURL(url);
 
-      setStatus(t('profile.backupDownloaded', 'Backup downloaded'));
+      toast.ok(t('profile.backupDownloaded', 'Backup downloaded'));
     } catch (e) {
       console.error(e);
-      setStatus(t('profile.exportFailed', 'Export failed'), 'error');
+      toast.err(t('profile.exportFailed', 'Export failed'));
     }
   };
 
@@ -998,11 +1000,11 @@ export default function UserProfile({ onLanguageChange }) {
         privateKey: privateKeyB64,
       });
 
-      setStatus(t('profile.importSuccess', 'Backup imported successfully'));
+      toast.ok(t('profile.importSuccess', 'Backup imported successfully'));
       if (importFileRef.current) importFileRef.current.value = null;
     } catch (e) {
       console.error(e);
-      setStatus(t('profile.importFailed', 'Import failed'), 'error');
+      toast.err(t('profile.importFailed', 'Import failed'));
     }
   };
 
@@ -1012,18 +1014,21 @@ export default function UserProfile({ onLanguageChange }) {
       await saveKeysLocal(kp);
       await axiosClient.post('/users/keys', { publicKey: kp.publicKey });
       setCurrentUser((prev) => ({ ...prev, publicKey: kp.publicKey }));
-      setStatus(t('profile.keysRotated', 'Keys rotated'));
+      toast.ok(t('profile.keysRotated', 'Keys rotated'));
     } catch (e) {
       console.error(e);
-      setStatus(t('profile.rotateFailed', 'Key rotation failed'), 'error');
+      toast.err(t('profile.rotateFailed', 'Key rotation failed'));
     }
   };
 
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg" maw={560} mx="auto">
-      <Title order={3} mb="md">
-        {t('profile.title', 'Profile')}
-      </Title>
+      <Group justify="space-between" align="center" mb="md">
+        <Title order={3}>
+          {t('profile.title', 'Profile')}
+        </Title>
+        <ThemeToggle />
+      </Group>
 
       <Stack gap="md">
         {/* Avatar */}
@@ -1037,6 +1042,7 @@ export default function UserProfile({ onLanguageChange }) {
           <FileInput
             accept="image/*"
             leftSection={<IconUpload size={16} />}
+            aria-label={t('profile.uploadAvatar', 'Upload avatar')}
             placeholder={t('profile.uploadAvatar', 'Upload avatar')}
             onChange={handleAvatarUpload}
           />
@@ -1056,17 +1062,36 @@ export default function UserProfile({ onLanguageChange }) {
         {/* Appearance */}
         <Divider label={t('profile.appearance', 'Appearance')} labelPosition="center" />
         {!isPremium && (
-          <Alert variant="light" color="blue">
-            {t(
-              'profile.themeFreeNotice',
-              'You’re on Free—only Light & Dark are available. Upgrade to unlock more themes.'
-            )}
-          </Alert>
+          <Card withBorder radius="lg" p="sm">
+            <Text size="sm" c="blue.6">
+              {t(
+                'profile.themeFreeNotice',
+                'You’re on Free—only Light & Dark are available. Upgrade to unlock more themes.'
+              )}
+            </Text>
+          </Card>
         )}
         <Select
           label={t('profile.theme', 'Theme')}
           value={theme}
-          onChange={(v) => v && setTheme(v)}
+          onChange={(v) => {
+            if (!v) return;
+            setTheme(v);
+            // Apply immediately on the client
+            if (v === 'light' || v === 'dark') {
+              setColorScheme(v);
+              try {
+                localStorage.setItem('co-theme', v);
+                document.documentElement.setAttribute('data-theme', v);
+                document.documentElement.removeAttribute('data-theme-preset');
+              } catch {}
+            } else {
+              // premium presets -> a lightweight CSS preset
+              try {
+                document.documentElement.setAttribute('data-theme-preset', v);
+              } catch {}
+            }
+          }}
           data={themeOptions}
           withinPortal
         />
@@ -1124,12 +1149,12 @@ export default function UserProfile({ onLanguageChange }) {
                 <IconCloudUpload size={20} />
                 <Text fw={600}>Encrypted Backups & Device Sync</Text>
               </Group>
-              <Button variant="light" component="a" href="/settings/backups">
-                Open Backup Tools
+              <Button variant="light" component="a" href="/settings/backups" aria-label="Open backup tools">
+                {t('profile.openBackupTools', 'Open Backup Tools')}
               </Button>
             </Group>
             <Text size="sm" c="dimmed" mt="xs">
-              Create password-protected backups of your keys, and restore on another device to sync.
+              {t('profile.backupDesc', 'Create password-protected backups of your keys, and restore on another device to sync.')}
             </Text>
           </Card>
         </PremiumGuard>
@@ -1167,28 +1192,23 @@ export default function UserProfile({ onLanguageChange }) {
         {/* Security */}
         <Divider label={t('profile.security', 'Security')} labelPosition="center" />
         <Group>
-          <Button variant="light" onClick={exportKey}>
+          <Button variant="light" onClick={exportKey} aria-label={t('profile.exportKey', 'Export key')}>
             {t('profile.exportKey', 'Export key')}
           </Button>
           <FileInput
             ref={importFileRef}
             accept="application/json"
+            aria-label={t('profile.importKey', 'Import key')}
             placeholder={t('profile.importKey', 'Import key')}
             onChange={importKey}
           />
-          <Button color="orange" variant="light" onClick={rotateKeys}>
+          <Button color="orange" variant="light" onClick={rotateKeys} aria-label={t('profile.rotateKeys', 'Rotate keys')}>
             {t('profile.rotateKeys', 'Rotate keys')}
           </Button>
         </Group>
         <Text size="xs" c="dimmed">
           {t('profile.keyDisclaimer', 'Keep your keys safe.')}
         </Text>
-
-        {statusMessage && (
-          <Alert color={statusType === 'error' ? 'red' : 'green'} variant="light">
-            {statusMessage}
-          </Alert>
-        )}
 
         <Group justify="flex-end" mt="sm">
           <Button onClick={saveSettings}>{t('common.save', 'Save')}</Button>

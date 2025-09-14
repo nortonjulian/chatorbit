@@ -66,6 +66,10 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
         size="lg"
         centered
         padding="md"
+        withCloseButton
+        closeOnEscape
+        trapFocus
+        aria-label="Shared media"
       >
         {items.length === 0 ? (
           <Text c="dimmed">No media cached locally yet.</Text>
@@ -90,6 +94,10 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
                     cursor: 'pointer',
                   }}
                   onClick={() => setViewerIndex(i)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={m.caption ? `Open video: ${m.caption}` : 'Open video'}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setViewerIndex(i)}
                 >
                   <video
                     src={m.url}
@@ -124,6 +132,15 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
         title={
           selected?.caption ||
           (selected?.kind ? selected.kind.toLowerCase() : 'preview')
+        }
+        closeOnEscape
+        trapFocus
+        aria-label={
+          selected?.caption
+            ? `Preview: ${selected.caption}`
+            : selected?.kind
+              ? `Preview ${selected.kind.toLowerCase()}`
+              : 'Preview'
         }
       >
         {!selected ? null : selected.kind === 'IMAGE' ? (
@@ -179,7 +196,13 @@ export default function MediaGalleryModal({ opened, onClose, roomId }) {
         {/* Basic actions (download). Forward/Edit can be added later from here. */}
         {selected?.url && (
           <Group justify="flex-end" mt="md">
-            <Button component="a" href={selected.url} download variant="light">
+            <Button
+              component="a"
+              href={selected.url}
+              download
+              variant="light"
+              aria-label={`Download ${selected?.kind ? selected.kind.toLowerCase() : 'file'}`}
+            >
               Download
             </Button>
           </Group>

@@ -15,9 +15,12 @@ import './i18n';
 
 import { UserProvider } from './context/UserContext';
 import { CallProvider } from './context/CallContext';
-import { SocketProvider } from './context/SocketContext';  // ✅ NEW
+import { SocketProvider } from './context/SocketContext';
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
+
+// ✅ import your brand theme
+import { chatOrbitTheme } from './theme';
 
 const isProd = import.meta.env.MODE === 'production';
 
@@ -33,22 +36,39 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
-// --- Mantine theme config ---
+// DEV-only a11y audit
+if (import.meta.env.DEV) {
+  Promise.all([
+    import('@axe-core/react'),
+    import('react'),
+    import('react-dom'),
+  ])
+    .then(([{ default: axe }, ReactMod, ReactDOMMod]) => {
+      const ReactForAxe = ReactMod.default || ReactMod;
+      const ReactDOMForAxe = ReactDOMMod.default || ReactDOMMod;
+      // run after a tick so the root is present
+      setTimeout(() => axe(ReactForAxe, ReactDOMForAxe, 1000), 0);
+    })
+    .catch(() => {
+      // ignore axe load errors in dev
+    });
+}
+
+/** Persisted color scheme (light/dark) */
+function getInitialScheme() {
+  const saved = localStorage.getItem('co-theme');
+  if (saved === 'dark' || saved === 'light') return saved;
+  // fall back to system preference
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light';
+}
+
+/**
+ * Compose final Mantine theme:
+ * - Start from chatOrbitTheme (orbitBlue/orbitYellow, font family, radius)
+ * - Add primaryShade and component defaults
+ */
 const theme = createTheme({
-  fontFamily:
-    'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
-  defaultRadius: 'xl',
-  colors: {
-    orbit: [
-      '#e7f1ff','#c9dfff','#a9ccff','#86b6ff','#63a0ff',
-      '#418aff','#2f73e6','#255bb4','#1b4483','#122c52',
-    ],
-    orbitYellow: [
-      '#fff9e6','#ffefbf','#ffe596','#ffdb6b','#ffd241',
-      '#ffc818','#e0ab00','#b38700','#856400','#573e00',
-    ],
-  },
-  primaryColor: 'orbit',
+  ...chatOrbitTheme,
   primaryShade: 6,
   components: {
     TextInput:     { defaultProps: { size: 'md', variant: 'filled' } },
@@ -57,22 +77,37 @@ const theme = createTheme({
   },
 });
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+function Root() {
+  const [scheme, setScheme] = React.useState(getInitialScheme());
+
+  React.useEffect(() => {
+    localStorage.setItem('co-theme', scheme);
+    document.documentElement.setAttribute('data-theme', scheme);
+  }, [scheme]);
+
+  return (
     <ErrorBoundary>
-      <MantineProvider theme={theme} defaultColorScheme="light">
-        <Notifications position="top-right" />
+      <MantineProvider theme={theme} defaultColorScheme={scheme}>
+        <Notifications position="top-right" limit={3} />
         <UserProvider>
           <CallProvider>
-            {/* ✅ Wrap in SocketProvider so all components share one socket */}
             <SocketProvider>
               <BrowserRouter>
-                <App />
+                <App
+                  themeScheme={scheme}
+                  onToggleTheme={() => setScheme((s) => (s === 'light' ? 'dark' : 'light'))}
+                />
               </BrowserRouter>
             </SocketProvider>
           </CallProvider>
         </UserProvider>
       </MantineProvider>
     </ErrorBoundary>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <Root />
   </React.StrictMode>
 );

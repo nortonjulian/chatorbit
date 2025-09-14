@@ -2,23 +2,21 @@ import { Server } from 'socket.io';
 import cookie from 'cookie';
 import jwt from 'jsonwebtoken';
 import prisma from './utils/prismaClient.js';
-import { setSocketIo } from './services/socketBus.js'; // ensure this exists
-import { attachRandomChatSockets } from './routes/randomChats.js'; // <-- added
+import { setSocketIo } from './services/socketBus.js';
+// If your random chat module does not export this, either add a no-op export there or comment this out:
+import { attachRandomChatSockets } from './routes/randomChats.js';
 
 /** CORS origins */
 function parseOrigins() {
   const fallback = ['http://localhost:5173', 'http://localhost:5002'];
-  const raw = process.env.CORS_ORIGINS || process.env.WEB_ORIGIN || '';
-  const list = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const raw = process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || process.env.WEB_ORIGIN || '';
+  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
   return list.length ? list : fallback;
 }
 
 /** Extract JWT from handshake */
 function getTokenFromHandshake(handshake) {
-  if (handshake.auth?.token) return handshake.auth.token;   // socket.auth.token (recommended)
+  if (handshake.auth?.token) return handshake.auth.token;   // preferred: socket.auth.token
   if (handshake.query?.token) return handshake.query.token; // optional fallback
 
   if (handshake.headers?.cookie) {
@@ -38,11 +36,36 @@ async function getUserRoomIds(userId) {
   return [...new Set(rows.map((r) => String(r.chatRoomId)))];
 }
 
+/**
+ * Initialize Socket.IO on the given HTTP server.
+ * If REDIS_URL is set, a cross-node pub/sub adapter is enabled.
+ */
 export function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: { origin: parseOrigins(), credentials: true },
     path: '/socket.io',
   });
+
+  // Optional Redis adapter for multi-instance scale-out
+  let pub = null;
+  let sub = null;
+
+  async function maybeAttachRedisAdapter() {
+    if (!process.env.REDIS_URL) return;
+    try {
+      const [{ createAdapter }, { createClient }] = await Promise.all([
+        import('@socket.io/redis-adapter'),
+        import('redis'),
+      ]);
+      pub = createClient({ url: process.env.REDIS_URL });
+      sub = createClient({ url: process.env.REDIS_URL });
+      await Promise.all([pub.connect(), sub.connect()]);
+      io.adapter(createAdapter(pub, sub));
+      console.log('[WS] Redis adapter enabled');
+    } catch (err) {
+      console.error('[WS] Failed to enable Redis adapter:', err?.message || err);
+    }
+  }
 
   // ---- Auth middleware ----
   io.use((socket, next) => {
@@ -52,12 +75,11 @@ export function initSocket(httpServer) {
       const secret = process.env.JWT_SECRET;
       if (!secret) return next(new Error('Server misconfiguration: JWT secret missing'));
 
-      const decoded = jwt.verify(token, secret); // { id, username, role, plan, ... }
+      const decoded = jwt.verify(token, secret); // { id, username, ... }
       socket.user = decoded;
       socket.data.user = decoded;
 
-      // Personal unicast room
-      if (decoded?.id) socket.join(`user:${decoded.id}`);
+      if (decoded?.id) socket.join(`user:${decoded.id}`); // personal unicast room
       next();
     } catch (err) {
       console.error('Socket auth failed:', err?.message || err);
@@ -65,15 +87,19 @@ export function initSocket(httpServer) {
     }
   });
 
-  // ---- Random Chat socket handlers (attach after auth middleware) ----
-  attachRandomChatSockets(io);
+  // ---- Feature sockets that need an authenticated socket (if available) ----
+  if (typeof attachRandomChatSockets === 'function') {
+    attachRandomChatSockets(io);
+  }
 
   // ---- Connection handler ----
   io.on('connection', async (socket) => {
     const userId = socket.user?.id;
-    console.log('[WS] connected user:', socket.user?.username || userId);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('[WS] connected user:', socket.user?.username || userId);
+    }
 
-    // Optional auto-join on connect (enable via SOCKET_AUTOJOIN=true)
+    // Optional auto-join existing rooms (opt-in)
     if (process.env.SOCKET_AUTOJOIN === 'true' && userId) {
       try {
         const rooms = await getUserRoomIds(userId);
@@ -86,7 +112,7 @@ export function initSocket(httpServer) {
       }
     }
 
-    // NEW: bulk join
+    // Bulk join (client can send a batch)
     socket.on('join:rooms', async (roomIds) => {
       try {
         if (!Array.isArray(roomIds)) return;
@@ -98,34 +124,35 @@ export function initSocket(httpServer) {
       }
     });
 
-    // Back-compat: single join/leave (keeps existing callers working)
+    // Back-compat: single join/leave
     socket.on('join_room', async (roomId) => {
       if (!roomId) return;
       await socket.join(String(roomId));
       console.log(`[WS] user:${userId} joined room ${roomId}`);
     });
-
     socket.on('leave_room', async (roomId) => {
       if (!roomId) return;
       await socket.leave(String(roomId));
       console.log(`[WS] user:${userId} left room ${roomId}`);
     });
 
-    // Optional UX signal
+    // Optional UX signal in dev
     socket.on('message_copied', ({ messageId }) => {
       if (process.env.NODE_ENV !== 'production') {
         console.log(`[WS] user:${userId} copied message ${messageId}`);
       }
     });
 
-    // WebRTC: socket-level ICE relay (optional; HTTP /calls/candidate also exists)
+    // WebRTC: relay ICE candidates to a user-specific room
     socket.on('call:candidate', ({ callId, to, candidate }) => {
       if (!callId || !to || !candidate) return;
       io.to(`user:${to}`).emit('call:candidate', { callId, candidate });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`[WS] user:${userId} disconnected:`, reason);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`[WS] user:${userId} disconnected:`, reason);
+      }
     });
   });
 
@@ -133,8 +160,22 @@ export function initSocket(httpServer) {
     io.to(`user:${userId}`).emit(event, payload);
   }
 
-  // Make io/emitter available to HTTP routes (calls.js)
+  // Expose to HTTP layer
   setSocketIo(io, emitToUser);
 
-  return { io, emitToUser };
+  // Defer Redis adapter init until after IO up
+  void maybeAttachRedisAdapter();
+
+  // Provide a cleanup hook for graceful shutdowns
+  async function close() {
+    try {
+      if (pub) await pub.quit();
+      if (sub) await sub.quit();
+    } catch (e) {
+      console.warn('[WS] redis quit error:', e?.message || e);
+    }
+    await new Promise((res) => io.close(res));
+  }
+
+  return { io, emitToUser, close };
 }

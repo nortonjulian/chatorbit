@@ -11,6 +11,7 @@ import {
   MultiSelect,
   NumberInput,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import axiosClient from '../../api/axiosClient';
 
 export default function NewStatusModal({ opened, onClose }) {
@@ -27,8 +28,14 @@ export default function NewStatusModal({ opened, onClose }) {
     try {
       const { data } = await axiosClient.get('/contacts'); // adjust if your endpoint changed
       const opts = data.items
-        ? data.items.map((c) => ({ value: String(c.user?.id || c.contactUserId), label: c.user?.username || `User #${c.contactUserId}` }))
-        : (data || []).map((u) => ({ value: String(u.id), label: u.username || `User #${u.id}` }));
+        ? data.items.map((c) => ({
+            value: String(c.user?.id || c.contactUserId),
+            label: c.user?.username || `User #${c.contactUserId}`,
+          }))
+        : (data || []).map((u) => ({
+            value: String(u.id),
+            label: u.username || `User #${u.id}`,
+          }));
       setContactOptions(opts);
     } catch (e) {
       console.error('load contacts failed', e);
@@ -43,13 +50,18 @@ export default function NewStatusModal({ opened, onClose }) {
       form.set('audience', audience);
       form.set('expireSeconds', String(expire));
       if (audience === 'CUSTOM' && customIds.length) {
-        form.set('customAudienceIds', JSON.stringify(customIds.map((v) => Number(v))));
+        form.set(
+          'customAudienceIds',
+          JSON.stringify(customIds.map((v) => Number(v)))
+        );
       }
       for (const f of files) form.append('files', f);
 
       await axiosClient.post('/status', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      notifications.show({ message: 'Status posted', withBorder: true });
 
       onClose?.();
       setCaption('');
@@ -59,13 +71,27 @@ export default function NewStatusModal({ opened, onClose }) {
       setExpire(24 * 3600);
     } catch (e) {
       console.error('post status failed', e);
+      notifications.show({
+        message: 'Failed to post status',
+        color: 'red',
+        withBorder: true,
+      });
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New Status" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="New Status"
+      centered
+      withCloseButton
+      closeOnEscape
+      trapFocus
+      aria-label="New status"
+    >
       <Stack>
         <Textarea
           label="Caption"
@@ -122,11 +148,25 @@ export default function NewStatusModal({ opened, onClose }) {
           value={files}
           onChange={setFiles}
         />
-        <Text size="xs" c="dimmed">Up to 5 files. 24h expiry by default.</Text>
+        <Text size="xs" c="dimmed">
+          Up to 5 files. 24h expiry by default.
+        </Text>
 
         <Group justify="flex-end" mt="sm">
-          <Button variant="light" onClick={onClose}>Cancel</Button>
-          <Button loading={busy} onClick={onSubmit}>Post</Button>
+          <Button
+            variant="light"
+            onClick={onClose}
+            aria-label="Cancel posting status"
+          >
+            Cancel
+          </Button>
+          <Button
+            loading={busy}
+            onClick={onSubmit}
+            aria-label="Post status"
+          >
+            Post
+          </Button>
         </Group>
       </Stack>
     </Modal>

@@ -108,10 +108,11 @@ export function createApp() {
    *   Core middleware (after raw webhook)
    * ========================= */
   app.use(cookieParser());
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
   // Compute origins used by CORS & CSP
-  const allowedOrigins = String(process.env.FRONTEND_ORIGIN || '')
+  const allowedOrigins = String(process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -123,6 +124,7 @@ export function createApp() {
   // Helmet with CSP & HSTS
   app.use(
     helmet({
+      crossOriginResourcePolicy: { policy: 'same-site' },
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
@@ -229,7 +231,7 @@ export function createApp() {
 
   // IMPORTANT: tests hit /rooms and /messages.
   app.use('/rooms', roomsRouter);
-  app.use('/chatrooms', roomsRouter); 
+  app.use('/chatrooms', roomsRouter);
   app.use('/messages', messagesRouter);
 
   app.use('/follows', followsRouter);

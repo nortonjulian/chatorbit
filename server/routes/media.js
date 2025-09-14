@@ -55,6 +55,11 @@ function makeObjectKey(userId, originalName) {
 const REQUIRE_SIGNED = String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() === 'true';
 const PUBLIC_BASE = (process.env.R2_PUBLIC_BASE || '').replace(/\/+$/, ''); // e.g. https://media.chatorbit.com
 
+// Warn if running in PUBLIC mode without a CDN/base URL
+if (!process.env.R2_PUBLIC_BASE && String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() !== 'true') {
+  console.warn('[media] PUBLIC mode without R2_PUBLIC_BASE; returned URLs may not be CDN-backed');
+}
+
 /* --------------------------------- Upload -------------------------------- */
 // POST /media/upload  (field name: "file")
 router.post(
@@ -70,7 +75,13 @@ router.post(
         ACCEPTED_MIME.has(file.mimetype) ? cb(null, true) : cb(new Error('Unsupported file type')),
     }).single('file');
 
-    upload(req, res, (err) => (err ? res.status(400).json({ error: err.message }) : next()));
+    upload(req, res, (err) => {
+      if (!err) return next();
+      if (String(err?.message || '').toLowerCase().includes('file too large')) {
+        return res.status(413).json({ error: 'File too large' });
+      }
+      return res.status(400).json({ error: err.message });
+    });
   },
   async (req, res) => {
     try {
