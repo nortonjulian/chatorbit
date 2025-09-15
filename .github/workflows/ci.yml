@@ -1,4 +1,5 @@
 name: CI
+
 on:
   pull_request:
   push:
@@ -7,6 +8,7 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:16
@@ -21,6 +23,27 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
+    # Minimal env so tests/builds don’t crash on missing secrets
+    env:
+      # DB for server tests & prisma
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+
+      # Server expectations
+      NODE_ENV: test
+      JWT_SECRET: test-secret
+      FRONTEND_ORIGIN: http://localhost:5173
+
+      # Stripe – dummy + skip sig check in CI
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      STRIPE_SKIP_SIG_CHECK: 'true'
+
+      # Optional feature flags
+      STATUS_ENABLED: 'true'
+
+      # Client build expectations (if referenced in code)
+      VITE_API_URL: http://localhost:5002
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,9 +55,15 @@ jobs:
       - name: Install (workspaces)
         run: npm ci
 
+      # Generate Prisma client (no DB needed)
       - name: Prisma generate (server)
-        run: npx prisma generate
         working-directory: server
+        run: npx prisma generate
+
+      # >>> This is the key fix: create schema in the CI Postgres before tests
+      - name: Prisma migrate deploy (server)
+        working-directory: server
+        run: npx prisma migrate deploy
 
       - name: Lint
         run: npm run lint --workspaces
@@ -46,10 +75,10 @@ jobs:
 
       - name: Test (server)
         run: npm run test --workspace server
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 
       - name: Test (client)
+        env:
+          CI: 'true'
         run: npm run test --workspace client
 
       - name: Build (server)
