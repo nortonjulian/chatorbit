@@ -1,0 +1,13 @@
+client/dist/**          linguist-generated=true
+server/dist/**          linguist-generated=true
+coverage/**             linguist-generated=true
+storybook-static/**     linguist-generated=true
+
+# Optional, if you keep docs in main and want them excluded from stats
+docs/**                 linguist-documentation=true
+
+# Optional: third-party vendor blobs
+public/vendor/**        linguist-vendored=true
+
+# Optional: any minified libs accidentally checked in
+**/*.min.js             linguist-generated=true

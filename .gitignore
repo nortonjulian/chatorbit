@@ -7,3 +7,8 @@ client/.env
 node_modules
 node_modules
 node_modules
+
+client/dist/
+server/dist/
+coverage/
+storybook-static/
