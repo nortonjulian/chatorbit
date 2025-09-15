@@ -383,7 +383,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
   // === Premium toolbar actions (handler-level guard) ===
   const runPowerAi = async () => {
-    if (!isPremium) return navigate('/settings/upgrade'); // ⬅️ instant redirect
+    if (!isPremium) {
+      toast.info('This feature requires Premium.');
+      return navigate('/settings/upgrade');
+    }
     try {
       const { data } = await axiosClient.post('/ai/power-feature', { context: [] });
       console.log('AI power result', data);
@@ -394,7 +397,10 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
   };
 
   const openSchedulePrompt = async () => {
-    if (!isPremium) return navigate('/settings/upgrade'); // ⬅️ instant redirect
+    if (!isPremium) {
+      toast.info('Scheduling messages is a Premium feature.');
+      return navigate('/settings/upgrade');
+    }
     const iso = window.prompt('Schedule time (ISO or YYYY-MM-DD HH:mm):');
     if (!iso || !chatroom?.id) return;
     let scheduledAt;

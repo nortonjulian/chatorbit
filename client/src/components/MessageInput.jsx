@@ -35,6 +35,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [sending, setSending] = useState(false);
+
   const nothingToSend = useMemo(
     () => !content.trim() && uploaded.length === 0 && inlinePicks.length === 0,
     [content, uploaded.length, inlinePicks.length]
@@ -48,11 +49,37 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
     return 'FILE';
   }
 
+  // Clamp TTL client-side and inform user if plan-limited
+  const handleTtlChange = (next) => {
+    const nextVal = Number(next || 0);
+    const isPremium = (currentUser?.plan || '').toUpperCase() === 'PREMIUM';
+    const maxFree = 24 * 3600;
+    const maxPremium = 30 * 24 * 3600;
+
+    if (!isPremium && nextVal > maxFree) {
+      setTtl(String(maxFree));
+      toast.info('Free plan limit: auto-delete up to 1 day. Clamped to 1d.');
+      return;
+    }
+    if (isPremium && nextVal > maxPremium) {
+      setTtl(String(maxPremium));
+      toast.info('Max auto-delete for Premium is 30 days. Clamped to 30d.');
+      return;
+    }
+    setTtl(String(nextVal));
+  };
+
   const handleSend = async (e) => {
     e?.preventDefault?.();
-    if (nothingToSend || sending) return;
+    if (sending) return;
+
+    if (nothingToSend) {
+      toast.info('Type a message or attach a file to send.');
+      return;
+    }
 
     setSending(true);
+
     const attachmentsInline = [
       ...uploaded.map((f) => ({
         kind: kindFromMime(f.contentType),
@@ -83,7 +110,31 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
       setUploaded([]);
       setInlinePicks([]);
     } catch (err) {
-      toast.err('Failed to send. You can retry the failed bubble.');
+      // Construct a helpful error message
+      const status = err?.response?.status;
+      const code = err?.response?.data?.code;
+      const reason = err?.response?.data?.reason;
+
+      if (status === 402) {
+        // Premium gate (e.g., trying to use a gated feature)
+        toast.err(
+          reason === 'PREMIUM_REQUIRED'
+            ? 'This action requires Premium.'
+            : 'Upgrade required for this action.'
+        );
+      } else if (status === 413) {
+        toast.err('Attachment too large. Try a smaller file.');
+      } else if (status === 415) {
+        toast.err('Unsupported file type.');
+      } else if (status === 429) {
+        toast.err('You’re sending messages too quickly. Please slow down.');
+      } else if (code === 'VALIDATION_ERROR') {
+        toast.err('Validation error. Please check your message and try again.');
+      } else {
+        toast.err('Failed to send. You can retry the failed bubble.');
+      }
+
+      // Optimistic failed bubble so user can retry/resend
       onMessageSent?.({
         id: `temp-${Date.now()}`,
         content: content.trim(),
@@ -93,6 +144,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
         expireSeconds: Number(ttl) || 0,
         attachmentsInline,
       });
+
       console.error('Error sending message', err);
     } finally {
       setSending(false);
@@ -122,23 +174,24 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
         {/* TTL */}
         <Select
           value={ttl}
-          onChange={setTtl}
+          onChange={handleTtlChange}
           data={TTL_OPTIONS}
           w={110}
           aria-label="Message timer"
           disabled={sending}
         />
 
-      <Button
-        variant="light"
-        onClick={() => setPickerOpen(true)}
-        disabled={sending}
-        type="button"
-        aria-label={String.fromCodePoint(0x1F600)} 
-      >
-        {String.fromCodePoint(0x1F600)}
-      </Button>
-
+        {/* Emoji / Sticker picker trigger */}
+        <Button
+          variant="light"
+          onClick={() => setPickerOpen(true)}
+          disabled={sending}
+          type="button"
+          aria-label={String.fromCodePoint(0x1f600)}
+          title="Stickers & GIFs"
+        >
+          {String.fromCodePoint(0x1f600)}
+        </Button>
 
         {/* FileUploader (R2) */}
         <FileUploader
@@ -149,12 +202,18 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
               disabled={sending}
               aria-label="Attach files"
               type="button"
+              title="Attach files"
             >
               Attach
             </Button>
           }
           onUploaded={(fileMeta) => {
             setUploaded((prev) => [...prev, fileMeta]);
+            toast.ok('Attachment added.');
+          }}
+          onError={(message) => {
+            // If FileUploader surfaces errors
+            toast.err(message || 'Failed to upload file.');
           }}
         />
 
@@ -177,7 +236,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
         <div style={{ marginTop: 8 }}>
           {uploaded.map((f, i) => (
             <Group
-              key={`${f.key}-${i}`}
+              key={`${f.key || f.url}-${i}`}
               gap="xs"
               align="center"
               wrap="nowrap"
@@ -191,10 +250,21 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
                 href={f.url}
                 target="_blank"
                 rel="noreferrer"
-                style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                style={{
+                  maxWidth: 260,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
                 title={f.url}
               >
-                {new URL(f.url).pathname.split('/').pop()}
+                {(() => {
+                  try {
+                    return new URL(f.url).pathname.split('/').pop();
+                  } catch {
+                    return f.url;
+                  }
+                })()}
               </a>
 
               <Textarea
@@ -206,7 +276,9 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
                 value={f.caption || ''}
                 onChange={(e) =>
                   setUploaded((prev) =>
-                    prev.map((x, idx) => (idx === i ? { ...x, caption: e.currentTarget.value } : x))
+                    prev.map((x, idx) =>
+                      idx === i ? { ...x, caption: e.currentTarget.value } : x
+                    )
                   )
                 }
                 aria-label={`Attachment ${i + 1} caption`}
@@ -216,7 +288,10 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
                 size="xs"
                 variant="subtle"
                 color="red"
-                onClick={() => setUploaded((prev) => prev.filter((_, idx) => idx !== i))}
+                onClick={() => {
+                  setUploaded((prev) => prev.filter((_, idx) => idx !== i));
+                  toast.info('Attachment removed.');
+                }}
                 aria-label={`Remove attachment ${i + 1}`}
                 type="button"
               >
@@ -250,7 +325,10 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
             size="xs"
             variant="subtle"
             color="red"
-            onClick={() => setInlinePicks([])}
+            onClick={() => {
+              setInlinePicks([]);
+              toast.info('Cleared stickers & GIFs.');
+            }}
             style={{ marginLeft: 4 }}
             aria-label="Clear stickers and GIFs"
             type="button"
@@ -267,6 +345,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
         onPick={(att) => {
           setInlinePicks((prev) => [...prev, att]);
           setPickerOpen(false);
+          toast.ok(att.kind === 'GIF' ? 'GIF added.' : 'Sticker added.');
         }}
       />
     </form>

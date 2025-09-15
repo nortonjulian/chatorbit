@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Group,
@@ -19,8 +19,13 @@ import { toast } from '../utils/toast';
 const AUDIENCE = [
   { value: 'MUTUALS', label: 'Mutual contacts' },
   { value: 'CONTACTS', label: 'All contacts' },
-  { value: 'CUSTOM', label: 'Custom list (JSON ids)' }, // simple MVP
+  { value: 'CUSTOM', label: 'Custom list' }, // simple MVP
 ];
+
+// Optional soft guard to prevent accidentally massive uploads on slow networks.
+// Server enforces its own strict limits; this is just early feedback.
+// Set to null to disable client-side size checks.
+const CLIENT_MAX_FILE_MB = 100;
 
 export default function StatusComposer({ opened, onClose }) {
   const [caption, setCaption] = useState('');
@@ -30,67 +35,120 @@ export default function StatusComposer({ opened, onClose }) {
   const [ttl, setTtl] = useState('86400');
   const [loading, setLoading] = useState(false);
 
+  // Reset when modal closes
+  useEffect(() => {
+    if (!opened) resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
+
   function resetForm() {
     setCaption('');
     setFiles([]);
     setCustom('[]');
     setAudience('MUTUALS');
     setTtl('86400');
+    setLoading(false);
+  }
+
+  function parseCustomAudience() {
+    if (audience !== 'CUSTOM') return null;
+    try {
+      const parsed = JSON.parse(custom);
+      if (!Array.isArray(parsed)) throw new Error('Not an array');
+      return parsed;
+    } catch {
+      toast.err('Custom audience must be a JSON array of user IDs.');
+      return null;
+    }
+  }
+
+  function validateBeforeSubmit() {
+    const seconds = Number(ttl);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      toast.err('Please choose a valid expiration.');
+      return null;
+    }
+    const parsedCustom = parseCustomAudience();
+    if (audience === 'CUSTOM' && !parsedCustom) return null;
+
+    // Prevent empty posts (no caption, no files)
+    if (!caption.trim() && files.length === 0) {
+      toast.info('Add a caption or attach a file.');
+      return null;
+    }
+    return { seconds, parsedCustom };
+  }
+
+  function humanSize(bytes) {
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${bytes} B`;
+  }
+
+  function onAddFile(f) {
+    if (!f) return;
+    if (CLIENT_MAX_FILE_MB && f.size > CLIENT_MAX_FILE_MB * 1024 * 1024) {
+      toast.err(
+        `That file is ${humanSize(f.size)}. Max allowed here is ~${CLIENT_MAX_FILE_MB}MB.`
+      );
+      return;
+    }
+    setFiles((prev) => [...prev, f]);
+  }
+
+  function removeFileAt(index) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function statusErrorMessage(err) {
+    const status = err?.response?.status;
+    const code = err?.response?.data?.code;
+    const msg = err?.response?.data?.message;
+
+    if (status === 402) {
+      // Premium gate (generic); specific reasons may be included by server
+      return code === 'PREMIUM_REQUIRED'
+        ? 'This action requires Premium.'
+        : 'Upgrade required for this action.';
+    }
+    if (status === 413) return 'One or more files exceed the upload size limit.';
+    if (status === 415) return 'Unsupported file type.';
+    if (status === 422) return msg || 'Please check your inputs and try again.';
+    return msg || 'Try again.';
   }
 
   async function submit(e) {
     if (e?.preventDefault) e.preventDefault();
     if (loading) return;
 
-    // Validate TTL
-    const seconds = Number(ttl);
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      toast.err('Please choose a valid expiration.');
-      return;
-    }
+    const validated = validateBeforeSubmit();
+    if (!validated) return;
 
-    // Validate custom audience JSON
-    if (audience === 'CUSTOM') {
-      try {
-        const parsed = JSON.parse(custom);
-        if (!Array.isArray(parsed)) throw new Error('Not an array');
-      } catch {
-        toast.err('Custom audience must be a JSON array of user IDs.');
-        return;
-      }
-    }
+    const { seconds, parsedCustom } = validated;
 
     setLoading(true);
     try {
       const form = new FormData();
-      form.append('caption', caption);
+      if (caption.trim()) form.append('caption', caption.trim());
       form.append('audience', audience);
       form.append('expireSeconds', String(seconds));
-      if (audience === 'CUSTOM') form.append('customAudienceIds', custom);
+      if (audience === 'CUSTOM' && parsedCustom) {
+        // The server expects a JSON array in string form
+        form.append('customAudienceIds', JSON.stringify(parsedCustom));
+      }
       files.forEach((f) => form.append('files', f));
 
-      await axiosClient.post('/status', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Let axios/browser set proper multipart boundary headers automatically
+      await axiosClient.post('/status', form);
 
       toast.ok('Your status is live.');
       resetForm();
       onClose?.();
     } catch (err) {
-      const msg = err?.response?.data?.message ?? 'Try again.';
-      toast.err(`Post failed: ${msg}`);
+      toast.err(`Post failed: ${statusErrorMessage(err)}`);
     } finally {
       setLoading(false);
     }
-  }
-
-  function onAddFile(f) {
-    if (!f) return;
-    setFiles((prev) => [...prev, f]);
-  }
-
-  function removeFileAt(index) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   return (
@@ -113,6 +171,7 @@ export default function StatusComposer({ opened, onClose }) {
             autosize
             minRows={2}
             disabled={loading}
+            maxLength={1000}
           />
 
           <Select
@@ -161,6 +220,11 @@ export default function StatusComposer({ opened, onClose }) {
             multiple={false}
             clearable
             disabled={loading}
+            description={
+              CLIENT_MAX_FILE_MB
+                ? `Max ~${CLIENT_MAX_FILE_MB}MB per file (server may enforce lower per-plan limits).`
+                : undefined
+            }
           />
 
           {files.length > 0 && (
@@ -174,7 +238,9 @@ export default function StatusComposer({ opened, onClose }) {
                   radius="sm"
                 >
                   <Group gap={6}>
-                    <Text size="sm">{f.name}</Text>
+                    <Text size="sm">
+                      {f.name} · {humanSize(f.size)}
+                    </Text>
                     <Tooltip label="Remove">
                       <ActionIcon
                         aria-label={`Remove ${f.name}`}

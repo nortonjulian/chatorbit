@@ -3,7 +3,6 @@ import {
   Box,
   Group,
   ActionIcon,
-  Title,
   ScrollArea,
   Divider,
   Stack,
@@ -13,8 +12,9 @@ import {
 } from '@mantine/core';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings } from 'lucide-react';
+
 import StartChatModal from './StartChatModal';
-import ChatroomList from './ChatroomList';
+import ChatroomsSidebar from './ChatroomsSidebar'; // <-- new sidebar list with loading/empty/error handling
 import UserProfile from './UserProfile';
 
 function Sidebar({ currentUser, setSelectedRoom, features }) {
@@ -22,14 +22,20 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
 
+  const handleStartChat = () => {
+    if (!currentUser) return;
+    setShowStartModal(true);
+  };
+
   return (
     <Box p="md" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
       {/* Top icons */}
       <Group justify="space-between" mb="sm">
         <ActionIcon
           variant="subtle"
-          onClick={() => setShowStartModal(true)}
+          onClick={handleStartChat}
           aria-label="Start chat"
+          disabled={!currentUser}
         >
           <Plus size={22} />
         </ActionIcon>
@@ -62,23 +68,18 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       {/* Main sidebar content */}
       <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
         <Stack gap="md">
-          <Box>
-            <Title order={5} mb="xs">
-              Chatrooms
-            </Title>
-            <ChatroomList
-              currentUser={currentUser}
-              onSelect={setSelectedRoom}
-              openNewChatModal={(v) => setShowStartModal(v)}
-            />
-          </Box>
+          {/* Chatrooms list (renders: skeleton → list OR nothing/compact empty state) */}
+          <ChatroomsSidebar
+            onStartNewChat={() => setShowStartModal(true)}
+            onSelect={setSelectedRoom} // optional: implement inside ChatroomsSidebar to call when a room is clicked
+          />
         </Stack>
       </ScrollArea.Autosize>
 
       {/* Start Chat modal */}
-      {showStartModal && (
+      {showStartModal && currentUser && (
         <StartChatModal
-          currentUserId={currentUser.id}
+          currentUserId={currentUser?.id}
           onClose={() => setShowStartModal(false)}
         />
       )}

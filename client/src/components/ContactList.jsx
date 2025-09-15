@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
 import { Box, Title, TextInput, Stack, Text, Button, Group } from '@mantine/core';
+import { toast } from '../utils/toast';
 
 export default function ContactList({ currentUserId, onChanged }) {
   const [contacts, setContacts] = useState([]);
@@ -14,6 +15,7 @@ export default function ContactList({ currentUserId, onChanged }) {
       setContacts(res.data || []);
     } catch (err) {
       console.error('Failed to fetch contacts:', err);
+      toast.err('Failed to load contacts. Please try again.');
     }
   };
 
@@ -30,10 +32,19 @@ export default function ContactList({ currentUserId, onChanged }) {
 
   const startChat = async (userId) => {
     try {
+      if (!userId) {
+        toast.info('That contact hasn’t joined ChatOrbit yet.');
+        return;
+      }
       const { data } = await axiosClient.post(`/chatrooms/direct/${userId}`);
-      if (data?.id) navigate(`/chat/${data.id}`);
+      if (data?.id) {
+        navigate(`/chat/${data.id}`);
+      } else {
+        toast.err('Could not start chat. Please try again.');
+      }
     } catch (e) {
       console.error('Failed to start chat:', e);
+      toast.err('Failed to start chat. Please try again.');
     }
   };
 
@@ -42,16 +53,20 @@ export default function ContactList({ currentUserId, onChanged }) {
       await axiosClient.delete('/contacts', { data: { ownerId: currentUserId, userId } });
       await refresh();
       onChanged?.();
+      toast.ok('Contact deleted.');
     } catch (err) {
       console.error('Failed to delete contact:', err);
+      toast.err('Failed to delete contact. Please try again.');
     }
   };
 
   const updateAlias = async (userId, alias) => {
     try {
       await axiosClient.patch('/contacts', { ownerId: currentUserId, userId, alias: alias || '' });
+      toast.ok('Alias updated.');
     } catch (err) {
       console.error('Failed to update alias:', err);
+      toast.err('Failed to update alias. Please try again.');
     } finally {
       await refresh();
       onChanged?.();

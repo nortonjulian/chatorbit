@@ -15,6 +15,7 @@ import {
   Alert,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { toast } from '../utils/toast';
 
 function StatusBadge({ status }) {
   const color =
@@ -42,8 +43,11 @@ export default function AdminReportsPage() {
         params: { status: statusFilter, take: 50, skip: 0 },
       });
       setItems(res.data.items || []);
+      setErr('');
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to load reports');
+      const msg = e.response?.data?.error || 'Failed to load reports';
+      setErr(msg);
+      toast.err(msg);
     } finally {
       setLoading(false);
     }
@@ -51,6 +55,7 @@ export default function AdminReportsPage() {
 
   useEffect(() => {
     fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   const resolveReport = async () => {
@@ -59,9 +64,12 @@ export default function AdminReportsPage() {
       setNotes('');
       setResolveId(null);
       close();
+      toast.ok('Report resolved');
       fetchReports();
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to resolve');
+      const msg = e.response?.data?.error || 'Failed to resolve';
+      setErr(msg);
+      toast.err(msg);
     }
   };
 
@@ -70,9 +78,12 @@ export default function AdminReportsPage() {
       await axiosClient.post(`/admin/reports/users/${userId}/warn`, {
         notes: 'Please follow community guidelines.',
       });
+      toast.ok('User warned');
       fetchReports();
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to warn user');
+      const msg = e.response?.data?.error || 'Failed to warn user';
+      setErr(msg);
+      toast.err(msg);
     }
   };
 
@@ -82,9 +93,12 @@ export default function AdminReportsPage() {
       await axiosClient.post(`/admin/reports/users/${userId}/ban`, {
         reason: 'Abusive content',
       });
+      toast.ok('User banned');
       fetchReports();
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to ban user');
+      const msg = e.response?.data?.error || 'Failed to ban user';
+      setErr(msg);
+      toast.err(msg);
     }
   };
 
@@ -92,9 +106,12 @@ export default function AdminReportsPage() {
     if (!confirm('Delete this message for all?')) return;
     try {
       await axiosClient.delete(`/admin/reports/messages/${messageId}`);
+      toast.ok('Message deleted');
       fetchReports();
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to delete message');
+      const msg = e.response?.data?.error || 'Failed to delete message';
+      setErr(msg);
+      toast.err(msg);
     }
   };
 
@@ -220,7 +237,7 @@ export default function AdminReportsPage() {
             <Button variant="light" onClick={close}>
               Cancel
             </Button>
-              <Button onClick={resolveReport}>Resolve</Button>
+            <Button onClick={resolveReport}>Resolve</Button>
           </Group>
         </Stack>
       </Modal>

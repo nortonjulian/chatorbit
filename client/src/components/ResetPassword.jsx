@@ -11,6 +11,7 @@ import {
   Text,
   Stack,
 } from '@mantine/core';
+import { toast } from '../utils/toast';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -18,27 +19,30 @@ export default function ResetPassword() {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const [messageType, setType] = useState('');
   const [loading, setLoading] = useState(false);
   const [isTokenMissing, setIsTokenMissing] = useState(false);
 
   useEffect(() => {
     if (!token) {
       setIsTokenMissing(true);
-      setMessage('Invalid or missing password reset token.');
-      setType('error');
     }
   }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage('');
-    setType('');
+
+    if (!token) {
+      toast.err('Invalid or missing password reset token.');
+      return;
+    }
 
     if (password !== confirmPassword) {
-      setMessage('Passwords do not match.');
-      setType('error');
+      toast.err('Passwords do not match.');
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.err('Password must be at least 8 characters.');
       return;
     }
 
@@ -48,16 +52,18 @@ export default function ResetPassword() {
         token,
         newPassword: password,
       });
-      setMessage(res.data.message || 'Password has been reset successfully.');
-      setType('success');
+      toast.ok(res?.data?.message || 'Password has been reset successfully.');
       setPassword('');
       setConfirmPassword('');
     } catch (error) {
+      // Prefer server-provided error message when available
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Error: Unable to reset password.';
+      toast.err(msg);
+      // eslint-disable-next-line no-console
       console.error(error);
-      setMessage(
-        error.response?.data?.error || 'Error: Unable to reset password.'
-      );
-      setType('error');
     } finally {
       setLoading(false);
     }
@@ -92,15 +98,6 @@ export default function ResetPassword() {
                 required
               />
 
-              {message && (
-                <Alert
-                  color={messageType === 'error' ? 'red' : 'green'}
-                  variant="light"
-                >
-                  {message}
-                </Alert>
-              )}
-
               <Button type="submit" loading={loading} fullWidth>
                 {loading ? 'Resetting...' : 'Reset Password'}
               </Button>
@@ -108,7 +105,7 @@ export default function ResetPassword() {
           </form>
         )}
 
-        {!isTokenMissing && !message && (
+        {!isTokenMissing && (
           <Text size="xs" c="dimmed" mt="sm" ta="center">
             Choose a strong password you don’t use elsewhere.
           </Text>

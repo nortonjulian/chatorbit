@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, TextInput, SimpleGrid, Image, Loader } from '@mantine/core';
 import axiosClient from '../api/axiosClient';
+import { toast } from '../utils/toast';
 
 export default function StickerPicker({ opened, onClose, onPick }) {
   const [q, setQ] = useState('');
@@ -14,18 +15,37 @@ export default function StickerPicker({ opened, onClose, onPick }) {
   }, [opened]);
 
   const search = async (term) => {
+    if (!term || term.length < 2) {
+      setResults([]);
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await axiosClient.get('/stickers/search', {
         params: { q: term },
       });
       setResults(data?.results || []);
+      if ((data?.results || []).length === 0) {
+        // Optional: keep this subtle (no toast) to avoid noise as users type.
+        // If you'd prefer a toast, uncomment:
+        // toast.info('No results. Try a different search.');
+      }
     } catch (e) {
       console.error(e);
       setResults([]);
+      toast.err('Unable to load stickers right now. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEnter = (value) => {
+    const v = value.trim();
+    if (v.length < 2) {
+      toast.info('Type at least 2 characters to search.');
+      return;
+    }
+    search(v);
   };
 
   return (
@@ -45,6 +65,12 @@ export default function StickerPicker({ opened, onClose, onPick }) {
           if (v.trim().length >= 2) search(v.trim());
           else setResults([]);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleEnter(q);
+          }
+        }}
         mb="md"
       />
       {loading ? (
@@ -59,14 +85,20 @@ export default function StickerPicker({ opened, onClose, onPick }) {
               radius="md"
               style={{ cursor: 'pointer' }}
               onClick={() => {
-                onPick({
-                  kind: r.kind || 'GIF', // 'GIF' or 'STICKER'
-                  url: r.url,
-                  mimeType: r.mimeType || 'image/gif',
-                  width: r.width ?? null,
-                  height: r.height ?? null,
-                });
-                onClose?.();
+                try {
+                  onPick?.({
+                    kind: r.kind || 'GIF', // 'GIF' or 'STICKER'
+                    url: r.url,
+                    mimeType: r.mimeType || 'image/gif',
+                    width: r.width ?? null,
+                    height: r.height ?? null,
+                  });
+                  toast.ok('Added to message.');
+                  onClose?.();
+                } catch (err) {
+                  console.error(err);
+                  toast.err('Could not add that sticker. Please try again.');
+                }
               }}
             />
           ))}

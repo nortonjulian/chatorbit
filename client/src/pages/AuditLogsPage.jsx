@@ -9,25 +9,38 @@ import {
   Table,
   Alert,
 } from '@mantine/core';
+import { toast } from '../utils/toast';
 
 export default function AuditLogsPage() {
   const [items, setItems] = useState([]);
   const [actorId, setActorId] = useState('');
   const [action, setAction] = useState('');
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (notify = false) => {
+    setLoading(true);
+    setErr('');
     try {
       const res = await axiosClient.get('/admin/audit', {
         params: { actorId, action, take: 50, skip: 0 },
       });
       setItems(res.data.items || []);
+      // Optional: surface "no results" to the user when they explicitly search
+      if (notify && (!res.data.items || res.data.items.length === 0)) {
+        toast.info('No logs found for that filter.');
+      }
     } catch (e) {
-      setErr(e.response?.data?.error || 'Failed to load logs');
+      const msg = e?.response?.data?.error || 'Failed to load logs';
+      setErr(msg);
+      if (notify) toast.err(msg);
+    } finally {
+      setLoading(false);
     }
   };
+
   useEffect(() => {
-    fetchLogs(); /* eslint-disable-next-line */
+    fetchLogs(false); /* eslint-disable-next-line */
   }, []);
 
   return (
@@ -45,7 +58,7 @@ export default function AuditLogsPage() {
             value={action}
             onChange={(e) => setAction(e.currentTarget.value)}
           />
-          <Button variant="light" onClick={fetchLogs}>
+          <Button variant="light" loading={loading} onClick={() => fetchLogs(true)}>
             Search
           </Button>
         </Group>
@@ -85,6 +98,13 @@ export default function AuditLogsPage() {
               </Table.Td>
             </Table.Tr>
           ))}
+          {items.length === 0 && !loading && (
+            <Table.Tr>
+              <Table.Td colSpan={5} style={{ opacity: 0.7 }}>
+                No audit entries to display.
+              </Table.Td>
+            </Table.Tr>
+          )}
         </Table.Tbody>
       </Table>
     </Stack>

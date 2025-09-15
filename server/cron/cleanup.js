@@ -1,4 +1,3 @@
-// server/cron/cleanup.js
 import cron from 'node-cron';
 import prisma from '../utils/prismaClient.js';
 

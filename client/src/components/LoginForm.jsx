@@ -7,6 +7,7 @@ import {
   Stack, Group, Divider, Checkbox,
 } from '@mantine/core';
 import { IconBrandGoogle, IconBrandApple } from '@tabler/icons-react';
+import { toast } from '../utils/toast';
 
 export default function LoginForm({ onLoginSuccess }) {
   const { setCurrentUser } = useUser();
@@ -17,6 +18,7 @@ export default function LoginForm({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // UI-only hinting; payload ALWAYS uses { identifier } for the API.
   const idField = (import.meta.env.VITE_AUTH_ID_FIELD || 'username').toLowerCase();
   const isEmailMode = idField === 'email';
   const idLabel = isEmailMode ? 'Email' : 'Username';
@@ -29,18 +31,18 @@ export default function LoginForm({ onLoginSuccess }) {
     setError('');
 
     const idValue = identifier.trim();
-    if (!idValue || !password) {
-      setError('Please enter your credentials.');
+    const pwd = password.trim();
+
+    if (!idValue || !pwd) {
+      const msg = 'Please enter your credentials.';
+      setError(msg);
+      toast.err(msg);
       setLoading(false);
       return;
     }
 
-    const payload =
-      idField === 'email'
-        ? { email: idValue, password }
-        : idField === 'identifier'
-        ? { identifier: idValue, password }
-        : { username: idValue, password }; // default
+    // IMPORTANT: server expects { identifier, password }
+    const payload = { identifier: idValue, password: pwd };
 
     try {
       const res = await axiosClient.post('/auth/login', payload, {
@@ -52,23 +54,47 @@ export default function LoginForm({ onLoginSuccess }) {
       setCurrentUser(user);
       onLoginSuccess?.(user);
 
+      // Reset form
       setIdentifier('');
       setPassword('');
+
+      // Friendly success toast
+      const name = user?.displayName || user?.username;
+      toast.ok(name ? `Welcome back, ${name}!` : 'Welcome back!');
+
       navigate('/');
     } catch (err) {
       const status = err?.response?.status;
-      const apiMsg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.response?.data?.details ||
-        '';
+      const data = err?.response?.data || {};
+      const apiMsg = data.message || data.error || data.details || '';
+      const reason = data.reason || data.code;
 
       if (status === 422) {
-        setError(apiMsg || 'Invalid credentials or bad request.');
+        // Validation error from API (bad body shape, missing fields, etc.)
+        const msg = apiMsg || 'Invalid request. Check your username/email and password.';
+        setError(msg);
+        toast.err(msg);
       } else if (status === 401) {
-        setError('Invalid username/email or password.');
+        const msg = 'Invalid username/email or password.';
+        setError(msg);
+        toast.err(msg);
+      } else if (status === 402) {
+        // Plan gate — likely device limit during login on a new device
+        if (reason === 'DEVICE_LIMIT') {
+          const msg =
+            'Device limit reached for the Free plan. Log out on another device or upgrade to Premium to link more devices.';
+          setError(msg);
+          toast.info(msg);
+        } else {
+          const msg = apiMsg || 'This action requires a Premium plan.';
+          setError(msg);
+          toast.info(msg);
+        }
+        // Note: we intentionally do NOT redirect here; let the user decide.
       } else {
-        setError(apiMsg || 'Login failed. Please try again.');
+        const msg = apiMsg || 'Login failed. Please try again.';
+        setError(msg);
+        toast.err(msg);
       }
     } finally {
       setLoading(false);
@@ -76,11 +102,11 @@ export default function LoginForm({ onLoginSuccess }) {
   };
 
   const handleGoogle = () => window.location.assign('/api/auth/google');
-  const handleApple  = () => window.location.assign('/api/auth/apple');
+  const handleApple = () => window.location.assign('/api/auth/apple');
 
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg">
-      <Stack gap={2} mb="sm" align="center">
+      <Stack gap="2" mb="sm" align="center">
         <Title order={3}>Welcome back</Title>
         <Text size="sm" c="dimmed">Log in to your ChatOrbit account</Text>
       </Stack>
@@ -125,7 +151,18 @@ export default function LoginForm({ onLoginSuccess }) {
             </Anchor>
           </Group>
 
-          {error && <Alert color="red" variant="light">{error}</Alert>}
+          {error && (
+            <Alert color="red" variant="light">
+              {error}{' '}
+              {error.includes('Premium') && (
+                <>
+                  <Anchor component={Link} to="/settings/upgrade">Upgrade</Anchor>
+                  {' '}or{' '}
+                  <Anchor component={Link} to="/settings/devices">manage devices</Anchor>.
+                </>
+              )}
+            </Alert>
+          )}
 
           <Button type="submit" loading={loading} fullWidth>
             {loading ? 'Logging in…' : 'Log In'}

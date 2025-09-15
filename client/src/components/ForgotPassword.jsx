@@ -10,14 +10,12 @@ import {
   Button,
   Stack,
   Anchor,
-  Alert,
   Text,
 } from '@mantine/core';
+import { toast } from '../utils/toast';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // 'success' | 'error' | ''
   const [previewUrl, setPreviewUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -27,26 +25,28 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
-    setMessageType('');
     setPreviewUrl('');
 
     if (!validateEmail(email)) {
       setLoading(false);
-      setMessage('Please enter a valid email address.');
-      setMessageType('error');
+      toast.err('Please enter a valid email address.');
       return;
     }
 
     try {
       const res = await axiosClient.post('/auth/forgot-password', { email });
-      setMessage(res.data.message || 'Check your email for reset instructions.');
-      setMessageType('success');
-      if (res.data.previewUrl) setPreviewUrl(res.data.previewUrl);
+      const msg = res?.data?.message || 'Check your email for reset instructions.';
+      toast.ok(msg);
+      if (res?.data?.previewUrl) setPreviewUrl(res.data.previewUrl);
     } catch (err) {
+      // Prefer server-provided message if available
+      const apiMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Unable to process request.';
+      toast.err(apiMsg);
+      // eslint-disable-next-line no-console
       console.error(err);
-      setMessage('Error: Unable to process request.');
-      setMessageType('error');
     } finally {
       setLoading(false);
     }
@@ -75,15 +75,6 @@ export default function ForgotPassword() {
               <Button type="submit" loading={loading} fullWidth>
                 Send Reset Link
               </Button>
-
-              {message && (
-                <Alert
-                  color={messageType === 'error' ? 'red' : 'green'}
-                  variant="light"
-                >
-                  {message}
-                </Alert>
-              )}
 
               {previewUrl && (
                 <Text ta="center" size="sm">

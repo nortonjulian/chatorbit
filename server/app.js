@@ -149,18 +149,22 @@ export function createApp() {
 
   app.use(compression());
 
-  // CORS: exact origin(s) + credentials
-  app.use(
-    cors({
-      origin: (origin, cb) => {
-        // allow same-origin / non-browser tools (no Origin header)
-        if (!origin) return cb(null, true);
-        if (allowedOrigins.includes(origin)) return cb(null, true);
-        return cb(new Error('CORS blocked'));
-      },
-      credentials: true,
-    })
-  );
+  // --------- CORS: exact origin(s), credentials, headers, methods, preflights ----------
+  const corsConfig = {
+    origin: (origin, cb) => {
+      // allow same-origin / non-browser tools (no Origin header)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS blocked'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN'],
+    exposedHeaders: ['Set-Cookie'],
+  };
+  app.use(cors(corsConfig));
+  app.options(/'*'/, cors(corsConfig));
+  // -------------------------------------------------------------------------------------
 
   // CSRF (skip webhook). In tests, CSRF is a no-op to unblock supertest flows.
   const csrfMw = isTest
@@ -175,6 +179,10 @@ export function createApp() {
     if (!isTest && req.method === 'GET') setCsrfCookie(req, res);
     next();
   });
+
+  // Explicit CSRF priming endpoint so the client gets 200 (not 404)
+  app.get('/auth/csrf', (_req, res) => res.json({ ok: true }));
+  /* ========================================================================= */
 
   /* =========================
    *   Static assets (uploads)

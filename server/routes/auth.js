@@ -3,15 +3,27 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import crypto from 'node:crypto';
+import { z } from 'zod';
 
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
-import { validate } from '../middleware/validate.js';
-import { loginSchema, registerSchema } from '../validators/authSchemas.js';
-import { normalizeLoginBody } from '../middleware/normalizeLoginBody.js';
+// CSRF cookie refresher on GETs is handled in app.js; we also expose an explicit 200 endpoint here.
 import { setCsrfCookie } from '../middleware/csrf.js';
+
+// NOTE: we remove the old validate(loginSchema)/normalizeLoginBody usage and replace with Zod normalization below.
+// import { validate } from '../middleware/validate.js';
+// import { loginSchema, registerSchema } from '../validators/authSchemas.js';
+// import { normalizeLoginBody } from '../middleware/normalizeLoginBody.js';
+
+// Keep registerSchema logic inline here for independence, or continue using your external schema if preferred.
+const RegisterSchema = z.object({
+  username: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(8),
+  preferredLanguage: z.string().optional(),
+});
 
 import { generateKeyPair } from '../utils/encryption.js';
 import { issueResetToken, consumeResetToken } from '../utils/resetTokens.js';
@@ -19,32 +31,35 @@ import { issueResetToken, consumeResetToken } from '../utils/resetTokens.js';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// In-test fallback token store (in case DB token model is missing)
-const __testTokens = new Map(); // token -> { userId, expMs }
-
 /* ---------------- cookie helpers ---------------- */
 function getCookieName() {
   return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
 }
-function getCookieCommon() {
-  return {
+function getCookieBase() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const base = {
     httpOnly: true,
-    secure:
-      process.env.NODE_ENV === 'production' ||
-      String(process.env.COOKIE_SECURE) === 'true',
-    sameSite: process.env.COOKIE_SAMESITE || 'lax',
-    domain: process.env.COOKIEDOMAIN || process.env.COOKIE_DOMAIN || undefined,
-    path: process.env.COOKIE_PATH || '/',
+    secure: isProd || String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true',
+    sameSite: isProd ? 'none' : 'lax', // keep dev simple/robust
+    path: '/',
   };
+  // Only set cookie domain in prod when you actually need cross-subdomain cookies
+  if (isProd && process.env.COOKIE_DOMAIN) {
+    base.domain = process.env.COOKIE_DOMAIN; // e.g. .chatorbit.com
+  }
+  return base;
 }
 function setJwtCookie(res, token) {
-  res.cookie(getCookieName(), token, {
-    ...getCookieCommon(),
-    maxAge: 30 * 24 * 3600 * 1000,
-  });
+  const isProd = process.env.NODE_ENV === 'production';
+  const base = getCookieBase();
+  // In prod, persist for 30 days; in dev, session-only (no maxAge)
+  const opts = isProd ? { ...base, maxAge: 30 * 24 * 3600 * 1000 } : base;
+  res.cookie(getCookieName(), token, opts);
 }
 function clearJwtCookie(res) {
-  res.clearCookie(getCookieName(), { ...getCookieCommon(), maxAge: undefined });
+  const base = getCookieBase();
+  const { maxAge, ...rest } = base; // ensure we don't send a conflicting maxAge
+  res.clearCookie(getCookieName(), rest);
 }
 
 /* ---------------- Nodemailer init ---------------- */
@@ -75,21 +90,31 @@ let transporter;
 })();
 
 /* =========================
- *         ROUTES
+ *         CSRF
  * ========================= */
+// Legacy endpoint your client calls: make it return 200 (and app.js already sets the cookie on GET)
+router.get('/csrf', (req, res) => {
+  setCsrfCookie(req, res); // ensure cookie present even if app-level GET hook missed it
+  res.json({ ok: true });
+});
 
-// CSRF
+// Existing CSRF token route (kept for compatibility)
 router.get('/csrf-token', (req, res) => {
   setCsrfCookie(req, res);
   res.json({ ok: true });
 });
 
-// Register
+/* =========================
+ *         REGISTER
+ * ========================= */
 router.post(
   '/register',
-  validate(registerSchema),
   asyncHandler(async (req, res) => {
-    const { username, email, password, preferredLanguage = 'en' } = req.body;
+    const parsed = RegisterSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(422).json({ message: 'Invalid registration data', details: parsed.error.issues });
+    }
+    const { username, email, password, preferredLanguage = 'en' } = parsed.data;
 
     const existingByEmail = await prisma.user.findUnique({ where: { email } });
     if (existingByEmail) return res.status(409).json({ error: 'Email already in use' });
@@ -220,25 +245,45 @@ router.post(
 
 /* =========================
  * REAL /login
- * - normalizeLoginBody → req.body = { identifier, password }
- * - validate(loginSchema) → req.validated = { value, kind, password }
- *   where kind ∈ 'email' | 'username'
+ * - Accepts any of: { email, username, identifier } + { password }
+ * - Normalizes to { identifier, password } then validates strictly
  * ========================= */
+const LoginSchema = z.object({
+  identifier: z.string().min(3, 'identifier is required'),
+  password: z.string().min(8, 'password too short'),
+}).strict();
+
 router.post(
   '/login',
-  normalizeLoginBody,
-  validate(loginSchema),
   asyncHandler(async (req, res) => {
-    // If your validate() stores parsed data on req.validated, prefer that.
-    const { value, kind, password } = (req.validated || req.body);
+    // ---- normalize input BEFORE validation ----
+    const {
+      identifier,
+      email,
+      username,
+      password,
+      // ignore any unknown/legacy fields like remember, idField, etc.
+    } = req.body || {};
 
-    // Build a Prisma where clause based on the kind
+    const normalized = {
+      identifier: (identifier ?? email ?? username ?? '').trim(),
+      password: (password ?? '').trim(),
+    };
+
+    const parsed = LoginSchema.safeParse(normalized);
+    if (!parsed.success) {
+      return res.status(422).json({ message: 'Invalid login data', details: parsed.error.issues });
+    }
+    const { identifier: value, password: pwd } = parsed.data;
+
+    // Determine kind for lookup
+    const kind = value.includes('@') ? 'email' : 'username';
     const where =
       kind === 'email'
         ? { email: { equals: value, mode: 'insensitive' } }
         : { username: value };
 
-    // Lookup
+    // Lookup user
     let user = await prisma.user.findFirst({ where });
 
     // TEST fallback: auto-provision if not found
@@ -246,8 +291,8 @@ router.post(
     if (!user && IS_TEST && value) {
       const uname = kind === 'username'
         ? value
-        : (value.includes('@') ? (value.split('@')[0] || 'user') : value);
-      const hash = await bcrypt.hash(password, 10);
+        : (value.split('@')[0] || 'user');
+      const hash = await bcrypt.hash(pwd, 10);
       try {
         user = await prisma.user.create({
           data: {
@@ -274,13 +319,13 @@ router.post(
     const storedHash = user.passwordHash || user.password;
     if (storedHash) {
       try {
-        ok = await bcrypt.compare(password, storedHash);
+        ok = await bcrypt.compare(pwd, storedHash);
       } catch {
         ok = false;
       }
     }
     if (!ok && IS_TEST) {
-      const hash = await bcrypt.hash(password, 10);
+      const hash = await bcrypt.hash(pwd, 10);
       try {
         await prisma.user.update({ where: { id: user.id }, data: { password: hash } });
       } catch {
@@ -313,16 +358,20 @@ router.post(
   })
 );
 
-// Logout
+/* =========================
+ *          LOGOUT
+ * ========================= */
 router.post(
   '/logout',
   asyncHandler(async (_req, res) => {
     clearJwtCookie(res);
-    res.json({ ok: true });
+    res.status(204).end();
   })
 );
 
-// Me
+/* =========================
+ *            ME
+ * ========================= */
 router.get(
   '/me',
   requireAuth,
@@ -355,7 +404,9 @@ router.get(
   })
 );
 
-// Short-lived token
+/* =========================
+ *      SHORT-LIVED TOKEN
+ * ========================= */
 router.get(
   '/token',
   requireAuth,
@@ -371,7 +422,11 @@ router.get(
   })
 );
 
-// Forgot password
+/* =========================
+ *      PASSWORD RESET
+ * ========================= */
+const __testTokens = new Map(); // token -> { userId, expMs }
+
 router.post(
   '/forgot-password',
   asyncHandler(async (req, res) => {
@@ -418,7 +473,6 @@ router.post(
   })
 );
 
-// Reset password
 router.post(
   '/reset-password',
   asyncHandler(async (req, res) => {

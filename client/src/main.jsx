@@ -17,6 +17,7 @@ import { CallProvider } from './context/CallContext';
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 import { chatOrbitTheme } from './theme';
+import { primeCsrf } from './api/axiosClient'; // <-- CSRF priming
 
 const isProd = import.meta.env.PROD;
 
@@ -76,6 +77,11 @@ const theme = createTheme({
 
 function Root() {
   const [scheme, setScheme] = React.useState(getInitialScheme());
+
+  // Prime CSRF cookie/header once at app startup so subsequent POSTs succeed
+  React.useEffect(() => {
+    primeCsrf();
+  }, []);
 
   React.useEffect(() => {
     localStorage.setItem('co-theme', scheme);
