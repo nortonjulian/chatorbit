@@ -1,9 +1,31 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]                 # only deploy from main
+    paths:                             # only when app-relevant files change
+      - 'server/**'
+      - 'client/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:                    # allow manual runs from the Actions tab
+
+env:
+  NODE_VERSION: '20'
+
+# prevent overlapping deploys on the same branch
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -22,10 +44,10 @@ jobs:
         run: npm run build --workspace client
 
       - name: Prisma migrate deploy (staging)
-        run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: npx prisma migrate deploy
 
       - name: Render Deploy (staging)
         id: render-deploy-staging
@@ -39,7 +61,7 @@ jobs:
           echo "deploy_id=$ID" >> $GITHUB_OUTPUT
 
       - name: Wait for Render deploy (staging)
-        if: steps.render-deploy-staging.outputs.deploy_id != 'null'
+        if: steps.render-deploy-staging.outputs.deploy_id && steps.render-deploy-staging.outputs.deploy_id != 'null'
         shell: bash
         run: |
           DEPLOY_ID=${{ steps.render-deploy-staging.outputs.deploy_id }}
@@ -83,6 +105,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -101,10 +124,10 @@ jobs:
         run: npm run build --workspace client
 
       - name: Prisma migrate deploy (prod)
-        run: npx prisma migrate deploy
         working-directory: server
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npx prisma migrate deploy
 
       - name: Render Deploy (prod)
         id: render-deploy-prod
@@ -118,7 +141,7 @@ jobs:
           echo "deploy_id=$ID" >> $GITHUB_OUTPUT
 
       - name: Wait for Render deploy (prod)
-        if: steps.render-deploy-prod.outputs.deploy_id != 'null'
+        if: steps.render-deploy-prod.outputs.deploy_id && steps.render-deploy-prod.outputs.deploy_id != 'null'
         shell: bash
         run: |
           DEPLOY_ID=${{ steps.render-deploy-prod.outputs.deploy_id }}
