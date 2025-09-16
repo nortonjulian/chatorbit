@@ -8,33 +8,32 @@ const LS_KEYS = {
 // ===== Master libraries (filenames must exist in /public/sounds/...) =====
 export const ALL_MESSAGE_TONES = [
   { label: 'Default',          value: 'Default.mp3' },
-  { label: 'Message Tone 1',   value: 'Message_Tone1.mp3' },
-  { label: 'Message Tone 2',   value: 'Message_Tone2.mp3' },
-  { label: 'Message Tone 3',   value: 'Message_Tone3.mp3' },
-  { label: 'Message Tone 4',   value: 'Message_Tone4.mp3' },
-  { label: 'Message Tone 5',   value: 'Message_Tone5.mp3' },
-  { label: 'Message Tone 6',   value: 'Message_Tone6.mp3' },
-  { label: 'Message Tone 7',   value: 'Message_Tone7.mp3' },
-  { label: 'Message Tone 8',   value: 'Message_Tone8.mp3' },
-  { label: 'Vibrate',          value: 'Vibrate.mp3' },
+  { label: 'Dreamer',   value: 'Dreamer.mp3' },
+  { label: 'Happy Message',          value: 'Happy Message.mp3' },
+  { label: 'Notify',   value: 'Notify.mp3' },
+  { label: 'Pop',   value: 'Pop.mp3' },
+  { label: 'Pulsating Sound',   value: 'Pulsating Sound.mp3' },
+  { label: 'Text Message',   value: 'Text Message.mp3' },
+  { label: 'Vibrate',   value: 'Vibrate.mp3' },
+  { label: 'Xylophone',   value: 'Xylophone.mp3' },
 ];
 
 export const ALL_RINGTONES = [
-  { label: 'Classic Ring', value: 'Classic.mp3' },
-  { label: 'Ringtone 1',   value: 'Ringtone1.mp3' },
-  { label: 'Ringtone 2',   value: 'Ringtone2.mp3' },
-  { label: 'Ringtone 3',   value: 'Ringtone3.mp3' },
-  { label: 'Ringtone 4',   value: 'Ringtone4.mp3' },
-  { label: 'Ringtone 5',   value: 'Ringtone5.mp3' },
-  { label: 'Ringtone 6',   value: 'Ringtone6.mp3' },
-  { label: 'Ringtone 7',   value: 'Ringtone7.mp3' },
-  { label: 'Ringtone 8',   value: 'Ringtone8.mp3' },
-  { label: 'Ringtone 9',   value: 'Ringtone9.mp3' },
+  { label: 'Bells',   value: 'Bells.mp3' },
+  { label: 'Classic', value: 'Classic.mp3' },
+  { label: 'Chimes',   value: 'Chimes.mp3' },
+  { label: 'Digital Phone',   value: 'Digital Phone.mp3' },
+  { label: 'Melodic',   value: 'Melodic.mp3' },
+  { label: 'Organ Notes',   value: 'Organ Notes.mp3' },
+  { label: 'Sound Reality',   value: 'Sound Reality.mp3' },
+  { label: 'Street',   value: 'Street.mp3' },
+  { label: 'Universfield',   value: 'Universfield.mp3' },
+  { label: 'Urgency',   value: 'Urgency.mp3' },
 ];
 
 // ===== Free plan limits (exactly 3 + 3 as agreed) =====
-const FREE_MESSAGE = ['Default.mp3', 'Message_Tone1.mp3', 'Message_Tone2.mp3'];
-const FREE_RING    = ['Classic.mp3', 'Ringtone1.mp3', 'Ringtone2.mp3'];
+const FREE_MESSAGE = ['Default.mp3', 'Vibrate.mp3'];
+const FREE_RING    = ['Classic.mp3', 'Urgency.mp3'];
 
 // ===== Defaults (use filenames that exist in the lists above) =====
 export const DEFAULTS = {
