@@ -52,7 +52,7 @@ import RoomAboutModal from './RoomAboutModal.jsx';
 import RoomSearchDrawer from './RoomSearchDrawer.jsx';
 import MediaGalleryModal from './MediaGalleryModal.jsx';
 
-import { playSound } from '../lib/sound.js';
+import { playSound } from '../lib/sounds.js';
 
 // 🔒 Premium check
 import useIsPremium from '@/hooks/useIsPremium';

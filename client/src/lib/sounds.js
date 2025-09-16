@@ -7,8 +7,9 @@ let unlocked = false;
 export function unlockAudio() {
   if (unlocked) return;
 
-  // Approach 1: try playing a short file (best for iOS/Safari too)
-  const probe = new Audio('/sounds/Message_Tones/default.mp3');
+  // NOTE: match the exact case of the file that exists in /public/sounds/Message_Tones
+  // Your catalog uses "Default.mp3", so use that here too.
+  const probe = new Audio('/sounds/Message_Tones/Default.mp3');
   probe.volume = 0; // silent probe
   probe
     .play()

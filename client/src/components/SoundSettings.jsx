@@ -1,174 +1,204 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Group, Select, Slider, Button, Stack, Text, Alert, Anchor } from '@mantine/core';
+import { Group, Select, Slider, Button, Stack, Text, Alert, Anchor, Divider } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { useUser } from '@/context/UserContext';
-import { playSound } from '@/lib/sound';
-import { messageToneUrl, ringtoneUrl, getVolume, setVolume } from '@/lib/soundPrefs';
-import PremiumGuard from '@/components/PremiumGuard';
-import { fetchTones, updateTones } from '@/features/settings/api/tones';
 
-// Turn any unknown id into a stable string
-function idToString(x, idx) {
-  if (x == null) return `item_${idx}`;
-  const t = typeof x;
-  if (t === 'string' || t === 'number' || t === 'boolean') return String(x);
-  if (t === 'object') {
-    const cand = x.id ?? x.name ?? x.filename ?? x.url ?? x.path ?? x.slug;
-    if (cand != null) return String(cand);
-    try {
-      // short hash-like fallback, safe for labels/values
-      const raw = JSON.stringify(x);
-      let hash = 0;
-      for (let i = 0; i < raw.length; i++) {
-        hash = (hash * 31 + raw.charCodeAt(i)) | 0;
-      }
-      return `obj_${Math.abs(hash)}_${idx}`;
-    } catch {
-      return `obj_${idx}`;
-    }
-  }
-  return String(x);
-}
+import { useUser } from '../context/UserContext';
+import { toast } from '../utils/toast';
+import axiosClient from '../api/axiosClient';
 
-// Build grouped data safely and dedupe by `value`
-function buildGrouped(list, canUsePremium) {
-  const seen = new Set();
-  const free = [];
-  const prem = [];
+import { playSound } from '../lib/sounds';
 
-  (list || []).forEach((item, idx) => {
-    const value = idToString(item?.id ?? item?.value ?? item, idx);
-    if (seen.has(value)) return; // skip duplicates that would crash Mantine
-    seen.add(value);
+import {
+  // catalogs & config
+  ALL_MESSAGE_TONES,
+  ALL_RINGTONES,
+  premiumConfig,
+  DEFAULTS,
+  // plan-aware lists
+  listMessageTones,
+  listRingtones,
+  // local prefs + url builders
+  getMessageTone,
+  setMessageTone,
+  getRingtone,
+  setRingtone,
+  getVolume,
+  setVolume,
+  messageToneUrl,
+  ringtoneUrl,
+} from '../utils/sounds';
 
-    const label = item?.label != null ? String(item.label) : value;
+/* -----------------------------------------------------------
+ * Helpers (grouped options, selection guards)
+ * --------------------------------------------------------- */
+
+// Build grouped options so Free users can *see* Premium (disabled) with a ⭐
+function buildGroupedOptions(kind, isPremium) {
+  const all =
+    kind === 'message'
+      ? ALL_MESSAGE_TONES
+      : ALL_RINGTONES;
+
+  const freeList =
+    kind === 'message'
+      ? premiumConfig.tones.freeMessageTones
+      : premiumConfig.tones.freeRingtones;
+
+  const freeSet = new Set(freeList);
+
+  const freeItems = [];
+  const premiumItems = [];
+
+  for (const opt of all) {
+    const isFree = freeSet.has(opt.value);
     const row = {
-      value,
-      label: item?.premium ? `⭐ ${label}` : label,
-      disabled: !!item?.premium && !canUsePremium,
+      value: opt.value,
+      label: isFree ? opt.label : `⭐ ${opt.label}`,
+      disabled: !isFree && !isPremium, // lock premium for Free plan
     };
-
-    if (item?.premium) prem.push(row);
-    else free.push(row);
-  });
+    (isFree ? freeItems : premiumItems).push(row);
+  }
 
   return [
-    { group: 'Free', items: free },
-    { group: 'Premium', items: prem },
+    { group: 'Free', items: freeItems },
+    { group: 'Premium', items: premiumItems },
   ];
 }
 
-// Ensure controlled value is valid (or null)
-function ensureSelected(validGroups, desired) {
-  const flat = validGroups.flatMap((g) => g.items);
-  if (desired && flat.some((o) => o.value === desired)) return desired;
-  return flat[0]?.value ?? null;
+function ensureValidSelection(value, groupedOptions, plan) {
+  if (!value) return null;
+  const isPremium = plan === 'PREMIUM';
+  const flat = groupedOptions.flatMap((g) => g.items);
+  const found = flat.find((x) => x.value === value);
+  if (!found) return null;
+  if (found.disabled && !isPremium) return null;
+  return value;
 }
+
+/* -----------------------------------------------------------
+ * Component
+ * --------------------------------------------------------- */
 
 export default function SoundSettings() {
   const { currentUser } = useUser();
   const navigate = useNavigate();
-  const isPremium = String(currentUser?.plan || 'FREE').toUpperCase() === 'PREMIUM';
 
-  const [messageTone, setMsg] = useState(''); // string
-  const [ringtone, setRing] = useState('');   // string
+  const plan = String(currentUser?.plan || 'FREE').toUpperCase();
+  const isPremium = plan === 'PREMIUM';
+
+  // Local state from stored prefs (helpers coerce unknowns)
+  const [messageTone, setMsg] = useState(getMessageTone());
+  const [ringtone, setRing] = useState(getRingtone());
   const [volume, setVol] = useState(getVolume());
-  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [messageGroups, setMessageGroups] = useState([{ group: 'Free', items: [] }]);
-  const [ringGroups, setRingGroups] = useState([{ group: 'Free', items: [] }]);
-  const [canUsePremium, setCanUsePremium] = useState(false);
+  // a) Grouped (for UI) — shows Free + Premium (disabled for Free)
+  const groupedMessage = useMemo(() => buildGroupedOptions('message', isPremium), [isPremium]);
+  const groupedRing = useMemo(() => buildGroupedOptions('ring', isPremium), [isPremium]);
 
+  // b) Plan-aware flat lists (for fallbacks & coercion)
+  const allowedMessages = useMemo(() => listMessageTones(plan), [plan]);
+  const allowedRings = useMemo(() => listRingtones(plan), [plan]);
+
+  // Keep selections valid when plan or catalogs change
   useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const data = await fetchTones();
-        if (ignore) return;
-        const canPrem = !!data?.canUsePremium;
-        setCanUsePremium(canPrem);
-
-        const msg = buildGrouped(data?.catalog?.messageTone || [], canPrem);
-        const ring = buildGrouped(data?.catalog?.ringtone || [], canPrem);
-        setMessageGroups(msg);
-        setRingGroups(ring);
-
-        const wantedMsg = idToString(data?.current?.messageTone ?? 'ping.mp3', 0);
-        const wantedRing = idToString(data?.current?.ringtone ?? 'classic.mp3', 0);
-
-        setMsg(ensureSelected(msg, wantedMsg) || '');
-        setRing(ensureSelected(ring, wantedRing) || '');
-      } catch {
-        // Safe fallback
-        const msg = buildGrouped([{ id: 'ping.mp3' }], false);
-        const ring = buildGrouped([{ id: 'classic.mp3' }], false);
-        setMessageGroups(msg);
-        setRingGroups(ring);
-        setMsg('ping.mp3');
-        setRing('classic.mp3');
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const messageOptions = useMemo(() => messageGroups, [messageGroups]);
-  const ringOptions = useMemo(() => ringGroups, [ringGroups]);
-
-  async function save() {
-    try {
-      await updateTones({ ringtone, messageTone });
-      setVolume(volume);
-      alert('Saved!');
-    } catch (e) {
-      const status = e?.response?.status;
-      if (status === 402 || e?.response?.data?.code === 'PREMIUM_REQUIRED') {
-        navigate('/settings/upgrade');
-      } else {
-        alert('Could not save tones.');
-      }
+    let nextMsg = ensureValidSelection(messageTone, groupedMessage, plan);
+    if (!nextMsg) nextMsg = allowedMessages[0]?.value || DEFAULTS.messageTone;
+    if (nextMsg !== messageTone) {
+      setMessageTone(nextMsg);
+      setMsg(nextMsg);
     }
-  }
+
+    let nextRing = ensureValidSelection(ringtone, groupedRing, plan);
+    if (!nextRing) nextRing = allowedRings[0]?.value || DEFAULTS.ringtone;
+    if (nextRing !== ringtone) {
+      setRingtone(nextRing);
+      setRing(nextRing);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, groupedMessage, groupedRing, allowedMessages, allowedRings]);
+
+  const onSave = async () => {
+    try {
+      setSaving(true);
+
+      // Always persist locally
+      setMessageTone(messageTone);
+      setRingtone(ringtone);
+      setVolume(volume);
+
+      // Try server save (optional; ignore if endpoint doesn’t exist)
+      try {
+        await axiosClient.post('/settings/tones', {
+          messageTone,
+          ringtone,
+          volume,
+        });
+      } catch (e) {
+        const status = e?.response?.status;
+        const code = e?.response?.data?.code;
+        if (status === 402 || code === 'PREMIUM_REQUIRED') {
+          toast.err('Premium required for that selection.');
+          return navigate('/settings/upgrade');
+        }
+        // If 404 or not implemented, just ignore silently and use local
+      }
+
+      toast.ok('Sound settings saved.');
+    } catch {
+      toast.err('Could not save sound settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetDefaults = () => {
+    setMsg(DEFAULTS.messageTone);
+    setRing(DEFAULTS.ringtone);
+    setVol(DEFAULTS.volume);
+    toast.info('Reset to defaults (not yet saved).');
+  };
 
   return (
     <Stack gap="sm">
-      <Text fw={600}>Notification Sounds</Text>
+      <Group justify="space-between" align="center">
+        <Text fw={600}>Notification Sounds</Text>
+        <Button variant="subtle" size="xs" onClick={resetDefaults}>
+          Reset to defaults
+        </Button>
+      </Group>
 
       {!isPremium && (
-        <>
-          <Alert variant="light" color="blue">
-            You’re on Free — premium tones are locked.{' '}
-            <Anchor href="/settings/upgrade">Upgrade</Anchor> to unlock all.
-          </Alert>
-          <PremiumGuard variant="inline">
-            <Text size="sm">Unlock all tones and ringtones.</Text>
-          </PremiumGuard>
-        </>
+        <Alert variant="light" color="blue">
+          You’re on Free — premium tones are shown but locked.{' '}
+          <Anchor href="/settings/upgrade">Upgrade</Anchor> to unlock all.
+        </Alert>
       )}
 
       {/* Message tone */}
-      <Group grow>
+      <Group gap="sm" align="end" wrap="wrap">
         <Select
           label="Message tone"
-          data={messageOptions}
-          value={messageTone || null}
+          data={groupedMessage}            // [{ group, items: [{label,value,disabled}] }]
+          value={messageTone}
           onChange={(v) => {
             if (!v) return;
-            const premItems = (messageOptions[1]?.items || []);
-            const isPrem = premItems.some((i) => i.value === v);
-            if (isPrem && !canUsePremium) return navigate('/settings/upgrade');
+            const flatPrem = groupedMessage[1]?.items || [];
+            const isPremPick = flatPrem.some((i) => i.value === v);
+            if (isPremPick && !isPremium) {
+              toast.info('That’s a Premium tone.');
+              return navigate('/settings/upgrade');
+            }
             setMsg(v);
           }}
           searchable
-          disabled={loading}
-          nothingFoundMessage="Add files in /public/sounds/Message_Tones"
+          nothingFoundMessage="Put files in /public/sounds/Message_Tones"
+          w={400}
+          withinPortal
         />
         <Button
           variant="light"
-          onClick={() => messageTone && playSound(messageToneUrl(messageTone), { volume })}
+          onClick={() => playSound(messageToneUrl(messageTone), { volume })}
           disabled={!messageTone}
         >
           Preview
@@ -176,39 +206,52 @@ export default function SoundSettings() {
       </Group>
 
       {/* Ringtone */}
-      <Group grow>
+      <Group gap="sm" align="end" wrap="wrap">
         <Select
           label="Ringtone"
-          data={ringOptions}
-          value={ringtone || null}
+          data={groupedRing}
+          value={ringtone}
           onChange={(v) => {
             if (!v) return;
-            const premItems = (ringOptions[1]?.items || []);
-            const isPrem = premItems.some((i) => i.value === v);
-            if (isPrem && !canUsePremium) return navigate('/settings/upgrade');
+            const flatPrem = groupedRing[1]?.items || [];
+            const isPremPick = flatPrem.some((i) => i.value === v);
+            if (isPremPick && !isPremium) {
+              toast.info('That’s a Premium ringtone.');
+              return navigate('/settings/upgrade');
+            }
             setRing(v);
           }}
           searchable
-          disabled={loading}
-          nothingFoundMessage="Add files in /public/sounds/Ringtones"
+          nothingFoundMessage="Put files in /public/sounds/Ringtones"
+          w={400}
+          withinPortal
         />
         <Button
           variant="light"
-          onClick={() => ringtone && playSound(ringtoneUrl(ringtone), { volume, loop: false })}
+          onClick={() => playSound(ringtoneUrl(ringtone), { volume })}
           disabled={!ringtone}
         >
           Preview
         </Button>
       </Group>
 
+      <Divider my="sm" />
+
       {/* Volume */}
       <div>
-        <Text size="sm" mb={6}>Volume</Text>
+        <Group justify="space-between" mb={6}>
+          <Text size="sm">Volume</Text>
+          <Text size="xs" c="dimmed">
+            {(Math.round(volume * 100) || 0)}%
+          </Text>
+        </Group>
         <Slider min={0} max={1} step={0.05} value={volume} onChange={setVol} />
       </div>
 
       <Group justify="flex-end">
-        <Button onClick={save} disabled={loading}>Save</Button>
+        <Button onClick={onSave} loading={saving}>
+          Save
+        </Button>
       </Group>
 
       <Text size="xs" c="dimmed">

@@ -31,6 +31,9 @@ import SoundSettings from './SoundSettings';
 import LinkedDevicesPanel from './LinkedDevicesPanel';
 import PrivacySection from '../pages/PrivacySection';
 
+// themes catalog lives with sounds to keep Free/Premium lists in one place
+import { premiumConfig } from '@/utils/sounds';
+
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
 
@@ -61,7 +64,6 @@ class SectionBoundary extends React.Component {
     return { err };
   }
   componentDidCatch(err, info) {
-    // log to console for dev; you can wire to Sentry if desired
     // eslint-disable-next-line no-console
     console.error('[UserProfile] section crashed:', err, info);
   }
@@ -237,13 +239,22 @@ export default function UserProfile({ onLanguageChange }) {
 
   const planUpper = (currentUser.plan || 'FREE').toUpperCase();
   const isPremium = planUpper === 'PREMIUM';
-  const freeThemes = ['light', 'dark'];
-  const premiumThemes = ['solarized', 'midnight', 'vibrant'];
-  const themeChoices = isPremium ? [...freeThemes, ...premiumThemes] : freeThemes;
-  const themeOptions = themeChoices.map((v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
+
+  // Themes — Free vs Premium from premiumConfig
+  const freeThemes = premiumConfig.themes.free;        // ['light', 'dark']
+  const premiumThemes = premiumConfig.themes.premium;  // ['amoled', 'neon', 'sunset', 'midnight', 'solarized']
+  const toOption = (v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) });
+
+  const themeOptions = [
+    { group: 'Free', items: freeThemes.map(toOption) },
+    {
+      group: 'Premium',
+      items: premiumThemes.map((v) => ({ ...toOption(v), disabled: !isPremium })),
+    },
+  ];
 
   const [preferredLanguage, setPreferredLanguage] = useState(currentUser.preferredLanguage || 'en');
-  const [theme, setTheme] = useState(currentUser.theme || 'light');
+  const [theme, setTheme] = useState(currentUser.theme || freeThemes[0]);
   const [allowExplicitContent, setAllowExplicitContent] = useState(currentUser.allowExplicitContent ?? true);
   const [enableReadReceipts, setEnableReadReceipts] = useState(currentUser.enableReadReceipts ?? false);
   const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(currentUser.autoDeleteSeconds || 0);
@@ -251,6 +262,13 @@ export default function UserProfile({ onLanguageChange }) {
   const [privacyBlurOnUnfocus, setPrivacyBlurOnUnfocus] = useState(currentUser.privacyBlurOnUnfocus ?? false);
   const [privacyHoldToReveal, setPrivacyHoldToReveal] = useState(currentUser.privacyHoldToReveal ?? false);
   const [notifyOnCopy, setNotifyOnCopy] = useState(currentUser.notifyOnCopy ?? false);
+
+  // keep current theme valid if plan changes
+  useEffect(() => {
+    const allowed = new Set([...freeThemes, ...(isPremium ? premiumThemes : [])]);
+    if (!allowed.has(theme)) setTheme(freeThemes[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium]);
 
   const saveSettings = async () => {
     try {
@@ -292,9 +310,10 @@ export default function UserProfile({ onLanguageChange }) {
   const handleAvatarUpload = async (file) => {
     if (!file) return;
     const formData = new FormData();
-    formData.append('avatar', file);
+    // server route expects field name 'file' on /users/me/avatar (per Option B)
+    formData.append('file', file);
     try {
-      const { data } = await axiosClient.post('/users/avatar', formData, {
+      const { data } = await axiosClient.post('/users/me/avatar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (data.avatarUrl) {
@@ -420,7 +439,14 @@ export default function UserProfile({ onLanguageChange }) {
         <Select
           label={t('profile.theme', 'Theme')}
           value={theme}
-          onChange={(v) => v && setTheme(v)}
+          onChange={(v) => {
+            if (!v) return;
+            if (!isPremium && premiumThemes.includes(v)) {
+              notifications.show({ color: 'blue', message: t('profile.themePremiumGate', 'Upgrade to use premium themes.') });
+              return;
+            }
+            setTheme(v);
+          }}
           data={themeOptions}
           withinPortal
         />
@@ -489,7 +515,6 @@ export default function UserProfile({ onLanguageChange }) {
 
         {/* Privacy */}
         <Divider label={t('profile.privacy', 'Privacy')} labelPosition="center" />
-        {/* Strict E2EE toggle + caveat messaging */}
         <PrivacySection />
         <Switch
           checked={privacyBlurEnabled}
