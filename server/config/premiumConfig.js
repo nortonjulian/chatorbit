@@ -9,10 +9,10 @@ export const premiumConfig = {
 
   // Tone & theme catalogs (ids; your client maps to files/urls)
   tones: {
-    freeRingtones: ['classic.mp3', 'vibrate.mp3'],
-    premiumRingtones: ['galaxy.mp3', 'silk.mp3', 'aurora.mp3'],
-    freeMessageTones: ['ping.mp3'],
-    premiumMessageTones: ['sparkle.mp3', 'droplet.mp3'],
+    freeRingtones: ['Classic.mp3', 'Urgency.mp3'],
+    premiumRingtones: ['Bells.mp3', 'Chimes.mp3', 'Digital Phone.mp3', 'Melodic.mp3', 'Organ Notes.mp3', 'Sound Reality.mp3', 'Street.mp3', 'Universfield.mp3'],
+    freeMessageTones: ['Default.mp3', 'Vibrate.mp3'],
+    premiumMessageTones: ['Dreamer.mp3', 'Happy Message.mp3', 'Notify.mp3', 'Pop.mp2', 'Pulsating Sound.mp3', 'Sparkel.mp3', 'Text Message.mp3', 'Xylophone.mp3'],
   },
   themes: {
     free: ['light', 'dark'],
