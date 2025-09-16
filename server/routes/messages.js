@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
 
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import requirePremium from '../middleware/requirePremium.js';
+import { requirePremium } from '../middleware/requirePremium.js';
 import { audit } from '../middleware/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';

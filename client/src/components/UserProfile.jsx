@@ -28,8 +28,8 @@ import { useUser } from '../context/UserContext';
 import LanguageSelector from './LanguageSelector';
 import PremiumGuard from './PremiumGuard';
 import SoundSettings from './SoundSettings';
-import LinkedDevicesPanel from './settings/LinkedDevicesPanel';
-import PrivacySection from './PrivacySection';
+import LinkedDevicesPanel from './LinkedDevicesPanel';
+import PrivacySection from '../pages/PrivacySection';
 
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';

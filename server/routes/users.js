@@ -7,8 +7,8 @@ import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
-// 🔐 secure upload utilities
-import { makeUploader } from '../middleware/upload.js';
+// 🔐 secure upload utilities (Option B)
+import { uploadAvatar, uploadDirs } from '../middleware/upload.js';
 import { scanFile } from '../utils/antivirus.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';
 
@@ -92,7 +92,6 @@ router.get('/search', requireAuth, async (req, res) => {
 });
 
 /* ---------------------- UPDATE (self or admin) ---------------------- */
-// Limited update by ID (self or admin)
 router.patch('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const {
@@ -122,31 +121,46 @@ router.patch('/:id', requireAuth, async (req, res) => {
   }
 });
 
-/* ---------------------- AVATAR UPLOAD (hardened) ---------------------- */
-const uploadAvatar = makeUploader({
-  maxFiles: 1,
-  maxBytes: 5 * 1024 * 1024,
-  kind: 'avatar',
-});
-
+/* ---------------------- AVATAR UPLOAD (Option B) ---------------------- */
+/**
+ * Uses prebuilt `uploadAvatar` from middleware.
+ * Field name: 'file'
+ * Works with memory or disk target. If memory, we persist to avatars dir ourselves.
+ */
 router.post(
-  '/avatar',
+  '/me/avatar',
   requireAuth,
-  uploadAvatar.single('avatar'),
+  uploadAvatar.single('file'),
   async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      // Optional AV check
-      const abs = req.file.path;
-      const av = await scanFile(abs);
+      // Determine absolute path:
+      // - if disk storage: req.file.path exists
+      // - if memory storage: write buffer to avatars dir
+      let absPath = req.file.path;
+      if (!absPath && req.file.buffer) {
+        const safeBase = (req.file.originalname || 'avatar')
+          .replace(/[^\w.\-]+/g, '_')
+          .slice(0, 80);
+        const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeBase}`;
+        absPath = path.join(uploadDirs.AVATARS_DIR, filename);
+        await fs.promises.writeFile(absPath, req.file.buffer);
+      }
+
+      if (!absPath) {
+        return res.status(500).json({ error: 'Upload failed: no file path/buffer' });
+      }
+
+      // Antivirus scan (path-based)
+      const av = await scanFile(absPath);
       if (!av.ok) {
-        await fs.promises.unlink(abs).catch(() => {});
+        await fs.promises.unlink(absPath).catch(() => {});
         return res.status(400).json({ error: 'File failed security scan' });
       }
 
-      // Store only a private relative filename
-      const rel = path.basename(req.file.path);
+      // Store only the private relative filename; signed URL used for serving
+      const rel = path.basename(absPath);
 
       await prisma.user.update({
         where: { id: req.user.id },
@@ -216,7 +230,7 @@ router.get('/me', requireAuth, async (req, res) => {
         email: true,
         phoneNumber: true,
         preferredLanguage: true,
-        avatarUrl: true, // private filename; use POST /avatar response for signed URL
+        avatarUrl: true, // private filename; use POST /me/avatar response for signed URL
         emojiTag: true,
         role: true,
         plan: true,
@@ -228,7 +242,7 @@ router.get('/me', requireAuth, async (req, res) => {
         privacyBlurEnabled: true,
         privacyHoldToReveal: true,
         notifyOnCopy: true,
-        strictE2EE: true, // ← NEW
+        strictE2EE: true,
 
         // NEW: age prefs for Random Chat
         ageBand: true,
@@ -332,7 +346,7 @@ router.patch('/me', requireAuth, async (req, res) => {
         privacyHoldToReveal: true,
         notifyOnCopy: true,
         preferredLanguage: true,
-        strictE2EE: true, // ← return new field
+        strictE2EE: true,
 
         // return the age prefs too
         ageBand: true,

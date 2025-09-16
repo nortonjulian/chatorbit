@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import axios from '../../api/axiosClient';
+import axios from '../api/axiosClient';
 import { Card, Group, Text, Button, Stack, Skeleton, Badge } from '@mantine/core';
-import { toast } from '../../utils/toast';
+import { toast } from '../utils/toast';
 
 export default function LinkedDevicesPanel() {
   const [loading, setLoading] = useState(true);
