@@ -1,22 +1,18 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
+import path from 'path';
+import fs from 'fs';
+
+import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
 // 🔐 secure upload utilities
-import { makeUploader } from '../utils/upload.js';
+import { makeUploader } from '../middleware/upload.js';
 import { scanFile } from '../utils/antivirus.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';
 
-import path from 'path';
-import fs from 'fs';
-
 const router = express.Router();
-
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
-
-const prisma = new PrismaClient();
 
 /* ---------------------- PUBLIC: create user ---------------------- */
 router.post('/', async (req, res) => {
@@ -232,6 +228,7 @@ router.get('/me', requireAuth, async (req, res) => {
         privacyBlurEnabled: true,
         privacyHoldToReveal: true,
         notifyOnCopy: true,
+        strictE2EE: true, // ← NEW
 
         // NEW: age prefs for Random Chat
         ageBand: true,
@@ -260,6 +257,9 @@ router.patch('/me', requireAuth, async (req, res) => {
       notifyOnCopy,
       preferredLanguage,
 
+      // NEW: E2EE strict toggle
+      strictE2EE,
+
       // NEW: age prefs
       ageBand,
       wantsAgeFilter,
@@ -277,6 +277,10 @@ router.patch('/me', requireAuth, async (req, res) => {
     if (typeof notifyOnCopy === 'boolean') data.notifyOnCopy = notifyOnCopy;
     if (typeof preferredLanguage === 'string' && preferredLanguage.trim()) {
       data.preferredLanguage = preferredLanguage.trim().slice(0, 16);
+    }
+    // NEW: strict E2EE toggle
+    if (typeof strictE2EE === 'boolean') {
+      data.strictE2EE = strictE2EE;
     }
 
     // NEW: ageBand + filter prefs (safety rules)
@@ -328,6 +332,7 @@ router.patch('/me', requireAuth, async (req, res) => {
         privacyHoldToReveal: true,
         notifyOnCopy: true,
         preferredLanguage: true,
+        strictE2EE: true, // ← return new field
 
         // return the age prefs too
         ageBand: true,

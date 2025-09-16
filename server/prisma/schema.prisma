@@ -135,6 +135,7 @@ model User {
   enableAIResponder           Boolean @default(false)
   enableSmartReplies          Boolean @default(false)
   theme                       String  @default("light")
+  strictE2EE                  Boolean @default(false)
 
   autoResponderMode        AutoResponderMode @default(DM)
   autoResponderCooldownSec Int               @default(120)

@@ -6,13 +6,13 @@ import rateLimit from 'express-rate-limit';
 
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requirePremium } from '../middleware/plan.js';
+import requirePremium from '../middleware/requirePremium.js';
 import { audit } from '../middleware/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
 
 // Hardened upload + safety utilities
-import { makeUploader } from '../utils/upload.js';
+import { uploadMedia } from '../middleware/upload.js';
 import { scanFile } from '../utils/antivirus.js';
 import { ensureThumb } from '../utils/thumbnailer.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';
@@ -73,13 +73,6 @@ async function isMemberOrMemFallback(chatRoomId, userId) {
   }
   return false;
 }
-
-// Uploader: multipart/form-data for media
-const uploadMedia = makeUploader({
-  maxFiles: 10,
-  maxBytes: 15 * 1024 * 1024, // 15MB cap per file
-  kind: 'media',
-});
 
 // Per-endpoint rate limit for POST creates
 const postMessageLimiter = rateLimit({

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { requirePremium } from '../middleware/plan.js';
+import requirePremium from '../middleware/requirePremium.js';
 
 const r = Router();
 r.get('/export', requireAuth, requirePremium, async (req, res) => {

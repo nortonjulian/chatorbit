@@ -1,7 +1,7 @@
 import express from 'express';
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requirePremium } from '../middleware/plan.js';
+import requirePremium from '../middleware/requirePremium.js';
 import * as stt from '../services/stt/index.js';
 import { a11yConfig } from '../config/a11yConfig.js';
 import { addUsageSeconds, getUsageSeconds } from '../services/stt/usage.js';

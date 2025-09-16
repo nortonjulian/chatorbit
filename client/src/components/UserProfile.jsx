@@ -28,6 +28,8 @@ import { useUser } from '../context/UserContext';
 import LanguageSelector from './LanguageSelector';
 import PremiumGuard from './PremiumGuard';
 import SoundSettings from './SoundSettings';
+import LinkedDevicesPanel from './settings/LinkedDevicesPanel';
+import PrivacySection from './PrivacySection';
 
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
@@ -44,7 +46,9 @@ function lazyWithFallback(importer, Fallback = () => null) {
 
 // Use RELATIVE paths to avoid alias issues in dev
 const LazyAISettings = lazyWithFallback(() => import('../pages/AISettings').catch(() => ({ default: () => null })));
-const LazySettingsAccessibility = lazyWithFallback(() => import('../pages/SettingsAccessibility').catch(() => ({ default: () => null })));
+const LazySettingsAccessibility = lazyWithFallback(() =>
+  import('../pages/SettingsAccessibility').catch(() => ({ default: () => null }))
+);
 const LazyThemeToggle = lazyWithFallback(() => import('../components/ThemeToggle').catch(() => ({ default: () => null })));
 
 // A small local error boundary so one broken subsection doesn’t crash the whole drawer
@@ -144,7 +148,9 @@ export default function UserProfile({ onLanguageChange }) {
       }
     };
     fetchAll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [viewingAnother, viewUserId, t]);
 
   const doFollow = async () => {
@@ -180,7 +186,9 @@ export default function UserProfile({ onLanguageChange }) {
     return (
       <Paper withBorder shadow="sm" radius="xl" p="lg" maw={560} mx="auto">
         {loadingView ? (
-          <Group align="center" justify="center" mih={120}><Loader /></Group>
+          <Group align="center" justify="center" mih={120}>
+            <Loader />
+          </Group>
         ) : viewUser ? (
           <Stack gap="md">
             <Group align="center" justify="space-between">
@@ -481,6 +489,8 @@ export default function UserProfile({ onLanguageChange }) {
 
         {/* Privacy */}
         <Divider label={t('profile.privacy', 'Privacy')} labelPosition="center" />
+        {/* Strict E2EE toggle + caveat messaging */}
+        <PrivacySection />
         <Switch
           checked={privacyBlurEnabled}
           onChange={(e) => setPrivacyBlurEnabled(e.currentTarget.checked)}
@@ -519,6 +529,10 @@ export default function UserProfile({ onLanguageChange }) {
             {t('profile.rotateKeys', 'Rotate keys')}
           </Button>
         </Group>
+
+        {/* Linked Devices */}
+        <Divider label={t('profile.devices', 'Linked devices')} labelPosition="center" />
+        <LinkedDevicesPanel />
 
         <Group justify="flex-end" mt="sm">
           <Button onClick={saveSettings}>{t('common.save', 'Save')}</Button>

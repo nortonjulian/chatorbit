@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { translateText } from '../utils/translateText.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium } from '../middleware/requirePremium.js';
+import blockWhenStrictE2EE from '../middleware/blockWhenStrictE2EE.js';
 
 const router = express.Router();
 
@@ -47,8 +48,14 @@ function maskProfanity(s) {
     .map((w) => w.trim().toLowerCase())
     .filter(Boolean);
   if (!words.length) return s;
-  const re = new RegExp(`\\b(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
-  return s.replace(re, (m) => m[0] + '*'.repeat(Math.max(0, m.length - 2)) + (m.length > 1 ? m[m.length - 1] : ''));
+  const re = new RegExp(
+    `\\b(${words.map((w) => w.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')).join('|')})\\b`,
+    'gi'
+  );
+  return s.replace(
+    re,
+    (m) => m[0] + '*'.repeat(Math.max(0, m.length - 2)) + (m.length > 1 ? m[m.length - 1] : '')
+  );
 }
 
 async function callOpenAIForSuggestions({ snippets, locale }) {
@@ -116,7 +123,7 @@ router.post(
   '/power-feature',
   requireAuth,
   requirePremium,
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (_req, res) => {
     // TODO: replace with your real advanced AI logic
     // You can safely assume the user is premium here
     return res.json({
@@ -130,6 +137,7 @@ router.post(
 router.post(
   '/suggest-replies',
   requireAuth,
+  blockWhenStrictE2EE,
   asyncHandler(async (req, res) => {
     const { snippets, locale, filterProfanity } = req.body || {};
     if (!Array.isArray(snippets) || snippets.length === 0) {
@@ -159,6 +167,7 @@ router.post(
 router.post(
   '/translate',
   requireAuth,
+  blockWhenStrictE2EE,
   asyncHandler(async (req, res) => {
     const { text, targetLang, sourceLang, maxChars = 5000 } = req.body ?? {};
     if (!text || !targetLang) {

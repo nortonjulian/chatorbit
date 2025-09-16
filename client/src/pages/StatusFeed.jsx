@@ -16,7 +16,38 @@ import dayjs from 'dayjs';
 import StatusFeedSkeleton from '../skeletons/StatusFeedSkeleton';
 import EmptyState from '../empty/EmptyState';
 
+// NEW: client-side decryption helpers
+import { unwrapForMe, decryptSym } from '@/utils/encryptionClient';
+
 function StatusItem({ item }) {
+  // Prefer any server-provided plaintext (e.g., dev/public) then attempt decrypt
+  const [caption, setCaption] = useState(item.captionPlain || '');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      // Only attempt decrypt when we actually have materials
+      if (!item?.encryptedKeyForMe || !item?.captionCiphertext) return;
+
+      try {
+        const aesKey = await unwrapForMe(item.encryptedKeyForMe); // CryptoKey or Uint8Array
+        const text = await decryptSym({
+          key: aesKey,
+          iv: item.captionCiphertext.iv,
+          ciphertext: item.captionCiphertext.ct,
+        });
+        if (!cancelled) setCaption(text);
+      } catch {
+        if (!cancelled) setCaption('(Unable to decrypt)');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id, item?.encryptedKeyForMe, item?.captionCiphertext]);
+
   return (
     <Paper withBorder radius="lg" p="md">
       <Group align="center" gap="sm">
@@ -32,12 +63,20 @@ function StatusItem({ item }) {
           </Text>
         </div>
       </Group>
+
       <Divider my="sm" />
-      {/* Decrypt caption with item.encryptedKeyForMe on the client (not shown here) */}
+
+      {/* Caption (decrypted or fallback) */}
+      {caption ? (
+        <Text mb="xs">{caption}</Text>
+      ) : null}
+
+      {/* Simple visibility hint (optional; audience may not be present in feed payloads) */}
       <Text c="dimmed" size="sm">
         {item.audience === 'PUBLIC' ? 'Public' : 'Private'}
       </Text>
-      {/* Render assets (images/videos) as you already do elsewhere */}
+
+      {/* TODO: Render assets (images/videos) using item.assets as you already do elsewhere */}
     </Paper>
   );
 }

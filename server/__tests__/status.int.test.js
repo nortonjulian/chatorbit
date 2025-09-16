@@ -5,7 +5,7 @@ import prisma from '../utils/prismaClient.js';
 
 // --- build absolute file:// specifiers so ESM resolver can't get confused
 const authUrl = new URL('../middleware/auth.js', import.meta.url).href;
-const planUrl = new URL('../middleware/plan.js', import.meta.url).href;
+const planUrl = new URL('../middleware/requirePremium.js', import.meta.url).href;
 
 process.env.NODE_ENV = 'test';
 process.env.STATUS_ENABLED = 'true';

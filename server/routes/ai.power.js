@@ -2,7 +2,7 @@ import express from 'express';
 import Boom from '@hapi/boom';
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requirePremium } from '../middleware/plan.js';
+import requirePremium from '../middleware/requirePremium.js';
 
 const router = express.Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

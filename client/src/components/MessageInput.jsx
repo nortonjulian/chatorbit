@@ -14,6 +14,7 @@ import axiosClient from '../api/axiosClient';
 import StickerPicker from './StickerPicker.jsx';
 import FileUploader from './FileUploader.jsx';
 import { toast } from '../utils/toast';
+import { encryptForRoom } from '@/utils/encryptionClient';
 
 const TTL_OPTIONS = [
   { value: '0', label: 'Off' },
@@ -24,7 +25,12 @@ const TTL_OPTIONS = [
   { value: String(24 * 3600), label: '1d' },
 ];
 
-export default function MessageInput({ chatroomId, currentUser, onMessageSent }) {
+export default function MessageInput({
+  chatroomId,
+  currentUser,
+  onMessageSent,
+  roomParticipants = [],
+}) {
   const [content, setContent] = useState('');
   const [ttl, setTtl] = useState(String(currentUser?.autoDeleteSeconds || 0));
 
@@ -73,7 +79,9 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
     e?.preventDefault?.();
     if (sending) return;
 
-    if (nothingToSend) {
+    const text = content.trim();
+
+    if (!text && uploaded.length === 0 && inlinePicks.length === 0) {
       toast.info('Type a message or attach a file to send.');
       return;
     }
@@ -95,10 +103,26 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
 
     const payload = {
       chatRoomId: String(chatroomId),
-      content: content.trim() || undefined,
       expireSeconds: Number(ttl) || 0,
       attachmentsInline,
     };
+
+    // Strict E2EE: encrypt content for room participants; otherwise send plaintext
+    if (text) {
+      if (currentUser?.strictE2EE) {
+        try {
+          const { iv, ct, alg, keyIds } = await encryptForRoom(roomParticipants, text);
+          payload.contentCiphertext = { iv, ct, alg, keyIds };
+        } catch (err) {
+          console.error('Encryption failed', err);
+          toast.err('Encryption failed. Message not sent.');
+          setSending(false);
+          return;
+        }
+      } else {
+        payload.content = text;
+      }
+    }
 
     try {
       const { data: saved } = await axiosClient.post('/messages', payload, {
@@ -137,7 +161,7 @@ export default function MessageInput({ chatroomId, currentUser, onMessageSent })
       // Optimistic failed bubble so user can retry/resend
       onMessageSent?.({
         id: `temp-${Date.now()}`,
-        content: content.trim(),
+        content: text,
         createdAt: new Date().toISOString(),
         mine: true,
         failed: true,
