@@ -13,7 +13,7 @@ const nowPlusMinutes = (m) => new Date(Date.now() + m * 60 * 1000);
 
 /* -----------------------------
    Devices: list / rename / revoke / heartbeat
-   NOTE: This router is mounted at /devices in index.js,
+   NOTE: This router is mounted at /devices in app/index,
          so all paths below are RELATIVE (no /devices prefix here).
 --------------------------------*/
 
@@ -40,7 +40,7 @@ router.get(
   })
 );
 
-/** POST /devices/rename/:deviceId  (mounted → POST /devices/rename/:deviceId) */
+/** POST /devices/rename/:deviceId */
 router.post(
   '/rename/:deviceId',
   requireAuth,
@@ -48,7 +48,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { deviceId } = req.params;
     const { name } = req.body ?? {};
-    if (!name || typeof name !== 'string' || name.length > 64) {
+    if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > 64) {
       throw Boom.badRequest('Invalid name');
     }
 
@@ -59,14 +59,14 @@ router.post(
 
     await prisma.device.update({
       where: { id: device.id },
-      data: { name },
+      data: { name: name.trim() },
     });
 
     return res.json({ ok: true });
   })
 );
 
-/** POST /devices/revoke/:deviceId  (mounted → POST /devices/revoke/:deviceId) */
+/** POST /devices/revoke/:deviceId */
 router.post(
   '/revoke/:deviceId',
   requireAuth,
@@ -85,12 +85,12 @@ router.post(
       data: { revokedAt: new Date(), revokedById: req.user.id },
     });
 
-    // Optionally emit: req.app.get('emitToUser')?.(req.user.id, 'device:revoked', { deviceId: device.id });
+    // Optionally emit a socket event to the user here
     return res.json({ ok: true });
   })
 );
 
-/** POST /devices/heartbeat  (mounted → POST /devices/heartbeat) */
+/** POST /devices/heartbeat */
 router.post(
   '/heartbeat',
   requireAuth,
@@ -123,16 +123,14 @@ router.post(
    5) register (new device registers)
 --------------------------------*/
 
-/** POST /devices/provision/start  (mounted → POST /devices/provision/start) */
+/** POST /devices/provision/start */
 router.post(
   '/provision/start',
   requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const secret = toB64(randomBytes(32));
-    const sas = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(
-      100 + Math.random() * 900
-    )}`;
+    const sas = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}`;
 
     const link = await prisma.provisionLink.create({
       data: {
@@ -141,8 +139,6 @@ router.post(
         secret,
         sasCode: sas,
         expiresAt: nowPlusMinutes(10),
-        // optional columns if present:
-        // clientEPub, serverEPub, relayCiphertext, relayNonce, usedAt, tempDeviceName, tempPlatform
       },
       select: { id: true, secret: true, sasCode: true },
     });
@@ -160,7 +156,7 @@ router.post(
   })
 );
 
-/** POST /devices/provision/client-init  (mounted → POST /devices/provision/client-init) */
+/** POST /devices/provision/client-init */
 router.post(
   '/provision/client-init',
   provisionLimiter,
@@ -183,7 +179,7 @@ router.post(
       },
     });
 
-    // server ephemeral "pubkey" placeholder (swap for real ECDH as needed)
+    // NOTE: placeholder; swap for real ECDH public key if needed
     const sPub = toB64(randomBytes(32));
 
     await prisma.provisionLink.update({
@@ -195,15 +191,14 @@ router.post(
   })
 );
 
-/** POST /devices/provision/approve  (mounted → POST /devices/provision/approve) */
+/** POST /devices/provision/approve */
 router.post(
   '/provision/approve',
   requireAuth,
   provisionLimiter,
   asyncHandler(async (req, res) => {
     const { linkId, ciphertext, nonce, sPub } = req.body ?? {};
-    if (!linkId || !ciphertext || !nonce || !sPub)
-      throw Boom.badRequest('Missing fields');
+    if (!linkId || !ciphertext || !nonce || !sPub) throw Boom.badRequest('Missing fields');
 
     const link = await prisma.provisionLink.findFirst({
       where: { id: linkId, userId: req.user.id },
@@ -221,12 +216,11 @@ router.post(
       data: { relayCiphertext: ciphertext, relayNonce: nonce },
     });
 
-    // Optionally notify: req.app.get('emitToUser')?.(req.user.id, 'provision:ready', { linkId });
     return res.json({ ok: true });
   })
 );
 
-/** GET /devices/provision/poll  (mounted → GET /devices/provision/poll) */
+/** GET /devices/provision/poll */
 router.get(
   '/provision/poll',
   provisionLimiter,
@@ -234,9 +228,7 @@ router.get(
     const { linkId } = req.query ?? {};
     if (!linkId) throw Boom.badRequest('linkId required');
 
-    const link = await prisma.provisionLink.findUnique({
-      where: { id: String(linkId) },
-    });
+    const link = await prisma.provisionLink.findUnique({ where: { id: String(linkId) } });
     if (!link) throw Boom.notFound('Link not found');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
 
@@ -254,7 +246,7 @@ router.get(
   })
 );
 
-/** POST /devices/register  (mounted → POST /devices/register) */
+/** POST /devices/register */
 router.post(
   '/register',
   requireAuth,
@@ -268,7 +260,7 @@ router.post(
     if (link.usedAt) throw Boom.gone('Link already used');
     if (new Date(link.expiresAt) < new Date()) throw Boom.gone('Link expired');
 
-    // ✅ Premium enforcement: FREE users limited by plan
+    // ✅ Plan enforcement: FREE users limited by plan
     try {
       await assertDeviceLimit(req.user.id);
     } catch (err) {
@@ -288,7 +280,7 @@ router.post(
         publicKey,
         name: deviceName ?? link.tempDeviceName ?? 'New device',
         platform: platform ?? link.tempPlatform ?? null,
-        isPrimary: false, // You can set true if first device, or provide a toggle endpoint
+        isPrimary: false,
       },
       select: { id: true, name: true, platform: true, createdAt: true },
     });
@@ -298,7 +290,6 @@ router.post(
       data: { usedAt: new Date() },
     });
 
-    // Optionally emit: req.app.get('emitToUser')?.(req.user.id, 'device:linked', { device: created });
     return res.json({ ok: true, device: created });
   })
 );

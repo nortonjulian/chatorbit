@@ -1,34 +1,66 @@
 import { useEffect, useState } from 'react';
 import axiosClient from '../api/axiosClient';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, TextInput, Stack, Text, Button, Group } from '@mantine/core';
+import {
+  Box,
+  Title,
+  TextInput,
+  Stack,
+  Text,
+  Button,
+  Group,
+  ActionIcon,
+  Skeleton,
+} from '@mantine/core';
+import { IconRefresh, IconTrash, IconMessagePlus } from '@tabler/icons-react';
 import { toast } from '../utils/toast';
 
-export default function ContactList({ currentUserId, onChanged }) {
-  const [contacts, setContacts] = useState([]);
-  const [search, setSearch] = useState('');
+export default function ContactList({ onLoaded }) {
   const navigate = useNavigate();
 
-  const refresh = async () => {
+  const [items, setItems] = useState([]);             // contacts array
+  const [nextCursor, setNextCursor] = useState(null); // server pagination cursor
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  // Debounce search 350ms so we don't spam the API on every keystroke
+  const debouncedSearch = useDebounce(search, 350);
+
+  async function fetchContacts({ cursor = null, append = false } = {}) {
     try {
-      const res = await axiosClient.get(`/contacts/${currentUserId}`);
-      setContacts(res.data || []);
+      setLoading(true);
+      const params = {
+        limit: 50,
+        ...(debouncedSearch ? { q: debouncedSearch } : {}),
+        ...(cursor ? { cursor } : {}),
+      };
+      const { data } = await axiosClient.get('/contacts', { params });
+      const list = Array.isArray(data?.items) ? data.items : [];
+
+      const nextList = append ? [...items, ...list] : list;
+      setItems(nextList);
+      setNextCursor(data?.nextCursor ?? null);
+
+      // Let parent (StartChatModal) observe the latest list (no extra fetch!)
+      onLoaded?.(nextList);
     } catch (err) {
-      console.error('Failed to fetch contacts:', err);
-      toast.err('Failed to load contacts. Please try again.');
+      // 404 would mean router not mounted; avoid spamming users with dev wiring noise
+      if (err?.response?.status !== 404) {
+        console.error('Failed to fetch contacts:', err);
+        toast.err('Failed to load contacts. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
+  // Single effect: run when debouncedSearch becomes defined (after first tick),
+  // then on every subsequent debounced change of `search`.
   useEffect(() => {
-    refresh();
+    if (debouncedSearch === undefined) return; // skip the very first render
+    fetchContacts({ append: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
-
-  const filtered = contacts.filter((c) =>
-    (c.alias || c.user?.username || '')
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  }, [debouncedSearch]);
 
   const startChat = async (userId) => {
     try {
@@ -48,11 +80,12 @@ export default function ContactList({ currentUserId, onChanged }) {
     }
   };
 
-  const deleteContact = async (userId) => {
+  const deleteContact = async (userId, externalPhone) => {
     try {
-      await axiosClient.delete('/contacts', { data: { ownerId: currentUserId, userId } });
-      await refresh();
-      onChanged?.();
+      await axiosClient.delete('/contacts', {
+        data: userId ? { userId } : { externalPhone },
+      });
+      await fetchContacts({ append: false });
       toast.ok('Contact deleted.');
     } catch (err) {
       console.error('Failed to delete contact:', err);
@@ -60,56 +93,74 @@ export default function ContactList({ currentUserId, onChanged }) {
     }
   };
 
-  const updateAlias = async (userId, alias) => {
+  const updateAlias = async (userId, externalPhone, alias) => {
     try {
-      await axiosClient.patch('/contacts', { ownerId: currentUserId, userId, alias: alias || '' });
+      await axiosClient.patch('/contacts', {
+        ...(userId ? { userId } : { externalPhone }),
+        alias: alias || '',
+      });
       toast.ok('Alias updated.');
     } catch (err) {
       console.error('Failed to update alias:', err);
       toast.err('Failed to update alias. Please try again.');
     } finally {
-      await refresh();
-      onChanged?.();
+      await fetchContacts({ append: false });
     }
   };
 
   return (
-    <Box p="md" maw={520} mx="auto">
-      <Title order={4} mb="sm">Saved Contacts</Title>
+    <Box p="md" maw={560} mx="auto">
+      <Group justify="space-between" align="center" mb="sm">
+        <Title order={4}>Saved Contacts</Title>
+        <ActionIcon
+          variant="subtle"
+          onClick={() => fetchContacts({ append: false })}
+          aria-label="Refresh contacts"
+          title="Refresh"
+        >
+          <IconRefresh size={18} />
+        </ActionIcon>
+      </Group>
 
       <TextInput
-        placeholder="Search contacts..."
+        placeholder="Search contacts…"
         value={search}
         onChange={(e) => setSearch(e.currentTarget.value)}
-        mb="sm"
+        mb="md"
       />
 
-      {filtered.length === 0 ? (
+      {loading && items.length === 0 ? (
+        <Stack>
+          <Skeleton h={52} />
+          <Skeleton h={52} />
+        </Stack>
+      ) : items.length === 0 ? (
         <Text c="dimmed" size="sm">No contacts found.</Text>
       ) : (
         <Stack gap="xs">
-          {filtered.map((c) => {
-            const key = c.userId ?? `${c.externalPhone || c.externalName || 'x'}`;
+          {items.map((c) => {
+            const key = c.id;
             const name =
               c.alias ||
+              c.user?.displayName ||
               c.user?.username ||
               c.externalName ||
               c.externalPhone ||
-              `User #${c.userId ?? ''}`;
+              (c.userId ? `User #${c.userId}` : 'External contact');
+
             return (
               <Group key={key} justify="space-between" align="center">
                 <button
                   type="button"
                   aria-label={name}
                   onClick={() => startChat(c.userId)}
-                  onMouseDown={() => startChat(c.userId)} // helps in some test envs
                   style={{
                     flex: 1,
                     textAlign: 'left',
                     background: 'none',
                     border: 0,
                     padding: 0,
-                    cursor: 'pointer',
+                    cursor: c.userId ? 'pointer' : 'default',
                   }}
                 >
                   {name}
@@ -119,17 +170,59 @@ export default function ContactList({ currentUserId, onChanged }) {
                   placeholder="Alias"
                   defaultValue={c.alias || ''}
                   size="xs"
-                  maw={160}
-                  onBlur={(e) => updateAlias(c.userId, e.currentTarget.value)}
+                  maw={180}
+                  onBlur={(e) =>
+                    updateAlias(c.userId, c.externalPhone, e.currentTarget.value)
+                  }
                 />
-                <Button size="xs" variant="light" color="red" onClick={() => deleteContact(c.userId)}>
-                  Delete
-                </Button>
+
+                <Group gap="xs">
+                  {c.userId ? (
+                    <ActionIcon
+                      variant="light"
+                      aria-label="Start chat"
+                      title="Start chat"
+                      onClick={() => startChat(c.userId)}
+                    >
+                      <IconMessagePlus size={16} />
+                    </ActionIcon>
+                  ) : null}
+                  <ActionIcon
+                    color="red"
+                    variant="subtle"
+                    aria-label="Delete contact"
+                    title="Delete"
+                    onClick={() => deleteContact(c.userId, c.externalPhone)}
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Group>
               </Group>
             );
           })}
         </Stack>
       )}
+
+      {nextCursor && (
+        <Group justify="center" mt="md">
+          <Button
+            variant="light"
+            onClick={() => fetchContacts({ cursor: nextCursor, append: true })}
+          >
+            Load more
+          </Button>
+        </Group>
+      )}
     </Box>
   );
+}
+
+/** Small debounce hook that starts undefined to avoid an immediate first fetch */
+function useDebounce(value, delayMs) {
+  const [v, setV] = useState(undefined); // start undefined
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return v;
 }

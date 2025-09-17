@@ -18,6 +18,7 @@ import logger from './utils/logger.js';
 import healthzRouter from './routes/healthz.js';
 
 // Routers / middleware
+import devicesRouter from './routes/devices.js';
 import statusRoutes from './routes/status.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
@@ -247,6 +248,7 @@ export function createApp() {
   app.use('/contacts', contactRoutes);
   app.use('/invites', invitesRouter);
   app.use('/media', mediaRouter);
+  app.use('/devices', devicesRouter);
 
   /* =========================
    *   Status feature flag

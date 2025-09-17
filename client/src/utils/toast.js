@@ -1,42 +1,38 @@
 import { notifications } from '@mantine/notifications';
 
-// Small helper to keep a consistent options shape
-function show(message, opts = {}) {
-  return notifications.show({ message, withBorder: true, ...opts });
-}
-
-// Provide a stable API that covers both your existing "ok/err/info"
-// and the common "success/error/warn/loading/dismiss" methods.
-// Components can import { toast } from '../utils/toast'
+let lastKey = null;
 export const toast = {
-  // your original names (back-compat)
-  ok: (message, opts) => show(message, opts),
-  err: (message, opts) => show(message, { color: 'red', ...opts }),
-  info: (message, opts) => show(message, { color: 'blue', ...opts }),
+  ok(msg, opts)   { show('green', msg, opts); },
+  info(msg, opts) { show('blue',  msg, opts); },
+  err(msg, opts)  { show('red',   msg, opts); },
 
-  // common aliases
-  success: (message, opts) => show(message, { color: 'green', ...opts }),
-  error: (message, opts) => show(message, { color: 'red', ...opts }),
-  warn: (message, opts) => show(message, { color: 'yellow', ...opts }),
+  success(msg, opts) { show('green', msg, opts); },
+  error(msg, opts)   { show('red',   msg, opts); },
+  warn(msg, opts)    { show('yellow', msg, opts); },
 
-  // simple loading handle: returns an object with dismiss()
-  loading: (message = 'Working...', opts = {}) => {
-    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    notifications.show({
-      id,
-      message,
-      loading: true,
-      autoClose: false,
-      withBorder: true,
-      ...opts,
-    });
+  loading(message = 'Working...', opts = {}) {
+    const id = `t_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    notifications.show({ id, message, loading: true, autoClose: false, withBorder: true, ...opts });
     return { dismiss: () => notifications.hide(id) };
   },
-
-  // no-id dismiss just no-ops; Mantine requires an id
-  dismiss: (id) => {
-    if (id) notifications.hide(id);
-  },
+  dismiss(id) { if (id) notifications.hide(id); },
 };
 
-export default toast;
+function show(color, message, opts = {}) {
+  const key = `${color}:${message}`;
+  if (key === lastKey) return; // naive dedupe in same microtask
+  lastKey = key;
+  queueMicrotask(() => { lastKey = null; });
+  notifications.show({ color, message, withBorder: true, ...opts });
+}
+
+if (import.meta.env.DEV) {
+  const origShow = notifications.show;
+  notifications.show = (opts) => {
+    // eslint-disable-next-line no-console
+    console.groupCollapsed('[toast]', opts?.message);
+    console.trace();
+    console.groupEnd();
+    return origShow(opts);
+  };
+}
