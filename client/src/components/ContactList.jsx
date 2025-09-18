@@ -16,7 +16,7 @@ import { IconRefresh, IconTrash, IconMessagePlus } from '@tabler/icons-react';
 import { toast } from '../utils/toast';
 
 // ✅ Ads
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
 // ✅ Premium check

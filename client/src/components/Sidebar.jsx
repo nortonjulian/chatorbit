@@ -18,7 +18,7 @@ import ChatroomsSidebar from './ChatroomsSidebar';
 import UserProfile from './UserProfile';
 
 // Ads
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
 function Sidebar({ currentUser, setSelectedRoom, features }) {

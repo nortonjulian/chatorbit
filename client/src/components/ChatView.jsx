@@ -56,7 +56,7 @@ import { playSound } from '../lib/sounds.js';
 import useIsPremium from '@/hooks/useIsPremium';
 
 // Ads (render only for Free users)
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
 function getTimeLeftString(expiresAt) {

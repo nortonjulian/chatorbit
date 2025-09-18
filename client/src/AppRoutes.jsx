@@ -43,7 +43,7 @@ import IncomingCallModal from '@/components/IncomingCallModal.jsx';
 import VideoCall from '@/components/VideoCall.jsx';
 
 // HTTP
-import axiosClient from '@/api/axiosClient';
+import api from '@/api/axiosClient';
 
 // Public layout
 import AuthLayout from '@/components/AuthLayout';
@@ -70,15 +70,19 @@ function AuthedLayout() {
       .catch(() => setFeatures({ status: false }));
   }, []);
 
+  // Updated logout: call API, then nuke client state and hard-redirect
   const handleLogout = async () => {
     try {
-      await axiosClient.post('/auth/logout', null, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      });
-    } catch (err) {
-      console.warn('Logout error', err);
+      await api.post('/auth/logout'); // relative path so Vite proxy handles CORS in dev
+    } catch (_err) {
+      // ignore — we’ll clear client state anyway
     } finally {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {}
       setCurrentUser(null);
+      window.location.assign('/login');
     }
   };
 

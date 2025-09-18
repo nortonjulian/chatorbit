@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Node >= 18 has global fetch; no import needed.
 import Boom from '@hapi/boom';
 import { LRU } from './lru.js';
 import { asyncPool } from './asyncPool.js';

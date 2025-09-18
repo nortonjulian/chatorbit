@@ -469,12 +469,12 @@ model Contact {
   id            Int      @id @default(autoincrement())
   ownerId       Int
   userId        Int?
-  externalPhone String? // normalized digits with optional +
+  externalPhone String?   // normalized digits with optional +
   externalName  String?
   alias         String?
-  favorite      Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  favorite      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // name the two different relations to User:
   owner User  @relation("ContactsOwned", fields: [ownerId], references: [id])

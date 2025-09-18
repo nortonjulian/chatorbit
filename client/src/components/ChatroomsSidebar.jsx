@@ -13,7 +13,7 @@ import {
 import { IconMessagePlus } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
 
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 import useIsPremium from '@/hooks/useIsPremium';
 

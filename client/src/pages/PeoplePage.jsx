@@ -4,10 +4,12 @@ import { IconSearch, IconX } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import StartChatModal from '../components/StartChatModal';
 import ContactList from '../components/ContactList';
+import ImportContactsModal from '../components/ImportContactsModal';
 
 export default function PeoplePage() {
   const { currentUser } = useUser();
-  const [open, setOpen] = useState(false);
+  const [openStartChat, setOpenStartChat] = useState(false);
+  const [openImport, setOpenImport] = useState(false);
   const [q, setQ] = useState('');
   const [input, setInput] = useState('');
 
@@ -24,9 +26,10 @@ export default function PeoplePage() {
   if (!currentUser) return null;
 
   const applySearch = () => {
-    setQ(input.trim());
+    const next = input.trim();
+    setQ(next);
     const url = new URL(window.location.href);
-    if (input.trim()) url.searchParams.set('q', input.trim());
+    if (next) url.searchParams.set('q', next);
     else url.searchParams.delete('q');
     window.history.replaceState({}, '', url.toString());
   };
@@ -43,7 +46,10 @@ export default function PeoplePage() {
     <div>
       <Group justify="space-between" mb="sm">
         <Title order={4}>People</Title>
-        <Button onClick={() => setOpen(true)}>Find / Add Contact</Button>
+        <Group gap="xs">
+          <Button variant="light" onClick={() => setOpenImport(true)}>Import contacts</Button>
+          <Button onClick={() => setOpenStartChat(true)}>Find / Add Contact</Button>
+        </Group>
       </Group>
 
       <Group mb="sm" align="center" grow>
@@ -71,12 +77,18 @@ export default function PeoplePage() {
         <ContactList currentUserId={currentUser.id} searchQuery={q} />
       </Paper>
 
-      {open && (
+      {openStartChat && (
         <StartChatModal
           currentUserId={currentUser.id}
-          onClose={() => setOpen(false)}
+          onClose={() => setOpenStartChat(false)}
         />
       )}
+
+      <ImportContactsModal
+        opened={openImport}
+        onClose={() => setOpenImport(false)}
+        defaultCountry="US"
+      />
     </div>
   );
 }

@@ -25,16 +25,21 @@ export default defineConfig(async ({ mode, command }) => {
           org: env.VITE_SENTRY_ORG,
           project: env.VITE_SENTRY_PROJECT,
           authToken: env.SENTRY_AUTH_TOKEN, // set in CI
-          release: env.VITE_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+          release:
+            env.VITE_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || undefined,
           sourcemaps: { assets: './dist/**' },
           telemetry: false,
         })
       );
       enableSourcemaps = true; // only generate sourcemaps when uploading
     } catch {
-      console.warn('[vite] @sentry/vite-plugin not installed; skipping Sentry upload.');
+      console.warn(
+        '[vite] @sentry/vite-plugin not installed; skipping Sentry upload.'
+      );
     }
   }
+
+  const apiTarget = env.VITE_API_BASE || 'http://localhost:5002';
 
   return {
     plugins,
@@ -43,12 +48,35 @@ export default defineConfig(async ({ mode, command }) => {
         '@': path.resolve(__dirname, './src'),
       },
       dedupe: [
-    'react', 'react-dom',
-    '@mantine/core', '@mantine/hooks', '@mantine/notifications', '@mantine/dates'
+        'react',
+        'react-dom',
+        '@mantine/core',
+        '@mantine/hooks',
+        '@mantine/notifications',
+        '@mantine/dates',
       ],
     },
     build: { sourcemap: enableSourcemaps },
-    server: { host: true, port: 5173, cors: true },
+    server: {
+      host: true,
+      port: 5173,
+      cors: true,
+      proxy: {
+        // Proxy API to avoid CORS in dev
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        // If you use Socket.IO or websockets, proxy them too
+        '/socket.io': {
+          target: apiTarget,
+          ws: true,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+    },
     preview: { port: 5174 },
   };
 });

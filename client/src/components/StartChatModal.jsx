@@ -17,7 +17,7 @@ import {
 } from '@mantine/core';
 
 // Ads
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
 // Premium gating (don’t show ads to Premium)

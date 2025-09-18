@@ -32,6 +32,7 @@ import invitesRouter from './routes/invites.js';
 import mediaRouter from './routes/media.js';
 import billingRouter from './routes/billing.js';   // static import (no top-level await)
 import billingWebhook from './routes/billingWebhook.js';
+import contactsImportRouter from './routes/contactsImport.js';
 
 // Errors
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -60,10 +61,43 @@ export function createApp() {
   app.set('trust proxy', 1);
 
   /* =======================================================
+   *  CORS (FIRST) – so even errors include CORS headers
+   * ======================================================= */
+  const envOrigins = String(process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const devDefaults = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    process.env.API_ORIGIN || '',     // allow self if defined
+    process.env.SOCKET_ORIGIN || ''
+  ].filter(Boolean);
+
+  const allowedOrigins = envOrigins.length ? envOrigins : devDefaults;
+
+  const corsConfig = {
+    origin(origin, cb) {
+      // allow same-origin / non-browser tools (no Origin header)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS blocked'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN'],
+    exposedHeaders: ['Set-Cookie'],
+  };
+
+  app.use(cors(corsConfig));
+  app.options('*', cors(corsConfig)); // handle all preflights
+
+  /* =======================================================
    *  Stripe Webhook: MUST use raw body BEFORE json parser
    * ======================================================= */
   app.post('/billing/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
-    // Hand off to the router's /billing/webhook; we just needed a raw body here.
+    // Hand off to router’s /billing/webhook; we just needed a raw body here.
     next('route');
   });
 
@@ -112,17 +146,12 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
-  // Compute origins used by CORS & CSP
-  const allowedOrigins = String(process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // Helmet with CSP & HSTS
   const CDN_ORIGINS = String(process.env.CDN_ORIGINS || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Helmet with CSP & HSTS
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'same-site' },
@@ -150,31 +179,16 @@ export function createApp() {
 
   app.use(compression());
 
-  // --------- CORS: exact origin(s), credentials, headers, methods, preflights ----------
-  const corsConfig = {
-    origin: (origin, cb) => {
-      // allow same-origin / non-browser tools (no Origin header)
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS blocked'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN'],
-    exposedHeaders: ['Set-Cookie'],
-  };
-  app.use(cors(corsConfig));
-  app.options(/'*'/, cors(corsConfig));
-  // -------------------------------------------------------------------------------------
-
   // CSRF (skip webhook). In tests, CSRF is a no-op to unblock supertest flows.
   const csrfMw = isTest
     ? (_req, _res, next) => next()
     : buildCsrf({ isProd, cookieDomain: process.env.COOKIE_DOMAIN });
+
   app.use((req, res, next) => {
     if (req.path === '/billing/webhook') return next();
     return csrfMw(req, res, next);
   });
+
   // Refresh XSRF-TOKEN cookie on GETs
   app.use((req, res, next) => {
     if (!isTest && req.method === 'GET') setCsrfCookie(req, res);
@@ -183,7 +197,6 @@ export function createApp() {
 
   // Explicit CSRF priming endpoint so the client gets 200 (not 404)
   app.get('/auth/csrf', (_req, res) => res.json({ ok: true }));
-  /* ========================================================================= */
 
   /* =========================
    *   Static assets (uploads)
@@ -249,6 +262,9 @@ export function createApp() {
   app.use('/invites', invitesRouter);
   app.use('/media', mediaRouter);
   app.use('/devices', devicesRouter);
+
+  // Contacts bulk import (mounted under /api to match your Vite proxy)
+  app.use('/api', contactsImportRouter);
 
   /* =========================
    *   Status feature flag

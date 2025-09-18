@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Drawer, TextInput, Stack, ScrollArea, Text, Group, Badge, Divider } from '@mantine/core';
 import { searchRoom } from '../utils/messagesStore';
 import useIsPremium from '@/hooks/useIsPremium';
-import { AdSlot } from '@/ads/AdSlot';
+import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
 export default function RoomSearchDrawer({ opened, onClose, roomId, onJump }) {
