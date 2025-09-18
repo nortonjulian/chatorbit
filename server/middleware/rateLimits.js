@@ -45,6 +45,22 @@ export const limiterInvites = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
+export const invitesSmsLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,                 
+  max: isLoad ? HUGE : 20,                  
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+});
+
+export const invitesEmailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,                
+  max: isLoad ? HUGE : 50,                  
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+});
+
 export const limiterAI = rateLimit({
   windowMs: 60 * 1000,
   max: isLoad ? HUGE : 20,

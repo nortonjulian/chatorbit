@@ -219,6 +219,9 @@ model PasswordResetToken {
   userId    Int
   token     String   @unique
   expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
 
   user User @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -461,6 +464,23 @@ model ScheduledMessage {
   @@index([chatRoomId])
   @@index([senderId])
   @@index([scheduledAt]) // ⬅️ new
+}
+
+model Upload {
+  id           Int      @id @default(autoincrement())
+  ownerId      Int
+  key          String
+  sha256       String   @db.VarChar(64)
+  originalName String
+  mimeType     String
+  size         Int
+  driver       String   // 'local' | 's3'
+  createdAt    DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([sha256])
 }
 
 // ===================== 4) Contacts, Reports, Auditing =====================

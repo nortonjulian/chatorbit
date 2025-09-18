@@ -125,7 +125,8 @@ function AuthedLayout() {
         </ScrollArea.Autosize>
       </AppShell.Navbar>
 
-      <AppShell.Main>
+      {/* NEW: give main a stable id + focusable target for SkipToContent */}
+      <AppShell.Main id="main-content" tabIndex={-1}>
         {/* Incoming call modal */}
         <IncomingCallModal
           onAccept={handleAcceptIncoming}

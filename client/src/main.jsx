@@ -14,12 +14,16 @@ import './i18n';
 import { SocketProvider } from './context/SocketContext';
 import { UserProvider } from './context/UserContext';
 import { CallProvider } from './context/CallContext';
-import { AdProvider } from './ads/AdProvider.jsx';
 
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 import { chatOrbitTheme } from './theme';
 import { primeCsrf } from './api/axiosClient';
+
+// NEW: a11y + perf helpers
+import SkipToContent from './components/SkipToContent.js';
+import A11yAnnouncer from './components/A11yAnnouncer.js';
+import { initWebVitals } from './utils/perf/vitals.js';
 
 const isProd = import.meta.env.PROD;
 
@@ -93,10 +97,20 @@ function Root() {
     document.documentElement.setAttribute('data-theme', scheme);
   }, [scheme]);
 
+  // NEW: start collecting Web Vitals (lazy-loaded)
+  React.useEffect(() => {
+    initWebVitals();
+  }, []);
+
   return (
     <ErrorBoundary>
       <MantineProvider theme={theme} defaultColorScheme={scheme}>
         <Notifications position="top-right" limit={3} />
+
+        {/* NEW: a11y helpers mounted once */}
+        <SkipToContent targetId="main-content" />
+        <A11yAnnouncer />
+
         {/* IMPORTANT: SocketProvider must wrap UserProvider */}
         <SocketProvider>
           <UserProvider>

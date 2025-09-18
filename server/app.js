@@ -1,12 +1,12 @@
 import express from 'express';
-import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import listEndpoints from 'express-list-endpoints';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { initCrons } from './cron/index.js';
+initCrons();
 
 // Sentry + logging
 import * as Sentry from '@sentry/node';
@@ -18,6 +18,8 @@ import logger from './utils/logger.js';
 import healthzRouter from './routes/healthz.js';
 
 // Routers / middleware
+import backupsRouter from './routes/backups.js';
+import smsWebhooks from './routes/smsWebhooks.js';
 import devicesRouter from './routes/devices.js';
 import statusRoutes from './routes/status.js';
 import authRouter from './routes/auth.js';
@@ -33,6 +35,7 @@ import mediaRouter from './routes/media.js';
 import billingRouter from './routes/billing.js';   // static import (no top-level await)
 import billingWebhook from './routes/billingWebhook.js';
 import contactsImportRouter from './routes/contactsImport.js';
+import uploadsRouter from './routes/uploads.js';
 
 // Errors
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -49,6 +52,14 @@ import {
   limiterGenericMutations,
 } from './middleware/rateLimits.js';
 
+// 🔐 New security middlewares (Task 8)
+import { corsConfigured } from './middleware/cors.js';
+import { secureHeaders } from './middleware/secureHeaders.js';
+import { csp } from './middleware/csp.js';
+import { hppGuard } from './middleware/hpp.js';
+import { httpsRedirect } from './middleware/httpsRedirect.js';
+import { bodyLimits } from './middleware/bodyLimits.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -57,41 +68,18 @@ export function createApp() {
   const isProd = process.env.NODE_ENV === 'production';
   const isTest = process.env.NODE_ENV === 'test';
 
-  // behind proxy/CDN (needed for secure cookies and correct IPs)
-  app.set('trust proxy', 1);
+  // behind proxy/CDN (needed for secure cookies, correct IPs, https detection)
+  app.set('trust proxy', true);
 
   /* =======================================================
-   *  CORS (FIRST) – so even errors include CORS headers
+   *  Very-early security plumbing
+   *  (kept before most things; raw Stripe webhook still comes before body parsers)
    * ======================================================= */
-  const envOrigins = String(process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const devDefaults = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    process.env.API_ORIGIN || '',     // allow self if defined
-    process.env.SOCKET_ORIGIN || ''
-  ].filter(Boolean);
-
-  const allowedOrigins = envOrigins.length ? envOrigins : devDefaults;
-
-  const corsConfig = {
-    origin(origin, cb) {
-      // allow same-origin / non-browser tools (no Origin header)
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS blocked'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-XSRF-TOKEN'],
-    exposedHeaders: ['Set-Cookie'],
-  };
-
-  app.use(cors(corsConfig));
-  app.options('*', cors(corsConfig)); // handle all preflights
+  app.use(httpsRedirect());      // redirect http -> https in prod
+  app.use(corsConfigured());     // CORS allowlist (credentials on)
+  app.use(hppGuard());           // HTTP param pollution guard
+  app.use(secureHeaders());      // Helmet baseline (noSniff, frameguard, referrer, etc.)
+  app.use(csp());                // Strict CSP with per-response nonce
 
   /* =======================================================
    *  Stripe Webhook: MUST use raw body BEFORE json parser
@@ -100,6 +88,21 @@ export function createApp() {
     // Hand off to router’s /billing/webhook; we just needed a raw body here.
     next('route');
   });
+
+  /* =========================
+   *   HTTP structured logs
+   * ========================= */
+  app.use(
+    pinoHttp({
+      logger,
+      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
+      customLogLevel: (req, res, err) => {
+        if (err || res.statusCode >= 500) return 'error';
+        if (res.statusCode >= 400) return 'warn';
+        return 'info';
+      },
+    })
+  );
 
   /* =========================
    *   Sentry (prod only)
@@ -125,59 +128,13 @@ export function createApp() {
   }
 
   /* =========================
-   *   HTTP structured logs
-   * ========================= */
-  app.use(
-    pinoHttp({
-      logger,
-      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
-      customLogLevel: (req, res, err) => {
-        if (err || res.statusCode >= 500) return 'error';
-        if (res.statusCode >= 400) return 'warn';
-        return 'info';
-      },
-    })
-  );
-
-  /* =========================
    *   Core middleware (after raw webhook)
    * ========================= */
   app.use(cookieParser());
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '512kb' }));
-
-  // Helmet with CSP & HSTS
-  const CDN_ORIGINS = String(process.env.CDN_ORIGINS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  app.use(
-    helmet({
-      crossOriginResourcePolicy: { policy: 'same-site' },
-      contentSecurityPolicy: {
-        useDefaults: true,
-        directives: {
-          defaultSrc: ["'self'"],
-          baseUri: ["'self'"],
-          frameAncestors: ["'none'"],
-          objectSrc: ["'none'"],
-          connectSrc: ["'self'", ...allowedOrigins, process.env.SOCKET_ORIGIN || '', process.env.API_ORIGIN || ''].filter(Boolean),
-          imgSrc: ["'self'", 'data:', 'blob:', ...CDN_ORIGINS],
-          mediaSrc: ["'self'", 'data:', 'blob:', ...CDN_ORIGINS],
-          scriptSrc: ["'self'", "'unsafe-inline'"], // replace with nonces when ready
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-          upgradeInsecureRequests: isProd ? [] : null,
-        },
-      },
-      hsts: isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
-      referrerPolicy: { policy: 'no-referrer' },
-      crossOriginEmbedderPolicy: false,
-    })
-  );
-
   app.use(compression());
+
+  // Replace ad-hoc json/urlencoded with central body limits
+  app.use(bodyLimits()); // JSON/x-www-form-urlencoded caps; uploads still go via Multer
 
   // CSRF (skip webhook). In tests, CSRF is a no-op to unblock supertest flows.
   const csrfMw = isTest
@@ -197,11 +154,6 @@ export function createApp() {
 
   // Explicit CSRF priming endpoint so the client gets 200 (not 404)
   app.get('/auth/csrf', (_req, res) => res.json({ ok: true }));
-
-  /* =========================
-   *   Static assets (uploads)
-   * ========================= */
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   /* =========================
    *   Health endpoints
@@ -250,6 +202,7 @@ export function createApp() {
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
   app.use('/calls', callsRouter);
+  app.use('/webhooks/sms', smsWebhooks);
 
   // IMPORTANT: tests hit /rooms and /messages.
   app.use('/rooms', roomsRouter);
@@ -262,6 +215,8 @@ export function createApp() {
   app.use('/invites', invitesRouter);
   app.use('/media', mediaRouter);
   app.use('/devices', devicesRouter);
+  app.use('/backups', backupsRouter);
+  app.use('/uploads', uploadsRouter); // secure, ACL-checked download/upload routes
 
   // Contacts bulk import (mounted under /api to match your Vite proxy)
   app.use('/api', contactsImportRouter);
@@ -271,7 +226,10 @@ export function createApp() {
    * ========================= */
   const STATUS_ENABLED_FLAG = String(process.env.STATUS_ENABLED || '').toLowerCase() === 'true';
   const STATUS_ENABLED = isTest ? true : STATUS_ENABLED_FLAG; // always enable in tests
-  logger.info({ service: 'chatorbit-server', env: process.env.NODE_ENV, STATUS_ENABLED }, 'Status routes feature flag');
+  logger.info(
+    { service: 'chatorbit-server', env: process.env.NODE_ENV, STATUS_ENABLED },
+    'Status routes feature flag'
+  );
   if (STATUS_ENABLED) {
     app.use('/status', statusReadLimiter);
     app.use('/status', statusRoutes);

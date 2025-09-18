@@ -425,7 +425,6 @@ router.get(
 /* =========================
  *      PASSWORD RESET
  * ========================= */
-const __testTokens = new Map(); // token -> { userId, expMs }
 
 router.post(
   '/forgot-password',
@@ -433,16 +432,17 @@ router.post(
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'user not found' });
+    // Case-insensitive match
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true, username: true, email: true },
+    });
 
-    let token;
-    try {
-      token = await issueResetToken(user.id);
-    } catch {
-      token = crypto.randomUUID();
-      __testTokens.set(token, { userId: user.id, expMs: Date.now() + 60 * 60 * 1000 });
-    }
+    // Always return 200 to avoid user enumeration
+    if (!user) return res.json({ message: 'If the email exists, a reset link will be sent' });
+
+    // Create persistent, hashed token and email the plaintext
+    const token = await issueResetToken(user.id);
 
     const base = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
     const resetLink = `${base.replace(/\/+$/, '')}/reset-password?token=${token}`;
@@ -450,28 +450,30 @@ router.post(
     try {
       const info = await transporter.sendMail({
         from: '"ChatOrbit Support" <no-reply@chatorbit.com>',
-        to: email,
+        to: user.email,
         subject: 'Reset Your ChatOrbit Password',
         html: `<p>Hello ${user.username || 'there'},</p>
-        <p>Click below to reset your password. This link will expire shortly.</p>
-        <p><a href="${resetLink}">Reset Password</a></p>
-        <p>If you didn’t request this, you can safely ignore this email.</p>`,
+          <p>Click below to reset your password. This link expires in about ${process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 30} minutes.</p>
+          <p><a href="${resetLink}">Reset Password</a></p>
+          <p>If you didn’t request this, you can safely ignore this email.</p>`,
       });
 
       return res.json({
-        message: 'Password reset link sent',
+        message: 'If the email exists, a reset link will be sent',
         previewURL: nodemailer.getTestMessageUrl(info) || null,
         ...(process.env.NODE_ENV === 'test' ? { token } : {}),
       });
     } catch {
+      // If email fails, still 200 (doesn’t reveal existence)
       return res.json({
-        message: 'Password reset link prepared',
+        message: 'If the email exists, a reset link will be sent',
         previewURL: null,
         ...(process.env.NODE_ENV === 'test' ? { token } : {}),
       });
     }
   })
 );
+
 
 router.post(
   '/reset-password',
@@ -481,12 +483,11 @@ router.post(
     if (!token || !newPassword) {
       return res.status(400).json({ error: 'Token and new password required' });
     }
-
-    let userId = await consumeResetToken(token);
-    if (!userId && process.env.NODE_ENV === 'test') {
-      const rec = __testTokens.get(token);
-      if (rec && rec.expMs > Date.now()) userId = rec.userId;
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Password too short' });
     }
+
+    const userId = await consumeResetToken(token);
     if (!userId) return res.status(400).json({ error: 'Invalid or expired token' });
 
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -499,5 +500,6 @@ router.post(
     return res.json({ message: 'Password reset successful' });
   })
 );
+
 
 export default router;

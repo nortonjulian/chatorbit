@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'node:crypto';
 
 const ROOT = process.env.UPLOADS_DIR || path.resolve('uploads'); // private root for local/disk
 const AVATARS_DIR = path.join(ROOT, 'avatars');
@@ -74,6 +75,56 @@ function makeUploader({ kind = 'media', maxFiles = 10, maxBytes = 15 * 1024 * 10
     fileFilter,
     limits: { files: maxFiles, fileSize: maxBytes },
   });
+}
+
+/** One-off single-file uploader in memory (good for dedup + external storage pipes) */
+export const singleUploadMemory = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: makeFileFilter({ imagesOnly: false }),
+  limits: { files: 1, fileSize: 15 * 1024 * 1024 }, // 15MB default; tune as needed
+}).single('file');
+
+/** SHA-256 of a Buffer (for dedup keys) */
+export function sha256(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/** Suggest a safe filename based on original name + known extension policy */
+export function buildSafeName(mime, originalName) {
+  // map common mimes to preferred extensions; fall back to original ext if it’s safe
+  const preferredExt = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'application/pdf': 'pdf',
+    'text/plain': 'txt',
+    'audio/mpeg': 'mp3',
+    'audio/aac': 'aac',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'audio/webm': 'webm',
+    'audio/mp4': 'm4a',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/ogg': 'ogv',
+    'video/quicktime': 'mov',
+  }[mime];
+
+  const orig = String(originalName || '');
+  const baseOnly = orig.split('/').pop().split('\\').pop();
+  const safeBase = baseOnly.replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'file';
+
+  let ext = preferredExt;
+  if (!ext) {
+    // if we don't have a preferred ext, keep the original if it’s not in DISALLOWED_EXT
+    const origExt = path.extname(baseOnly || '').toLowerCase();
+    ext = DISALLOWED_EXT.has(origExt) ? 'bin' : (origExt.replace('.', '') || 'bin');
+  }
+
+  // ensure we don’t end up with double extensions
+  const baseNoExt = safeBase.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+  return { ext, suggested: `${baseNoExt}.${ext}` };
 }
 
 // Export ready-to-use middlewares
