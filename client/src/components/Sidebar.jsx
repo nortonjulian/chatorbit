@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
   Group,
@@ -14,13 +14,22 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings } from 'lucide-react';
 
 import StartChatModal from './StartChatModal';
-import ChatroomsSidebar from './ChatroomsSidebar'; // <-- new sidebar list with loading/empty/error handling
+import ChatroomsSidebar from './ChatroomsSidebar';
 import UserProfile from './UserProfile';
+
+// Ads
+import { AdSlot } from '@/ads/AdSlot';
+import { PLACEMENTS } from '@/ads/placements';
 
 function Sidebar({ currentUser, setSelectedRoom, features }) {
   const [showStartModal, setShowStartModal] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
+
+  const isPremium = useMemo(
+    () => String(currentUser?.plan || 'FREE').toUpperCase() === 'PREMIUM',
+    [currentUser?.plan]
+  );
 
   const handleStartChat = () => {
     if (!currentUser) return;
@@ -66,13 +75,21 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       </Stack>
 
       {/* Main sidebar content */}
-      <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 160px)">
+      <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 200px)">
         <Stack gap="md">
-          {/* Chatrooms list (renders: skeleton → list OR nothing/compact empty state) */}
+          {/* Chatrooms list */}
           <ChatroomsSidebar
             onStartNewChat={() => setShowStartModal(true)}
-            onSelect={setSelectedRoom} // optional: implement inside ChatroomsSidebar to call when a room is clicked
+            onSelect={setSelectedRoom}
           />
+
+          {/* Sidebar ad (Free tier only) */}
+          {!isPremium && (
+            <>
+              <Divider my="xs" />
+              <AdSlot placement={PLACEMENTS.SIDEBAR_PRIMARY} />
+            </>
+          )}
         </Stack>
       </ScrollArea.Autosize>
 

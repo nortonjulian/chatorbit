@@ -14,14 +14,16 @@ import './i18n';
 import { SocketProvider } from './context/SocketContext';
 import { UserProvider } from './context/UserContext';
 import { CallProvider } from './context/CallContext';
+import { AdProvider } from './ads/AdProvider.jsx';
+
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 import { chatOrbitTheme } from './theme';
-import { primeCsrf } from './api/axiosClient'; // <-- CSRF priming
+import { primeCsrf } from './api/axiosClient';
 
 const isProd = import.meta.env.PROD;
 
-// Sentry v8: use integration factories
+/* ---------------- Sentry (prod only) ---------------- */
 if (isProd && import.meta.env.VITE_SENTRY_DSN) {
   (async () => {
     const integrations = [Sentry.browserTracingIntegration()];
@@ -31,6 +33,7 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
         const { replayIntegration } = await import('@sentry/replay');
         integrations.push(replayIntegration());
       } catch {
+        // eslint-disable-next-line no-console
         console.warn('[sentry] @sentry/replay not installed; continuing without it');
       }
     }
@@ -48,7 +51,7 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
   })();
 }
 
-// DEV-only a11y audit (best-effort)
+/* ------------- Dev-only a11y audit (best-effort) ------------- */
 if (import.meta.env.DEV) {
   Promise.all([import('@axe-core/react'), import('react'), import('react-dom')])
     .then(([{ default: axe }, ReactMod, ReactDOMMod]) => {
@@ -59,6 +62,7 @@ if (import.meta.env.DEV) {
     .catch(() => {});
 }
 
+/* ---------------- Theming helpers ---------------- */
 function getInitialScheme() {
   const saved = localStorage.getItem('co-theme');
   if (saved === 'dark' || saved === 'light') return saved;
@@ -75,10 +79,11 @@ const theme = createTheme({
   },
 });
 
+/* ---------------- Root ---------------- */
 function Root() {
   const [scheme, setScheme] = React.useState(getInitialScheme());
 
-  // Prime CSRF cookie/header once at app startup so subsequent POSTs succeed
+  // Prime CSRF cookie/header once at app startup
   React.useEffect(() => {
     primeCsrf();
   }, []);
@@ -95,14 +100,19 @@ function Root() {
         {/* IMPORTANT: SocketProvider must wrap UserProvider */}
         <SocketProvider>
           <UserProvider>
-            <CallProvider>
-              <BrowserRouter>
-                <App
-                  themeScheme={scheme}
-                  onToggleTheme={() => setScheme((s) => (s === 'light' ? 'dark' : 'light'))}
-                />
-              </BrowserRouter>
-            </CallProvider>
+            {/* AdProvider needs to be inside UserProvider so it can read plan and disable ads for Premium */}
+            <AdProvider>
+              <CallProvider>
+                <BrowserRouter>
+                  <App
+                    themeScheme={scheme}
+                    onToggleTheme={() =>
+                      setScheme((s) => (s === 'light' ? 'dark' : 'light'))
+                    }
+                  />
+                </BrowserRouter>
+              </CallProvider>
+            </AdProvider>
           </UserProvider>
         </SocketProvider>
       </MantineProvider>
@@ -110,6 +120,7 @@ function Root() {
   );
 }
 
+/* ---------------- Mount ---------------- */
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Root />

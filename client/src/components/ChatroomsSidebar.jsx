@@ -8,9 +8,14 @@ import {
   Alert,
   Badge,
   UnstyledButton,
+  Divider,
 } from '@mantine/core';
 import { IconMessagePlus } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
+
+import { AdSlot } from '@/ads/AdSlot';
+import { PLACEMENTS } from '@/ads/placements';
+import useIsPremium from '@/hooks/useIsPremium';
 
 export default function ChatroomsSidebar({
   onStartNewChat,         // () => void
@@ -21,6 +26,7 @@ export default function ChatroomsSidebar({
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const isPremium = useIsPremium();
 
   useEffect(() => {
     let mounted = true;
@@ -30,10 +36,7 @@ export default function ChatroomsSidebar({
       try {
         setLoading(true);
         setErr('');
-        const res = await axiosClient.get('/rooms', {
-          signal: ctrl.signal,
-          // withCredentials not needed if axiosClient is already configured
-        });
+        const res = await axiosClient.get('/rooms', { signal: ctrl.signal });
         if (!mounted) return;
         const data = res?.data;
         const list = Array.isArray(data) ? data : (data?.rooms || []);
@@ -63,6 +66,12 @@ export default function ChatroomsSidebar({
     return (
       <Stack p="sm" gap="sm">
         <Text fw={600}>Chatrooms</Text>
+        {!isPremium && (
+          <>
+            <AdSlot placement={PLACEMENTS.SIDEBAR_PRIMARY} />
+            <Divider my={6} />
+          </>
+        )}
         {Array.from({ length: 7 }).map((_, i) => (
           <Skeleton key={i} height={46} radius="md" />
         ))}
@@ -74,6 +83,12 @@ export default function ChatroomsSidebar({
     return (
       <Stack p="sm" gap="sm">
         <Text fw={600}>Chatrooms</Text>
+        {!isPremium && (
+          <>
+            <AdSlot placement={PLACEMENTS.SIDEBAR_PRIMARY} />
+            <Divider my={6} />
+          </>
+        )}
         <Alert color="red" variant="light">{err}</Alert>
         <Button onClick={() => window.location.reload()}>Retry</Button>
       </Stack>
@@ -85,13 +100,24 @@ export default function ChatroomsSidebar({
     return (
       <Stack p="sm" gap="sm">
         <Text fw={600}>Chatrooms</Text>
+
+        {/* Top banner ad in the sidebar (free only) */}
+        {!isPremium && (
+          <>
+            <AdSlot placement={PLACEMENTS.SIDEBAR_PRIMARY} />
+            <Divider my={6} />
+          </>
+        )}
+
         <Text c="dimmed" size="sm">No conversations yet.</Text>
-        <Button
-          leftSection={<IconMessagePlus size={16} />}
-          onClick={onStartNewChat}
-        >
+        <Button leftSection={<IconMessagePlus size={16} />} onClick={onStartNewChat}>
           New chat
         </Button>
+
+        {/* House promo for empty state (free only; house-only placement) */}
+        {!isPremium && (
+          <AdSlot placement={PLACEMENTS.EMPTY_STATE_PROMO} />
+        )}
       </Stack>
     );
   }
@@ -100,32 +126,52 @@ export default function ChatroomsSidebar({
     <Stack p="sm" gap="xs">
       <Text fw={600}>Chatrooms</Text>
 
-      {rooms.map((r) => {
+      {/* Primary sidebar ad at the top of the list (free only) */}
+      {!isPremium && (
+        <>
+          <AdSlot placement={PLACEMENTS.SIDEBAR_PRIMARY} />
+          <Divider my={6} />
+        </>
+      )}
+
+      {rooms.map((r, idx) => {
         const title = r.title || r.name || r.displayName || `Room #${r.id}`;
         const unread = r.unreadCount || r._count?.unread || 0;
 
         return (
-          <UnstyledButton
-            key={r.id}
-            onClick={() => onSelect?.(r)}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: 12,
-              background:
-                String(r.id) === String(activeRoomId) ? 'var(--mantine-color-gray-1)' : 'transparent',
-            }}
-          >
-            <Group justify="space-between" wrap="nowrap">
-              <Text truncate fw={500}>{title}</Text>
-              {!!unread && <Badge size="sm" variant="light">{unread}</Badge>}
-            </Group>
-            {r.lastMessage?.content && (
-              <Text size="sm" c="dimmed" lineClamp={1} mt={4}>
-                {r.lastMessage.content}
-              </Text>
+          <div key={r.id}>
+            <UnstyledButton
+              onClick={() => onSelect?.(r)}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 12,
+                background:
+                  String(r.id) === String(activeRoomId)
+                    ? 'var(--mantine-color-gray-1)'
+                    : 'transparent',
+              }}
+            >
+              <Group justify="space-between" wrap="nowrap">
+                <Text truncate fw={500}>{title}</Text>
+                {!!unread && <Badge size="sm" variant="light">{unread}</Badge>}
+              </Group>
+              {r.lastMessage?.content && (
+                <Text size="sm" c="dimmed" lineClamp={1} mt={4}>
+                  {r.lastMessage.content}
+                </Text>
+              )}
+            </UnstyledButton>
+
+            {/* Inject a secondary sidebar ad after a few items (free only) */}
+            {!isPremium && idx === 2 && (
+              <>
+                <Divider my={6} />
+                <AdSlot placement={PLACEMENTS.SIDEBAR_SECONDARY} />
+                <Divider my={6} />
+              </>
             )}
-          </UnstyledButton>
+          </div>
         );
       })}
     </Stack>

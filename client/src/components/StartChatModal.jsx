@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import ContactList from './ContactList';
@@ -15,6 +15,13 @@ import {
   Text,
   Paper,
 } from '@mantine/core';
+
+// Ads
+import { AdSlot } from '@/ads/AdSlot';
+import { PLACEMENTS } from '@/ads/placements';
+
+// Premium gating (don’t show ads to Premium)
+import useIsPremium from '@/hooks/useIsPremium';
 
 export default function StartChatModal({ currentUserId, onClose }) {
   const [query, setQuery] = useState('');
@@ -35,6 +42,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
   const [adding, setAdding] = useState(false);
 
   const navigate = useNavigate();
+  const isPremium = useIsPremium();
 
   const savedMap = useMemo(() => {
     const map = new Map();
@@ -148,6 +156,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
           externalName: addAlias || '',
           alias: addAlias || undefined,
         });
+        // optional invite; ignore result
         axiosClient.post('/invites', { phone: raw, name: addAlias }).catch(() => {});
       } else {
         const res = await axiosClient.get('/users/search', { params: { query: raw } });
@@ -284,6 +293,13 @@ export default function StartChatModal({ currentUserId, onClose }) {
                 </Paper>
               );
             })}
+
+            {/* Ad under search results (free users only) */}
+            {!isPremium && (
+              <div style={{ marginTop: 8 }}>
+                <AdSlot placement={PLACEMENTS.SEARCH_RESULTS_FOOTER} />
+              </div>
+            )}
           </Stack>
         ) : (
           <Text c="dimmed">No results</Text>
@@ -291,7 +307,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
 
         <Divider label="Or pick from contacts" labelPosition="center" my="xs" />
 
-        {/* Saved contacts list with actions */}
+        {/* Saved contacts list with actions; feeds `contacts` via onLoaded */}
         <ScrollArea style={{ maxHeight: 300 }}>
           <ContactList onLoaded={setContacts} />
         </ScrollArea>
@@ -327,11 +343,19 @@ export default function StartChatModal({ currentUserId, onClose }) {
           </Button>
         </Group>
 
+        {/* Footer actions */}
         <Group justify="flex-end" mt="xs">
           <Button variant="subtle" onClick={onClose}>
             Close
           </Button>
         </Group>
+
+        {/* Modal footer ad (free users only) */}
+        {!isPremium && (
+          <div style={{ marginTop: 8 }}>
+            <AdSlot placement={PLACEMENTS.START_CHAT_MODAL_FOOTER} />
+          </div>
+        )}
       </Stack>
     </Modal>
   );

@@ -15,8 +15,16 @@ import {
 import { IconRefresh, IconTrash, IconMessagePlus } from '@tabler/icons-react';
 import { toast } from '../utils/toast';
 
+// ✅ Ads
+import { AdSlot } from '@/ads/AdSlot';
+import { PLACEMENTS } from '@/ads/placements';
+
+// ✅ Premium check
+import useIsPremium from '@/hooks/useIsPremium';
+
 export default function ContactList({ onLoaded }) {
   const navigate = useNavigate();
+  const isPremium = useIsPremium();
 
   const [items, setItems] = useState([]);             // contacts array
   const [nextCursor, setNextCursor] = useState(null); // server pagination cursor
@@ -121,6 +129,13 @@ export default function ContactList({ onLoaded }) {
           <IconRefresh size={18} />
         </ActionIcon>
       </Group>
+
+      {/* 🔸 Top banner ad for free users */}
+      {!isPremium && (
+        <Box mb="sm">
+          <AdSlot placement={PLACEMENTS.CONTACTS_TOP_BANNER} />
+        </Box>
+      )}
 
       <TextInput
         placeholder="Search contacts…"

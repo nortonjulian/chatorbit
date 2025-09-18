@@ -36,6 +36,7 @@ import AuditLogsPage from '@/pages/AuditLogsPage';
 // Feature flags
 import { fetchFeatures } from '@/lib/features';
 import StatusFeed from '@/pages/StatusFeed.jsx';
+import Advertise from './pages/Advertise';
 
 // Calls (ring modal + in-call UI)
 import IncomingCallModal from '@/components/IncomingCallModal.jsx';
