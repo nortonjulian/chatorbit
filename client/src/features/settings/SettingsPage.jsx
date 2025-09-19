@@ -3,6 +3,7 @@ import SoundSettings from '@/components/SoundSettings';
 import ThemePicker from '@/features/settings/ThemePicker';
 import PrivacyToggles from '@/features/settings/PrivacyToggles';
 import AgeSettings from '@/features/settings/AgeSettings';
+import ForwardingSettings from '@/features/settings/ForwardingSettings.jsx';
 
 export default function SettingsPage() {
   return (
@@ -28,6 +29,12 @@ export default function SettingsPage() {
       {/* Safety & Age */}
       <Title order={3}>Safety &amp; Age</Title>
       <AgeSettings />
+
+      <Divider />
+
+      {/* Call & Text Forwarding */}
+      <Title order={3}>Call &amp; Text Forwarding</Title>
+      <ForwardingSettings />
     </Stack>
   );
 }

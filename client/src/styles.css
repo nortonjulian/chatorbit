@@ -1,13 +1,69 @@
-/* Keep logo + wordmark tight and left-aligned */
-.brand-lockup {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 0.5rem !important;
-  width: max-content !important;   /* prevents full-width stretching */
+/* ---------- Focus visibility (keyboard only) ---------- */
+:root {
+  --focus-ring: #3b82f6; /* tweak to match your theme primary */
+  --focus-outline: 3px solid var(--focus-ring);
 }
 
-/* If you ever flip the page to RTL */
-html[dir="rtl"] .brand-lockup {
-  flex-direction: row-reverse !important;
+:focus {
+  outline: none;
 }
+
+/* only show outlines for keyboard users */
+:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* make sure Mantine components without outlines still show a ring on keyboard focus */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus-ring) 35%, transparent);
+}
+
+/* ---------- Skip-to-content link ---------- */
+.skip-to-content {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateY(-150%);
+  background: #111;
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  z-index: 10000;
+  border-radius: 0 0 8px 0;
+  transition: transform 120ms ease-in-out;
+}
+.skip-to-content:focus,
+.skip-to-content:focus-visible {
+  transform: translateY(0);
+}
+
+/* ---------- Screen-reader-only helper ---------- */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 1px, 1px) !important;
+  white-space: nowrap !important; /* added line */
+  border: 0 !important;
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* keep your existing brand lockup rules */

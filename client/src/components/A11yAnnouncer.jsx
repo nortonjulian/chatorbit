@@ -24,22 +24,24 @@ export default function A11yAnnouncer() {
     return () => { delete window.__announce; };
   }, []);
 
-  const srOnly = {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0,0,0,0)',
-    whiteSpace: 'nowrap',
-    border: 0,
-  };
-
   return (
     <div ref={ref} aria-hidden="false">
-      <div aria-live="polite" aria-atomic="true" style={srOnly}>{politeMsg}</div>
-      <div aria-live="assertive" aria-atomic="true" style={srOnly}>{assertiveMsg}</div>
+      <div
+        id="a11y-announcer-polite"
+        className="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {politeMsg}
+      </div>
+      <div
+        id="a11y-announcer-assertive"
+        className="sr-only"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {assertiveMsg}
+      </div>
     </div>
   );
 }

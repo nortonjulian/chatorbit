@@ -38,6 +38,7 @@ export default function NewStatusModal({ opened, onClose }) {
           }));
       setContactOptions(opts);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error('load contacts failed', e);
     }
   };
@@ -70,6 +71,7 @@ export default function NewStatusModal({ opened, onClose }) {
       setAudience('MUTUALS');
       setExpire(24 * 3600);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error('post status failed', e);
       notifications.show({
         message: 'Failed to post status',
@@ -81,11 +83,13 @@ export default function NewStatusModal({ opened, onClose }) {
     }
   };
 
+  const isEmptyPost = !caption.trim() && files.length === 0;
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title="New Status"
+      title="Create a status"
       centered
       withCloseButton
       closeOnEscape
@@ -94,12 +98,16 @@ export default function NewStatusModal({ opened, onClose }) {
     >
       <Stack>
         <Textarea
-          label="Caption"
-          placeholder="What’s up?"
+          label="What’s on your mind?"
+          placeholder="Share an update…"
+          aria-label="Status message"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onClose?.();
+          }}
           autosize
-          minRows={2}
+          minRows={3}
         />
 
         <Group grow>
@@ -107,8 +115,9 @@ export default function NewStatusModal({ opened, onClose }) {
             label="Audience"
             value={audience}
             onChange={(v) => {
-              setAudience(v || 'MUTUALS');
-              if (v === 'CUSTOM' && contactOptions.length === 0) loadContacts();
+              const next = v || 'MUTUALS';
+              setAudience(next);
+              if (next === 'CUSTOM' && contactOptions.length === 0) loadContacts();
             }}
             data={[
               { value: 'PUBLIC', label: 'Public' },
@@ -154,6 +163,7 @@ export default function NewStatusModal({ opened, onClose }) {
 
         <Group justify="flex-end" mt="sm">
           <Button
+            type="button"
             variant="light"
             onClick={onClose}
             aria-label="Cancel posting status"
@@ -161,9 +171,11 @@ export default function NewStatusModal({ opened, onClose }) {
             Cancel
           </Button>
           <Button
+            type="button"
             loading={busy}
             onClick={onSubmit}
             aria-label="Post status"
+            disabled={isEmptyPost}
           >
             Post
           </Button>

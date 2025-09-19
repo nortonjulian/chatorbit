@@ -483,6 +483,29 @@ model Upload {
   @@index([sha256])
 }
 
+model SmsThread {
+  id            Int       @id @default(autoincrement())
+  user          User      @relation(fields: [userId], references: [id])
+  userId        Int
+  contactPhone  String    @db.VarChar(32) // normalized E.164 of the *other party*
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  messages      SmsMessage[]
+  @@unique([userId, contactPhone])
+}
+
+model SmsMessage {
+  id          Int       @id @default(autoincrement())
+  thread      SmsThread @relation(fields: [threadId], references: [id])
+  threadId    Int
+  direction   String    // 'in' | 'out'
+  fromNumber  String    @db.VarChar(32)
+  toNumber    String    @db.VarChar(32)
+  body        String
+  provider    String?
+  createdAt   DateTime  @default(now())
+}
+
 // ===================== 4) Contacts, Reports, Auditing =====================
 
 model Contact {

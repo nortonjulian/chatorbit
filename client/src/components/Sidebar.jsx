@@ -11,7 +11,7 @@ import {
   Button,
 } from '@mantine/core';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings } from 'lucide-react';
+import { Plus, Users, Settings, PhoneForwarded } from 'lucide-react';
 
 import StartChatModal from './StartChatModal';
 import ChatroomsSidebar from './ChatroomsSidebar';
@@ -20,6 +20,9 @@ import UserProfile from './UserProfile';
 // Ads
 import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
+
+// NEW
+import ForwardingSettings from '@/features/settings/ForwardingSettings.jsx';
 
 function Sidebar({ currentUser, setSelectedRoom, features }) {
   const [showStartModal, setShowStartModal] = useState(false);
@@ -72,18 +75,28 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       {/* Optional quick links */}
       <Stack gap="xs" mb="sm">
         {features?.status && <NavLink to="/status">Status</NavLink>}
+        {/* NEW: Forwarding link (jumps into settings drawer) */}
+        {currentUser && (
+          <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<PhoneForwarded size={16} />}
+            onClick={() => setProfileOpen(true)}
+            aria-label="Open call and text forwarding settings"
+          >
+            Call & Text Forwarding
+          </Button>
+        )}
       </Stack>
 
       {/* Main sidebar content */}
       <ScrollArea.Autosize style={{ flex: 1 }} mah="calc(100vh - 200px)">
         <Stack gap="md">
-          {/* Chatrooms list */}
           <ChatroomsSidebar
             onStartNewChat={() => setShowStartModal(true)}
             onSelect={setSelectedRoom}
           />
 
-          {/* Sidebar ad (Free tier only) */}
           {!isPremium && (
             <>
               <Divider my="xs" />
@@ -93,7 +106,6 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
         </Stack>
       </ScrollArea.Autosize>
 
-      {/* Start Chat modal */}
       {showStartModal && currentUser && (
         <StartChatModal
           currentUserId={currentUser?.id}
@@ -112,7 +124,12 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
         overlayProps={{ opacity: 0.15, blur: 2 }}
       >
         {currentUser ? (
-          <UserProfile onLanguageChange={() => {}} />
+          <Stack gap="xl">
+            <UserProfile onLanguageChange={() => {}} />
+            <Divider />
+            {/* Forwarding section inside drawer */}
+            <ForwardingSettings />
+          </Stack>
         ) : (
           <Stack gap="sm">
             <Text c="dimmed">Log in to edit your settings.</Text>

@@ -122,23 +122,33 @@ export default function VideoCall() {
         {/* controls */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
           <button
+            type="button"
             onClick={toggleMic}
+            onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleMic(); } }}
             className={`px-4 py-2 rounded-full ${micOn ? 'bg-white/10 text-white' : 'bg-red-600 text-white'}`}
             title={micOn ? 'Mute microphone' : 'Unmute microphone'}
             aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}
+            aria-pressed={!micOn}            // <- pressed = muted
           >
             {micOn ? 'Mute' : 'Unmute'}
           </button>
+
           <button
+            type="button"
             onClick={toggleCam}
+            onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleCam(); } }}
             className={`px-4 py-2 rounded-full ${camOn ? 'bg-white/10 text-white' : 'bg-yellow-600 text-white'}`}
             title={camOn ? 'Turn camera off' : 'Turn camera on'}
             aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}
+            aria-pressed={!camOn}            // <- pressed = camera off
           >
             {camOn ? 'Camera Off' : 'Camera On'}
           </button>
+
           <button
+            type="button"
             onClick={handleEndCall}
+            onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); handleEndCall(); } }}
             className="px-4 py-2 rounded-full bg-red-700 text-white"
             title="Hang up"
             aria-label="Hang up"

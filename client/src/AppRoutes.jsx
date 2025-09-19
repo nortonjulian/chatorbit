@@ -54,6 +54,10 @@ import SettingsPage from '@/features/settings/SettingsPage';
 // Index route content — reads selectedRoom from Outlet context
 import HomeIndex from '@/features/chat/HomeIndex';
 
+// ✅ NEW: SMS pages
+import SmsThreads from '@/pages/SmsThreads.jsx';
+import SmsThreadView from '@/pages/SmsThreadView.jsx';
+
 function AuthedLayout() {
   const [opened, { toggle }] = useDisclosure();
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -81,8 +85,8 @@ function AuthedLayout() {
         localStorage.clear();
         sessionStorage.clear();
       } catch {}
-      setCurrentUser(null);
-      window.location.assign('/login');
+        setCurrentUser(null);
+        window.location.assign('/login');
     }
   };
 
@@ -106,10 +110,20 @@ function AuthedLayout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" />
+            <Burger
+              opened={opened}
+              onClick={toggle}
+              hiddenFrom="sm"
+              aria-label={opened ? 'Close navigation menu' : 'Open navigation menu'}
+            />
             <Title order={3}>ChatOrbit</Title>
           </Group>
-          <Button color="red" variant="filled" onClick={handleLogout}>
+          <Button
+            color="red"
+            variant="filled"
+            onClick={handleLogout}
+            aria-label="Log out"
+          >
             Log Out
           </Button>
         </Group>
@@ -192,6 +206,10 @@ export default function AppRoutes() {
 
         {/* feature-flagged */}
         <Route path="status" element={<StatusFeed />} />
+
+        {/* ✅ NEW: SMS */}
+        <Route path="sms" element={<SmsThreads />} />
+        <Route path="sms/threads/:id" element={<SmsThreadView />} />
 
         {/* Admin */}
         <Route

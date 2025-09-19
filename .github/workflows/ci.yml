@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [server, client]
+
+    # We keep Postgres available; only the server job actually uses it.
+    services:
+      postgres:
+        image: postgres:16
+        ports: [ '5432:5432' ]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      # Shared CI env
+      NODE_ENV: test
+      CI: 'true'
+      JWT_SECRET: test-secret
+      FRONTEND_ORIGIN: http://localhost:5173
+      VITE_API_URL: http://localhost:5002
+      COOKIE_SECURE: 'false'
+      CORS_ORIGINS: http://localhost:5173
+      STATUS_ENABLED: 'true'
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      STRIPE_SKIP_SIG_CHECK: 'true'
+      # Server-only env (harmless for client axis)
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      # Quick env validation (both axes; harmless for client)
+      - name: Env sanity (lint-only check)
+        run: |
+          node -e "import('./server/config/validateEnv.js').then(m=>{try{m.default();console.log('env ok')}catch(e){console.error(e.message);process.exit(1)}})"
+
+      # Only wait for Postgres on the server axis
+      - name: Wait for Postgres
+        if: matrix.project == 'server'
+        run: |
+          for i in {1..30}; do
+            nc -z localhost 5432 && echo 'Postgres up' && exit 0
+            echo 'Waiting for Postgres...'
+            sleep 2
+          done
+          echo 'Postgres never became ready' >&2
+          exit 1
+
+      # Prisma only on server axis
+      - name: Prisma generate (server)
+        if: matrix.project == 'server'
+        working-directory: server
+        run: npx prisma generate
+
+      - name: Prisma migrate deploy (server)
+        if: matrix.project == 'server'
+        working-directory: server
+        run: npx prisma migrate deploy
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run format:check
+
+      - name: Tests
+        run: npm run test:${{ matrix.project }}
+
+      # Optional: build steps (kept to match your previous workflow)
+      - name: Build (server)
+        if: matrix.project == 'server'
+        run: npm run build --workspace server
+
+      - name: Build (client)
+        if: matrix.project == 'client'
+        run: npm run build --workspace client
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.project }}
+          path: ${{ matrix.project }}/coverage/**
+
+  # (Optional) Gate a deploy job on passing unit tests
+  # deploy:
+  #   needs: [unit]
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Trigger staging deploy
+  #       run: echo "hook to Render/your platform here"

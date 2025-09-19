@@ -11,6 +11,7 @@ initCrons();
 // Sentry + logging
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import { requestId } from './middleware/requestId.js';
 import pinoHttp from 'pino-http';
 import logger from './utils/logger.js';
 
@@ -36,6 +37,9 @@ import billingRouter from './routes/billing.js';   // static import (no top-leve
 import billingWebhook from './routes/billingWebhook.js';
 import contactsImportRouter from './routes/contactsImport.js';
 import uploadsRouter from './routes/uploads.js';
+import smsRouter from './routes/sms.js';
+import voiceRouter from './routes/voice.js';
+import settingsForwardingRouter from './routes/settings.forwarding.js';
 
 // Errors
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -95,11 +99,29 @@ export function createApp() {
   app.use(
     pinoHttp({
       logger,
-      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
+      autoLogging: true,
+      // use the id set by your requestId() middleware
+      genReqId: (req) => req.id,
+      // attach useful fields to every log
+      customProps: (req) => ({
+        requestId: req.id,
+        userId: req.user?.id ?? null,
+        method: req.method,
+        path: req.originalUrl || req.url,
+      }),
+      // keep your level mapping
       customLogLevel: (req, res, err) => {
         if (err || res.statusCode >= 500) return 'error';
         if (res.statusCode >= 400) return 'warn';
         return 'info';
+      },
+      // keep sensitive headers out of logs
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+        ],
       },
     })
   );
@@ -132,6 +154,7 @@ export function createApp() {
    * ========================= */
   app.use(cookieParser());
   app.use(compression());
+  app.use(requestId());
 
   // Replace ad-hoc json/urlencoded with central body limits
   app.use(bodyLimits()); // JSON/x-www-form-urlencoded caps; uploads still go via Multer
@@ -203,6 +226,7 @@ export function createApp() {
   app.use('/users', usersRouter);
   app.use('/calls', callsRouter);
   app.use('/webhooks/sms', smsWebhooks);
+  app.use('/voice', voiceRouter);
 
   // IMPORTANT: tests hit /rooms and /messages.
   app.use('/rooms', roomsRouter);
@@ -216,7 +240,9 @@ export function createApp() {
   app.use('/media', mediaRouter);
   app.use('/devices', devicesRouter);
   app.use('/backups', backupsRouter);
-  app.use('/uploads', uploadsRouter); // secure, ACL-checked download/upload routes
+  app.use('/uploads', uploadsRouter); 
+  app.use('/sms', smsRouter);
+  app.use('/settings', settingsForwardingRouter);
 
   // Contacts bulk import (mounted under /api to match your Vite proxy)
   app.use('/api', contactsImportRouter);

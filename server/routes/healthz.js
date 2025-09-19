@@ -1,5 +1,7 @@
 import express from 'express';
+import os from 'node:os';
 import prisma from '../utils/prismaClient.js';
+import { ENV } from '../config/env.js';
 
 let redisClient = null;
 async function getRedis() {
@@ -7,16 +9,19 @@ async function getRedis() {
   if (!process.env.REDIS_URL) return null;
   const { default: IoRedis } = await import('ioredis');
   redisClient = new IoRedis(process.env.REDIS_URL, { lazyConnect: true });
-  try { await redisClient.connect?.(); } catch {}
+  try {
+    await redisClient.connect?.();
+  } catch {}
   return redisClient;
 }
 
 const router = express.Router();
+
 router.get('/', async (_req, res) => {
   const startedAt = Date.now();
   const checks = { db: { ok: false }, redis: { ok: true } };
 
-  // DB
+  // DB check
   try {
     await prisma.$queryRaw`SELECT 1`;
     checks.db.ok = true;
@@ -25,16 +30,16 @@ router.get('/', async (_req, res) => {
     checks.db.error = e.message;
   }
 
-  // Redis (optional)
+  // Redis check (optional)
   try {
     const r = await getRedis();
     if (r) {
       const t0 = Date.now();
       const pong = await r.ping();
-      checks.redis.ok = (pong === 'PONG');
+      checks.redis.ok = pong === 'PONG';
       checks.redis.latencyMs = Date.now() - t0;
     } else {
-      checks.redis.ok = true;      // treat as passing if not configured
+      checks.redis.ok = true; // treat as passing if not configured
       checks.redis.skipped = true;
     }
   } catch (e) {
@@ -42,15 +47,35 @@ router.get('/', async (_req, res) => {
     checks.redis.error = e.message;
   }
 
-  const ok = Object.values(checks).every(c => c.ok);
+  // Build safe config snapshot (no secrets)
+  const corsOriginsCount =
+    (ENV.CORS_ORIGINS && ENV.CORS_ORIGINS.length) ||
+    (ENV.FRONTEND_ORIGIN ? 1 : 0);
+
+  const config = {
+    https: ENV.FORCE_HTTPS,
+    cookieSecure: ENV.COOKIE_SECURE,
+    corsOrigins: corsOriginsCount,
+    telco: ENV.TELCO_PROVIDER || 'none',
+    stripe: Boolean(ENV.STRIPE_SECRET_KEY && ENV.STRIPE_WEBHOOK_SECRET),
+    sentry: Boolean(ENV.SENTRY_DSN),
+    uploads: ENV.UPLOAD_TARGET,
+    statusFeature: ENV.STATUS_ENABLED,
+  };
+
+  const ok = Object.values(checks).every((c) => c.ok);
   const status = ok ? 200 : 503;
+
   res.status(status).json({
     ok,
     uptimeSec: Math.round(process.uptime()),
+    durationMs: Date.now() - startedAt,
     version: process.env.GIT_COMMIT_SHA || 'dev',
     node: process.version,
+    host: os.hostname(),
     checks,
-    durationMs: Date.now() - startedAt,
+    config,
   });
 });
+
 export default router;
