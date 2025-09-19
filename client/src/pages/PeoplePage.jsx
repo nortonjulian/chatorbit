@@ -4,7 +4,7 @@ import { IconSearch, IconX } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import StartChatModal from '../components/StartChatModal';
 import ContactList from '../components/ContactList';
-import ImportContactsModal from '../components/ImportContactsModal';
+import ImportContactsModal from '@/components/contacts/ImportContactsModal';
 
 export default function PeoplePage() {
   const { currentUser } = useUser();

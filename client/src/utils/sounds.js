@@ -40,10 +40,10 @@ export const ALL_RINGTONES = [
 ];
 
 /* =========================
- * Free-plan selections (exactly 3 + 3)
+ * Free-plan selections (exactly 2 + 2)
  * =======================*/
-const FREE_MESSAGE = ['Default.mp3', 'Vibrate.mp3', 'Notify.mp3'];
-const FREE_RING    = ['Classic.mp3', 'Urgency.mp3', 'Chimes.mp3'];
+const FREE_MESSAGE = ['Default.mp3', 'Vibrate.mp3'];
+const FREE_RING    = ['Classic.mp3', 'Urgency.mp3'];
 
 /* =========================
  * Defaults

@@ -1,18 +1,20 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import ImportContactsModal from '../ImportContactsModal';
 
-// Stub API
-jest.mock('../../../api/contacts', () => ({
-  importContacts: jest.fn().mockResolvedValue({
-    ok: true, added: 2, updated: 0, skippedDuplicates: 0, invalid: 0,
-  }),
-}));
+/* 1) Mocks MUST be defined before importing the component, so it captures the mock. */
+jest.mock('@/api/contacts', () => {
+  return {
+    importContacts: jest.fn().mockResolvedValue({
+      ok: true, added: 2, updated: 0, skippedDuplicates: 0, invalid: 0,
+    }),
+  };
+}, { virtual: true });
 
-// Stub toast to avoid side effects
-jest.mock('../../../utils/toast', () => ({
-  toast: { ok: jest.fn(), err: jest.fn(), info: jest.fn() },
-}));
+jest.mock('@/utils/toast', () => {
+  return { toast: { ok: jest.fn(), err: jest.fn(), info: jest.fn() } };
+}, { virtual: true });
+
+/* 2) Now import the component (it will bind to the mocked modules above). */
+import ImportContactsModal from '../src/components/ImportContactsModal.jsx';
 
 function fileFromString(name, content, type = 'text/plain') {
   return new File([content], name, { type });
@@ -20,15 +22,10 @@ function fileFromString(name, content, type = 'text/plain') {
 
 test('parses CSV and submits selected', async () => {
   const { container } = render(
-    React.createElement(ImportContactsModal, {
-      opened: true,
-      onClose: () => {},
-      defaultCountry: 'US',
-    })
+    <ImportContactsModal opened onClose={() => {}} defaultCountry="US" />
   );
 
-  // Find the first file input (CSV)
-  // Mantine FileInput renders a hidden <input type="file">; query for it directly.
+  // Select CSV file
   const inputs = container.querySelectorAll('input[type="file"]');
   expect(inputs.length).toBeGreaterThan(0);
   const csvInput = inputs[0];
@@ -40,9 +37,14 @@ test('parses CSV and submits selected', async () => {
   Object.defineProperty(csvInput, 'files', { value: [csvFile] });
   fireEvent.change(csvInput);
 
-  const submitBtn = await screen.findByRole('button', { name: /import selected/i });
+  // 3) Wait until rows are rendered (ensures Papa.parse completed)
+  await screen.findByText('Alice');
+  await screen.findByText('Bob');
+
+  // Click Import
+  const submitBtn = screen.getByRole('button', { name: /import selected/i });
   fireEvent.click(submitBtn);
 
-  const { importContacts } = require('../../../api/contacts');
-  await waitFor(() => expect(importContacts).toHaveBeenCalled());
+  const api = require('@/api/contacts');
+  await waitFor(() => expect(api.importContacts).toHaveBeenCalled());
 });

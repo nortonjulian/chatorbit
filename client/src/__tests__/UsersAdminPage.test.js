@@ -11,7 +11,8 @@ describe('UsersAdminPage', () => {
     const admin = { id: 1, username: 'root', role: 'ADMIN', plan: 'PREMIUM' };
     api.get.mockResolvedValueOnce({ data: { users: [{ id: 10, username: 'alice' }] } });
 
-    render(<UsersAdminPage />, { wrapper: withUser(admin) });
+    // Pass currentUser so the page doesn't render "Forbidden"
+    render(<UsersAdminPage currentUser={admin} />, { wrapper: withUser(admin) });
 
     await waitFor(() => {
       expect(api.get).toHaveBeenCalled();

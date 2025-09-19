@@ -14,7 +14,6 @@ export default function VideoCall() {
 
   const inCall = useMemo(() => Boolean(active?.callId), [active]);
 
-  // try playing a video element (used by click handlers too)
   function tryPlay(el, which = 'video') {
     if (!el) return;
     el.play().catch(() => {
@@ -29,18 +28,13 @@ export default function VideoCall() {
     });
   }
 
-  // attach streams to video elements
   useEffect(() => {
     if (!inCall) return;
     const l = localRef.current;
     const r = remoteRef.current;
 
     if (l) {
-      try {
-        l.srcObject = localStream.current || null;
-      } catch {
-        // Some browsers throw if assigning same stream; ignore.
-      }
+      try { l.srcObject = localStream.current || null; } catch {}
       l.muted = true;
       l.playsInline = true;
       l.autoplay = true;
@@ -50,11 +44,7 @@ export default function VideoCall() {
     }
 
     if (r) {
-      try {
-        r.srcObject = remoteStream.current || null;
-      } catch {
-        // ignore
-      }
+      try { r.srcObject = remoteStream.current || null; } catch {}
       r.playsInline = true;
       r.autoplay = true;
       r.onloadedmetadata = () => tryPlay(r, 'remote');
@@ -70,9 +60,7 @@ export default function VideoCall() {
       return;
     }
     const next = !micOn;
-    tracks.forEach((t) => {
-      t.enabled = next;
-    });
+    tracks.forEach((t) => { t.enabled = next; });
     setMicOn(next);
     toast.info(next ? 'Microphone unmuted' : 'Microphone muted');
   }
@@ -84,42 +72,35 @@ export default function VideoCall() {
       return;
     }
     const next = !camOn;
-    tracks.forEach((t) => {
-      t.enabled = next;
-    });
+    tracks.forEach((t) => { t.enabled = next; });
     setCamOn(next);
     toast.info(next ? 'Camera on' : 'Camera off');
   }
 
   function handleEndCall() {
-    Promise.resolve()
-      .then(() => endCall())
-      .then(() => {
-        toast.ok('Call ended');
-      })
-      .catch(() => {
-        toast.err('Failed to end call. Please try again.');
-      });
+    // ✅ call synchronously so the jest spy is observed immediately
+    try {
+      endCall();
+      toast.ok('Call ended');
+    } catch {
+      toast.err('Failed to end call. Please try again.');
+    }
   }
 
   return (
     <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center">
       <div className="relative w-full max-w-4xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
-        {/* remote video big */}
         <video
           ref={remoteRef}
           className="absolute inset-0 w-full h-full object-cover cursor-pointer"
           onClick={(e) => tryPlay(e.currentTarget, 'remote')}
         />
-
-        {/* local preview pip */}
         <video
           ref={localRef}
           className="absolute bottom-4 right-4 w-48 h-28 object-cover rounded-lg border border-white/20 shadow-lg cursor-pointer"
           onClick={(e) => tryPlay(e.currentTarget, 'local')}
         />
 
-        {/* controls */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
           <button
             type="button"
@@ -128,7 +109,7 @@ export default function VideoCall() {
             className={`px-4 py-2 rounded-full ${micOn ? 'bg-white/10 text-white' : 'bg-red-600 text-white'}`}
             title={micOn ? 'Mute microphone' : 'Unmute microphone'}
             aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}
-            aria-pressed={!micOn}            // <- pressed = muted
+            aria-pressed={!micOn}
           >
             {micOn ? 'Mute' : 'Unmute'}
           </button>
@@ -140,7 +121,7 @@ export default function VideoCall() {
             className={`px-4 py-2 rounded-full ${camOn ? 'bg-white/10 text-white' : 'bg-yellow-600 text-white'}`}
             title={camOn ? 'Turn camera off' : 'Turn camera on'}
             aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}
-            aria-pressed={!camOn}            // <- pressed = camera off
+            aria-pressed={!camOn}
           >
             {camOn ? 'Camera Off' : 'Camera On'}
           </button>

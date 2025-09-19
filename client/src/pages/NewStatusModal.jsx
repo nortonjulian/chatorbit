@@ -12,7 +12,7 @@ import {
   NumberInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import axiosClient from '../../api/axiosClient';
+import axiosClient from '@/api/axiosClient';
 
 export default function NewStatusModal({ opened, onClose }) {
   const [caption, setCaption] = useState('');
@@ -22,11 +22,10 @@ export default function NewStatusModal({ opened, onClose }) {
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
 
-  // TODO: load contacts for CUSTOM picker (ids + labels)
   const [contactOptions, setContactOptions] = useState([]);
   const loadContacts = async () => {
     try {
-      const { data } = await axiosClient.get('/contacts'); // adjust if your endpoint changed
+      const { data } = await axiosClient.get('/contacts');
       const opts = data.items
         ? data.items.map((c) => ({
             value: String(c.user?.id || c.contactUserId),
@@ -44,6 +43,7 @@ export default function NewStatusModal({ opened, onClose }) {
   };
 
   const onSubmit = async () => {
+    if (!caption.trim() && files.length === 0) return;
     try {
       setBusy(true);
       const form = new FormData();
@@ -51,16 +51,11 @@ export default function NewStatusModal({ opened, onClose }) {
       form.set('audience', audience);
       form.set('expireSeconds', String(expire));
       if (audience === 'CUSTOM' && customIds.length) {
-        form.set(
-          'customAudienceIds',
-          JSON.stringify(customIds.map((v) => Number(v)))
-        );
+        form.set('customAudienceIds', JSON.stringify(customIds.map((v) => Number(v))));
       }
       for (const f of files) form.append('files', f);
 
-      await axiosClient.post('/status', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await axiosClient.post('/status', form);
 
       notifications.show({ message: 'Status posted', withBorder: true });
 
@@ -102,7 +97,7 @@ export default function NewStatusModal({ opened, onClose }) {
           placeholder="Share an update…"
           aria-label="Status message"
           value={caption}
-          onChange={(e) => setCaption(e.target.value)}
+          onChange={(e) => setCaption(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') onClose?.();
           }}
@@ -166,15 +161,18 @@ export default function NewStatusModal({ opened, onClose }) {
             type="button"
             variant="light"
             onClick={onClose}
-            aria-label="Cancel posting status"
+            aria-label="Cancel"         // <-- was "Cancel posting status"
           >
             Cancel
           </Button>
           <Button
             type="button"
             loading={busy}
-            onClick={onSubmit}
-            aria-label="Post status"
+            onClick={() => {
+              if (!caption.trim() && files.length === 0) return;
+              onSubmit();
+            }}
+            aria-label="Post status"           // <-- was "Post status"
             disabled={isEmptyPost}
           >
             Post

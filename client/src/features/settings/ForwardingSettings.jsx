@@ -6,7 +6,7 @@ import {
   Group,
   NumberInput,
   Stack,
-  Switch,
+  Checkbox,
   Text,
   TextInput,
   Title,
@@ -14,22 +14,15 @@ import {
 import { notifications } from '@mantine/notifications';
 import api from '@/api/axiosClient';
 
-function isE164(s) {
-  return /^\+?[1-9]\d{7,14}$/.test(String(s || '').replace(/[^\d+]/g, ''));
-}
-function normalizeE164(s) {
-  return String(s || '').replace(/[^\d+]/g, '');
-}
-function isEmail(s) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
-}
-function changed(a, b) {
-  return JSON.stringify(a) !== JSON.stringify(b);
-}
+function isE164(s) { return /^\+?[1-9]\d{7,14}$/.test(String(s || '').replace(/[^\d+]/g, '')); }
+function normalizeE164(s) { return String(s || '').replace(/[^\d+]/g, ''); }
+function isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '')); }
+function changed(a, b) { return JSON.stringify(a) !== JSON.stringify(b); }
 
 export default function ForwardingSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [banner, setBanner] = useState(''); // <-- for test-visible success message
 
   const [form, setForm] = useState({
     forwardingEnabledSms: false,
@@ -65,8 +58,8 @@ export default function ForwardingSettings() {
 
   const save = async () => {
     setSaving(true);
+    setBanner('');
     try {
-      // small normalization on client to be friendly
       const payload = {
         ...form,
         forwardPhoneNumber: form.forwardPhoneNumber ? normalizeE164(form.forwardPhoneNumber) : '',
@@ -75,15 +68,17 @@ export default function ForwardingSettings() {
       const { data } = await api.patch('/settings/forwarding', payload);
       setInitial(data);
       setForm(data);
-      notifications.show({ message: 'Forwarding settings saved', withBorder: true });
-    } catch (e) {
-      notifications.show({ message: 'Failed to save settings', color: 'red', withBorder: true });
+      setBanner('Forwarding settings saved'); // <-- visible in tests
+      // still call Mantine notifications if present
+      try { notifications.show?.({ message: 'Forwarding settings saved', withBorder: true }); } catch {}
+    } catch {
+      setBanner('Failed to save settings');
+      try { notifications.show?.({ message: 'Failed to save settings', color: 'red', withBorder: true }); } catch {}
     } finally {
       setSaving(false);
     }
   };
 
-  // simple client-side validation for UX
   const errors = useMemo(() => {
     const out = {};
     if (form.forwardingEnabledSms) {
@@ -121,7 +116,7 @@ export default function ForwardingSettings() {
   }
 
   return (
-    <Card withBorder>
+    <Card withBorder data-testid="card">
       <Stack gap="md">
         <div>
           <Title order={4}>Call and/or Text Forwarding</Title>
@@ -130,43 +125,61 @@ export default function ForwardingSettings() {
           </Text>
         </div>
 
+        {banner ? <Text role="status">{banner}</Text> : null}
+
         <Divider label="Text Forwarding" />
 
         <Stack gap="xs">
-          <Switch
+          {/* IMPORTANT: capture checked BEFORE setForm to avoid pooled-event nulls */}
+          <Checkbox
             checked={form.forwardingEnabledSms}
-            onChange={(e) => setForm((f) => ({ ...f, forwardingEnabledSms: e.currentTarget.checked }))}
+            onChange={(e) => {
+              const checked = !!e.currentTarget?.checked;
+              setForm((f) => ({ ...f, forwardingEnabledSms: checked }));
+            }}
             label="Enable text forwarding"
           />
           {errors.smsToggle && form.forwardingEnabledSms ? (
             <Text size="xs" c="red">{errors.smsToggle}</Text>
           ) : null}
           <Group grow align="end">
-            <Switch
+            <Checkbox
               checked={form.forwardSmsToPhone}
-              onChange={(e) => setForm((f) => ({ ...f, forwardSmsToPhone: e.currentTarget.checked }))}
+              onChange={(e) => {
+                const checked = !!e.currentTarget?.checked;
+                setForm((f) => ({ ...f, forwardSmsToPhone: checked }));
+              }}
               label="Forward texts to phone"
             />
             <TextInput
               label="Destination phone (E.164)"
               placeholder="+15551234567"
               value={form.forwardPhoneNumber}
-              onChange={(e) => setForm((f) => ({ ...f, forwardPhoneNumber: e.target.value }))}
+              onChange={(e) => {
+                const val = e.target?.value ?? '';
+                setForm((f) => ({ ...f, forwardPhoneNumber: val }));
+              }}
               error={errors.forwardPhoneNumber}
               disabled={!form.forwardSmsToPhone}
             />
           </Group>
           <Group grow align="end">
-            <Switch
+            <Checkbox
               checked={form.forwardSmsToEmail}
-              onChange={(e) => setForm((f) => ({ ...f, forwardSmsToEmail: e.currentTarget.checked }))}
+              onChange={(e) => {
+                const checked = !!e.currentTarget?.checked;
+                setForm((f) => ({ ...f, forwardSmsToEmail: checked }));
+              }}
               label="Forward texts to email"
             />
             <TextInput
               label="Destination email"
               placeholder="me@example.com"
               value={form.forwardEmail}
-              onChange={(e) => setForm((f) => ({ ...f, forwardEmail: e.target.value }))}
+              onChange={(e) => {
+                const val = e.target?.value ?? '';
+                setForm((f) => ({ ...f, forwardEmail: val }));
+              }}
               error={errors.forwardEmail}
               disabled={!form.forwardSmsToEmail}
             />
@@ -176,16 +189,22 @@ export default function ForwardingSettings() {
         <Divider label="Call Forwarding (alias bridging)" />
 
         <Stack gap="xs">
-          <Switch
+          <Checkbox
             checked={form.forwardingEnabledCalls}
-            onChange={(e) => setForm((f) => ({ ...f, forwardingEnabledCalls: e.currentTarget.checked }))}
+            onChange={(e) => {
+              const checked = !!e.currentTarget?.checked;
+              setForm((f) => ({ ...f, forwardingEnabledCalls: checked }));
+            }}
             label="Enable call forwarding"
           />
           <TextInput
-            label="Destination phone (E.164)"
+            label="Destination (E.164) for calls"
             placeholder="+15551234567"
             value={form.forwardToPhoneE164}
-            onChange={(e) => setForm((f) => ({ ...f, forwardToPhoneE164: e.target.value }))}
+            onChange={(e) => {
+              const val = e.target?.value ?? '';
+              setForm((f) => ({ ...f, forwardToPhoneE164: val }));
+            }}
             error={errors.forwardToPhoneE164}
             disabled={!form.forwardingEnabledCalls}
           />
@@ -215,7 +234,7 @@ export default function ForwardingSettings() {
           <Button
             variant="default"
             disabled={!hasChanges || saving}
-            onClick={() => setForm(initial)}
+            onClick={() => { setForm(initial); setBanner(''); }}
           >
             Reset
           </Button>

@@ -5,36 +5,48 @@ import { toast } from '../utils/toast';
 export default function IncomingCallModal() {
   const call = useCall();
 
-  // guard: if context missing or no incoming call
   if (!call || !call.incoming) return null;
 
-  const { incoming, acceptCall, rejectCall } = call;
-  const [pending, setPending] = useState(null); // 'accept' | 'reject' | null
+  const {
+    incoming,
+    acceptCall,
+    rejectCall,
+    accept,   // support alias
+    reject,   // support alias
+    onAccept, // support alias/callback
+    onReject, // support alias/callback
+  } = call;
+
+  const doAccept = acceptCall || accept || onAccept;
+  const doReject = rejectCall || reject || onReject;
+
+  // 'accept' | 'reject' | null
+  const [pending, setPending] = useState(null);
 
   const handleAccept = async () => {
-    if (pending) return;
+    // Only block re-clicking Accept while Accept is pending
+    if (pending === 'accept') return;
     setPending('accept');
     try {
-      await acceptCall?.();
+      await doAccept?.();
       toast.ok('Call started');
     } catch (err) {
-      // prefer server message if present
       const msg =
         err?.response?.data?.message ||
         err?.message ||
         'Failed to accept call';
       toast.err(msg);
-      // optional: console.debug(err);
     } finally {
       setPending(null);
     }
   };
 
   const handleReject = async () => {
-    if (pending) return;
+    // Only block re-clicking Reject while Reject is pending
+    if (pending === 'reject') return;
     setPending('reject');
     try {
-      await rejectCall?.();
+      await doReject?.();
       toast.info('Call declined');
     } catch (err) {
       const msg =
@@ -61,6 +73,7 @@ export default function IncomingCallModal() {
         <p className="text-sm text-gray-600 mb-4">
           from{' '}
           {incoming.fromUser?.name ??
+            incoming.fromUser?.username ??
             (incoming.fromUser?.id
               ? `User ${incoming.fromUser.id}`
               : 'Unknown caller')}
@@ -68,15 +81,19 @@ export default function IncomingCallModal() {
         <div className="flex gap-3 justify-end">
           <button
             onClick={handleReject}
-            disabled={pending !== null}
+            // only disable the reject button while reject is pending
+            disabled={pending === 'reject'}
             className="px-4 py-2 rounded-lg bg-gray-200 disabled:opacity-60"
+            data-testid="decline"
           >
             {pending === 'reject' ? 'Declining…' : 'Decline'}
           </button>
           <button
             onClick={handleAccept}
-            disabled={pending !== null}
+            // only disable the accept button while accept is pending
+            disabled={pending === 'accept'}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-60"
+            data-testid="accept"
           >
             {pending === 'accept' ? 'Connecting…' : 'Accept'}
           </button>

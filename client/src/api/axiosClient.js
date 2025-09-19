@@ -72,9 +72,16 @@ function attachInterceptorsOnce() {
     }
   );
 
-  // HMR cleanup
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
+  // HMR cleanup — use eval so Jest never parses `import.meta`
+  let viteHot;
+  try {
+    // eslint-disable-next-line no-eval
+    viteHot = (0, eval)('import.meta.hot');
+  } catch {
+    viteHot = undefined;
+  }
+  if (viteHot) {
+    viteHot.dispose(() => {
       if (_reqId != null) axiosClient.interceptors.request.eject(_reqId);
       if (_resId != null) axiosClient.interceptors.response.eject(_resId);
       _attached = false;

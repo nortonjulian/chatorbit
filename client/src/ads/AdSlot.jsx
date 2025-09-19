@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAds } from './AdProvider';
 
 /**
@@ -22,13 +22,26 @@ export default function AdSlot({
   style,
   fallback = null,
 }) {
-  const { adapter, isPremium, ready, adsense, prebid, ensurePrebid } = useAds();
+  // ☂️ Tests often run without a provider; don't destructure a null context.
+  const ctx = typeof useAds === 'function' ? useAds() : null;
+  const adapter = ctx?.adapter;
+  const isPremium = ctx?.isPremium;
+  const ready = ctx?.ready;
+  const adsense = ctx?.adsense;
+  const prebid = ctx?.prebid;
+  const ensurePrebid = ctx?.ensurePrebid;
+
   const [shown, setShown] = useState(false);
   const containerRef = useRef(null);
   const renderedRef = useRef(false);
   const viewedRef = useRef(false);
 
-  if (isPremium) return fallback ? <div className={className}>{fallback}</div> : null;
+  // If no ads context/adapter (or user is premium), render fallback or nothing.
+  if (!ctx || !adapter || isPremium) {
+    return fallback ? (
+      <div className={className} aria-label={`ad-${placement}`}>{fallback}</div>
+    ) : null;
+  }
 
   // Lazy render (first viewport entry)
   useEffect(() => {
@@ -54,8 +67,8 @@ export default function AdSlot({
     if (!adsense?.client || !adsenseSlot) return;
 
     try {
-      let ins = containerRef.current.querySelector('ins.adsbygoogle');
-      if (!ins) {
+      let ins = containerRef.current?.querySelector('ins.adsbygoogle');
+      if (!ins && containerRef.current) {
         ins = document.createElement('ins');
         ins.className = 'adsbygoogle';
         ins.style.display = 'block';
@@ -99,7 +112,7 @@ export default function AdSlot({
     pbjs.que.push(() => {
       pbjs.requestBids({
         adUnitCodes: [placement],
-        timeout: prebid.timeoutMs || 1000,
+        timeout: prebid?.timeoutMs || 1000,
         bidsBackHandler: () => {
           pbjs.setTargetingForGPTAsync([placement]);
           googletag.cmd.push(() => {

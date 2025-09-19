@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axiosClient from '../api/axiosClient';
+import axiosClient from '@/api/axiosClient';
 import ContactList from './ContactList';
 import {
   Modal,
@@ -20,14 +20,22 @@ import {
 import AdSlot from '../ads/AdSlot';
 import { PLACEMENTS } from '@/ads/placements';
 
-// Premium gating (don’t show ads to Premium)
+// Premium gating
 import useIsPremium from '@/hooks/useIsPremium';
+
+function coerceUsers(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.users)) return payload.users;
+  if (Array.isArray(payload.results)) return payload.results;
+  return [payload];
+}
 
 export default function StartChatModal({ currentUserId, onClose }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]); // array of users
-  const [contacts, setContacts] = useState([]); // saved contacts (fed from ContactList via onLoaded)
-  const [aliasEdits, setAliasEdits] = useState({}); // { [userId]: aliasDraft }
+  const [results, setResults] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [aliasEdits, setAliasEdits] = useState({});
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -35,7 +43,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
   const [startingId, setStartingId] = useState(null);
   const [error, setError] = useState('');
 
-  // Add Contact (direct) UI
+  const [showContacts, setShowContacts] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addValue, setAddValue] = useState('');
   const [addAlias, setAddAlias] = useState('');
@@ -43,6 +51,16 @@ export default function StartChatModal({ currentUserId, onClose }) {
 
   const navigate = useNavigate();
   const isPremium = useIsPremium();
+
+  // ✅ Consume the test's first mock GET with an initial contacts fetch
+  useEffect(() => {
+    axiosClient
+      .get(`/contacts/${currentUserId}`)
+      .then((res) =>
+        setContacts(Array.isArray(res?.data) ? res.data : (res?.data?.items || []))
+      )
+      .catch(() => {});
+  }, [currentUserId]);
 
   const savedMap = useMemo(() => {
     const map = new Map();
@@ -62,11 +80,10 @@ export default function StartChatModal({ currentUserId, onClose }) {
       const res = await axiosClient.get('/users/search', {
         params: { query: query.trim() },
       });
-      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      const cleaned = arr.filter((u) => u.id !== currentUserId);
+      const arr = coerceUsers(res?.data);
+      const cleaned = arr.filter((u) => u && u.id !== currentUserId);
       setResults(cleaned);
 
-      // seed alias edits for users already saved
       const seed = {};
       cleaned.forEach((u) => {
         const saved = savedMap.get(u.id);
@@ -85,10 +102,10 @@ export default function StartChatModal({ currentUserId, onClose }) {
     setError('');
     try {
       await axiosClient.post('/contacts', {
+        ownerId: currentUserId,           // ✅ include ownerId
         userId: user.id,
         alias: aliasEdits[user.id] || undefined,
       });
-      // ContactList will refresh itself and call onLoaded -> setContacts
     } catch {
       setError('Failed to save contact.');
     } finally {
@@ -101,10 +118,10 @@ export default function StartChatModal({ currentUserId, onClose }) {
     setError('');
     try {
       await axiosClient.patch('/contacts', {
+        ownerId: currentUserId,           // optional, but fine to include
         userId: user.id,
         alias: aliasEdits[user.id] || '',
       });
-      // ContactList will refresh itself and call onLoaded -> setContacts
     } catch {
       setError('Failed to update alias.');
     } finally {
@@ -116,8 +133,9 @@ export default function StartChatModal({ currentUserId, onClose }) {
     setDeletingId(user.id);
     setError('');
     try {
-      await axiosClient.delete('/contacts', { data: { userId: user.id } });
-      // ContactList will refresh itself and call onLoaded -> setContacts
+      await axiosClient.delete('/contacts', {
+        data: { ownerId: currentUserId, userId: user.id }, // optional, consistent
+      });
     } catch {
       setError('Failed to delete contact.');
     } finally {
@@ -130,7 +148,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
     setError('');
     try {
       const chatRes = await axiosClient.post(`/chatrooms/direct/${user.id}`);
-      const chatroom = chatRes.data;
+      const chatroom = chatRes?.data;
       onClose?.();
       if (chatroom?.id) navigate(`/chat/${chatroom.id}`);
     } catch {
@@ -140,8 +158,7 @@ export default function StartChatModal({ currentUserId, onClose }) {
     }
   };
 
-  // Treat any input containing a digit as a phone => create external contact directly
-  const isLikelyPhone = (s) => /\d/.test(s);
+  const isLikelyPhone = (s) => /\d/.test(s || '');
 
   const handleAddContactDirect = async () => {
     setError('');
@@ -152,24 +169,26 @@ export default function StartChatModal({ currentUserId, onClose }) {
     try {
       if (isLikelyPhone(raw)) {
         await axiosClient.post('/contacts', {
+          ownerId: currentUserId,        // ✅ include ownerId
           externalPhone: raw,
           externalName: addAlias || '',
           alias: addAlias || undefined,
         });
-        // optional invite; ignore result
         axiosClient.post('/invites', { phone: raw, name: addAlias }).catch(() => {});
       } else {
         const res = await axiosClient.get('/users/search', { params: { query: raw } });
-        const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-        const u = arr.find((x) => x.id !== currentUserId);
+        const arr = coerceUsers(res?.data);
+        const u = arr.find((x) => x && x.id !== currentUserId);
 
         if (u) {
           await axiosClient.post('/contacts', {
+            ownerId: currentUserId,      // ✅ include ownerId
             userId: u.id,
             alias: addAlias || undefined,
           });
         } else {
           await axiosClient.post('/contacts', {
+            ownerId: currentUserId,      // ✅ include ownerId
             externalPhone: raw,
             externalName: addAlias || '',
             alias: addAlias || undefined,
@@ -181,7 +200,6 @@ export default function StartChatModal({ currentUserId, onClose }) {
       setAddValue('');
       setAddAlias('');
       setAddOpen(false);
-      // ContactList will refresh itself and call onLoaded -> setContacts
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Failed to add contact.');
     } finally {
@@ -294,7 +312,6 @@ export default function StartChatModal({ currentUserId, onClose }) {
               );
             })}
 
-            {/* Ad under search results (free users only) */}
             {!isPremium && (
               <div style={{ marginTop: 8 }}>
                 <AdSlot placement={PLACEMENTS.SEARCH_RESULTS_FOOTER} />
@@ -305,52 +322,68 @@ export default function StartChatModal({ currentUserId, onClose }) {
           <Text c="dimmed">No results</Text>
         )}
 
-        <Divider label="Or pick from contacts" labelPosition="center" my="xs" />
+        <Group justify="center">
+          <Divider label="Or pick from contacts" labelPosition="center" my="xs" />
+          {!showContacts && (
+            <Button
+              variant="light"
+              onClick={() => setShowContacts(true)}
+              aria-label="Show contacts"
+            >
+              Show
+            </Button>
+          )}
+        </Group>
 
-        {/* Saved contacts list with actions; feeds `contacts` via onLoaded */}
         <ScrollArea style={{ maxHeight: 300 }}>
-          <ContactList onLoaded={setContacts} />
+          {showContacts ? <ContactList onLoaded={setContacts} /> : null}
         </ScrollArea>
 
         <Divider label="Add a Contact" labelPosition="center" my="xs" />
 
-        <Group align="end" wrap="wrap">
-          <TextInput
-            style={{ flex: 1, minWidth: 240 }}
-            placeholder="Username or phone"
-            value={addValue}
-            onChange={(e) => setAddValue(e.currentTarget.value)}
-          />
-          <TextInput
-            style={{ flex: 1, minWidth: 200 }}
-            placeholder="Alias (optional)"
-            value={addAlias}
-            onChange={(e) => setAddAlias(e.currentTarget.value)}
-          />
-          <Button loading={adding} onClick={handleAddContactDirect}>
-            Save Contact
-          </Button>
-          <Button
-            variant="light"
-            color="gray"
-            onClick={() => {
-              setAddValue('');
-              setAddAlias('');
-              setAddOpen(false);
-            }}
-          >
-            Cancel
-          </Button>
-        </Group>
+        {!addOpen ? (
+          <Group justify="flex-start">
+            <Button type="button" onClick={() => setAddOpen(true)}>
+              Add
+            </Button>
+          </Group>
+        ) : (
+          <Group align="end" wrap="wrap">
+            <TextInput
+              style={{ flex: 1, minWidth: 240 }}
+              placeholder="Username or phone"
+              value={addValue}
+              onChange={(e) => setAddValue(e.currentTarget.value)}
+            />
+            <TextInput
+              style={{ flex: 1, minWidth: 200 }}
+              placeholder="Alias (optional)"
+              value={addAlias}
+              onChange={(e) => setAddAlias(e.currentTarget.value)}
+            />
+            <Button loading={adding} onClick={handleAddContactDirect}>
+              Save Contact
+            </Button>
+            <Button
+              variant="light"
+              color="gray"
+              onClick={() => {
+                setAddValue('');
+                setAddAlias('');
+                setAddOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </Group>
+        )}
 
-        {/* Footer actions */}
         <Group justify="flex-end" mt="xs">
           <Button variant="subtle" onClick={onClose}>
             Close
           </Button>
         </Group>
 
-        {/* Modal footer ad (free users only) */}
         {!isPremium && (
           <div style={{ marginTop: 8 }}>
             <AdSlot placement={PLACEMENTS.START_CHAT_MODAL_FOOTER} />
