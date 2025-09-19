@@ -2,7 +2,7 @@ import express from 'express';
 import Boom from '@hapi/boom';
 import { requireAuth } from '../middleware/auth.js';
 import prisma from '../utils/prismaClient.js';
-import { singleUpload, buildSafeName, sha256 } from '../middleware/upload.js';
+import { singleUploadMemory as singleUpload, buildSafeName, sha256 } from '../middleware/uploads.js';
 import storage from '../services/storage/index.js';
 import { STORAGE_DRIVER } from '../utils/uploadConfig.js';
 import fs from 'node:fs';

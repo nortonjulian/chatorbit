@@ -13,8 +13,10 @@ import {
   Button,
   Paper,
   Divider,
+  Box,
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
+import BrandLockup from '@/components/BrandLockup';
 
 // Smart links (update to your live URLs when ready)
 const APP_GENERIC = 'https://go.chatorbit.com/app';      // QR (auto-routes)
@@ -33,7 +35,9 @@ function MobileTopBar() {
       py="sm"
     >
       <Image src="/logo-chatorbit.png" alt="ChatOrbit" h={28} />
-      <Title order={4} c="orbit.8" style={{ margin: 0 }}>ChatOrbit</Title>
+      <Title order={4} c="orbit.8" style={{ margin: 0 }}>
+        ChatOrbit
+      </Title>
     </Group>
   );
 }
@@ -123,23 +127,13 @@ export default function AuthLayout() {
 
         <Grid gutter="xl" align="start">
           {/* Left: Brand + Marketing (desktop/tablet only) */}
-          <Grid.Col
-            span={{ base: 12, md: 6, lg: 7 }}   // <-- add md split
-            visibleFrom="md"
-          >
-            <Stack gap="md" maw={620}>
-              <Group gap="sm" align="center" wrap="nowrap" className="brand-lockup">
-                <Image
-                  src="/logo-chatorbit.png"
-                  alt="ChatOrbit logo"
-                  h={44}
-                  fit="contain"
-                />
-                <Title order={3} c="orbit.8" style={{ marginBottom: 0 }}>
-                  ChatOrbit
-                </Title>
-              </Group>
+          <Grid.Col span={{ base: 12, md: 6, lg: 7 }} visibleFrom="md">
+            {/* Pin the brand above the hero on desktop; normal flow on mobile */}
+            <Box pos="relative" style={{ minHeight: 64 }}>
+              <BrandLockup className="brand-lockup--fixed" />
+            </Box>
 
+            <Stack gap="md" maw={620}>
               <Title
                 order={1}
                 style={{
@@ -161,16 +155,40 @@ export default function AuthLayout() {
               </Text>
 
               <List spacing="sm" size="sm" center>
-                <List.Item icon={<ThemeIcon variant="light" color="orbit"><Lock size={16} /></ThemeIcon>}>
+                <List.Item
+                  icon={
+                    <ThemeIcon variant="light" color="orbit">
+                      <Lock size={16} />
+                    </ThemeIcon>
+                  }
+                >
                   End-to-end encryption by default
                 </List.Item>
-                <List.Item icon={<ThemeIcon variant="light" color="orbit"><Globe size={16} /></ThemeIcon>}>
+                <List.Item
+                  icon={
+                    <ThemeIcon variant="light" color="orbit">
+                      <Globe size={16} />
+                    </ThemeIcon>
+                  }
+                >
                   Auto-translate 100+ languages
                 </List.Item>
-                <List.Item icon={<ThemeIcon variant="light" color="orbit"><MessageCircle size={16} /></ThemeIcon>}>
+                <List.Item
+                  icon={
+                    <ThemeIcon variant="light" color="orbit">
+                      <MessageCircle size={16} />
+                    </ThemeIcon>
+                  }
+                >
                   Disappearing messages & read receipts
                 </List.Item>
-                <List.Item icon={<ThemeIcon variant="light" color="orbit"><ShieldCheck size={16} /></ThemeIcon>}>
+                <List.Item
+                  icon={
+                    <ThemeIcon variant="light" color="orbit">
+                      <ShieldCheck size={16} />
+                    </ThemeIcon>
+                  }
+                >
                   Privacy-first. Your data, your control.
                 </List.Item>
               </List>
@@ -189,19 +207,17 @@ export default function AuthLayout() {
 
               <Paper p="sm" withBorder radius="md">
                 <Text size="xs" c="dimmed">
-                  Tip: Use the same account on web and mobile. Your messages stay synced.
+                  Tip: Use the same account on web and mobile. Your messages stay
+                  synced.
                 </Text>
               </Paper>
             </Stack>
           </Grid.Col>
 
           {/* Right: Auth form + Get app */}
-          <Grid.Col
-            span={{ base: 12, md: 6, lg: 5 }}   // <-- add md split
-            style={{ alignSelf: 'start' }}
-          >
+          <Grid.Col span={{ base: 12, md: 6, lg: 5 }} style={{ alignSelf: 'start' }}>
             <Stack gap="lg" style={{ maxWidth: 440, marginLeft: 'auto' }}>
-              <Outlet />   {/* Login / Register / Forgot / Reset (card-only) */}
+              <Outlet /> {/* Login / Register / Forgot / Reset (card-only) */}
               <GetAppCard />
             </Stack>
           </Grid.Col>

@@ -56,13 +56,12 @@ import {
   limiterGenericMutations,
 } from './middleware/rateLimits.js';
 
-// 🔐 New security middlewares (Task 8)
+// 🔐 Security middlewares
 import { corsConfigured } from './middleware/cors.js';
 import { secureHeaders } from './middleware/secureHeaders.js';
 import { csp } from './middleware/csp.js';
 import { hppGuard } from './middleware/hpp.js';
 import { httpsRedirect } from './middleware/httpsRedirect.js';
-import { bodyLimits } from './middleware/bodyLimits.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,7 +80,7 @@ export function createApp() {
    * ======================================================= */
   app.use(httpsRedirect());      // redirect http -> https in prod
   app.use(corsConfigured());     // CORS allowlist (credentials on)
-  app.use(hppGuard());           // HTTP param pollution guard
+  // (Removed early hppGuard(); we’ll mount after body parsers)
   app.use(secureHeaders());      // Helmet baseline (noSniff, frameguard, referrer, etc.)
   app.use(csp());                // Strict CSP with per-response nonce
 
@@ -94,28 +93,38 @@ export function createApp() {
   });
 
   /* =========================
-   *   HTTP structured logs
+   *   Core middleware (order matters)
    * ========================= */
+  app.use(cookieParser());
+  app.use(compression());
+
+  // Ensure requestId is set before logging so pinoHttp can read req.id
+  app.use(requestId());
+
+  // Body parsers (centralized limits)
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '512kb' }));
+
+  // HTTP Parameter Pollution guard AFTER body parsers; collapse arrays except allow-list
+  app.use(hppGuard({ allow: ['tags', 'ids'] }));
+
+  // Structured HTTP logs
   app.use(
     pinoHttp({
       logger,
       autoLogging: true,
-      // use the id set by your requestId() middleware
-      genReqId: (req) => req.id,
-      // attach useful fields to every log
+      genReqId: (req) => req.id, // use our id
       customProps: (req) => ({
         requestId: req.id,
         userId: req.user?.id ?? null,
         method: req.method,
         path: req.originalUrl || req.url,
       }),
-      // keep your level mapping
       customLogLevel: (req, res, err) => {
         if (err || res.statusCode >= 500) return 'error';
         if (res.statusCode >= 400) return 'warn';
         return 'info';
       },
-      // keep sensitive headers out of logs
       redact: {
         paths: [
           'req.headers.authorization',
@@ -150,16 +159,8 @@ export function createApp() {
   }
 
   /* =========================
-   *   Core middleware (after raw webhook)
+   *   CSRF (skip webhook). In tests, no-op
    * ========================= */
-  app.use(cookieParser());
-  app.use(compression());
-  app.use(requestId());
-
-  // Replace ad-hoc json/urlencoded with central body limits
-  app.use(bodyLimits()); // JSON/x-www-form-urlencoded caps; uploads still go via Multer
-
-  // CSRF (skip webhook). In tests, CSRF is a no-op to unblock supertest flows.
   const csrfMw = isTest
     ? (_req, _res, next) => next()
     : buildCsrf({ isProd, cookieDomain: process.env.COOKIE_DOMAIN });
@@ -240,7 +241,7 @@ export function createApp() {
   app.use('/media', mediaRouter);
   app.use('/devices', devicesRouter);
   app.use('/backups', backupsRouter);
-  app.use('/uploads', uploadsRouter); 
+  app.use('/uploads', uploadsRouter);
   app.use('/sms', smsRouter);
   app.use('/settings', settingsForwardingRouter);
 

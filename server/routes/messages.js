@@ -12,7 +12,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { createMessageService } from '../services/messageService.js';
 
 // Hardened upload + safety utilities
-import { uploadMedia } from '../middleware/upload.js';
+import { uploadMedia } from '../middleware/uploads.js';
 import { scanFile } from '../utils/antivirus.js';
 import { ensureThumb } from '../utils/thumbnailer.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';

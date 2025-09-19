@@ -123,19 +123,21 @@ enum PortStatus {
 // ===================== 1) Core User & Access =====================
 
 model User {
-  id                          Int     @id @default(autoincrement())
-  username                    String  @unique
-  email                       String? @unique
+  id                          Int         @id @default(autoincrement())
+  username                    String      @unique
+  email                       String?     @unique
   password                    String
-  phoneNumber                 String? @db.VarChar(32)
-  preferredLanguage           String  @default("en")
-  allowExplicitContent        Boolean @default(true)
-  showOriginalWithTranslation Boolean @default(true)
-  role                        String  @default("USER")
-  enableAIResponder           Boolean @default(false)
-  enableSmartReplies          Boolean @default(false)
-  theme                       String  @default("light")
-  strictE2EE                  Boolean @default(false)
+  phoneNumber                 String?     @db.VarChar(32)
+  preferredLanguage           String      @default("en")
+  allowExplicitContent        Boolean     @default(true)
+  showOriginalWithTranslation Boolean     @default(true)
+  role                        String      @default("USER")
+  enableAIResponder           Boolean     @default(false)
+  enableSmartReplies          Boolean     @default(false)
+  theme                       String      @default("light")
+  strictE2EE                  Boolean     @default(false)
+  uploads                     Upload[]    @relation("UserUploads")
+  smsThreads                  SmsThread[] @relation("UserSmsThreads")
 
   autoResponderMode        AutoResponderMode @default(DM)
   autoResponderCooldownSec Int               @default(120)
@@ -215,17 +217,16 @@ model User {
 }
 
 model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User     @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @db.VarChar(64)
+  expiresAt  DateTime
+  usedAt     DateTime?
 
-
-  user User @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  @@index([tokenHash])
+  @@index([userId, usedAt])
+  @@index([expiresAt])
 }
 
 model Follow {
@@ -279,6 +280,7 @@ model ProvisionLink {
 
   @@index([userId])
 }
+
 
 // ===================== 2) Conversation & Participation =====================
 
@@ -466,6 +468,7 @@ model ScheduledMessage {
   @@index([scheduledAt]) // ⬅️ new
 }
 
+// Upload
 model Upload {
   id           Int      @id @default(autoincrement())
   ownerId      Int
@@ -474,36 +477,49 @@ model Upload {
   originalName String
   mimeType     String
   size         Int
-  driver       String   // 'local' | 's3'
+  driver       String // 'local' | 's3'
   createdAt    DateTime @default(now())
 
-  owner User @relation(fields: [ownerId], references: [id])
+  // Name the relation to match User.uploads
+  owner User @relation("UserUploads", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // choose ONE of these uniqueness guarantees:
+  // key is globally unique:
+  // @unique on key:
+  // key          String   @unique
+  //
+  // OR key is unique per owner:
+  // @@unique([ownerId, key])
 
   @@index([ownerId])
   @@index([sha256])
 }
 
 model SmsThread {
-  id            Int       @id @default(autoincrement())
-  user          User      @relation(fields: [userId], references: [id])
-  userId        Int
-  contactPhone  String    @db.VarChar(32) // normalized E.164 of the *other party*
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  messages      SmsMessage[]
+  id           Int          @id @default(autoincrement())
+  userId       Int
+  contactPhone String       @db.VarChar(32) // normalized E.164 of the *other party*
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  messages     SmsMessage[]
+
+  // single relation to User, named to match User.smsThreads
+  user User @relation("UserSmsThreads", fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, contactPhone])
+  @@index([userId])
 }
 
 model SmsMessage {
-  id          Int       @id @default(autoincrement())
-  thread      SmsThread @relation(fields: [threadId], references: [id])
-  threadId    Int
-  direction   String    // 'in' | 'out'
-  fromNumber  String    @db.VarChar(32)
-  toNumber    String    @db.VarChar(32)
-  body        String
-  provider    String?
-  createdAt   DateTime  @default(now())
+  id         Int       @id @default(autoincrement())
+  thread     SmsThread @relation(fields: [threadId], references: [id])
+  threadId   Int
+  direction  String // 'in' | 'out'
+  fromNumber String    @db.VarChar(32)
+  toNumber   String    @db.VarChar(32)
+  body       String
+  provider   String?
+  createdAt  DateTime  @default(now())
 }
 
 // ===================== 4) Contacts, Reports, Auditing =====================
@@ -512,12 +528,12 @@ model Contact {
   id            Int      @id @default(autoincrement())
   ownerId       Int
   userId        Int?
-  externalPhone String?   // normalized digits with optional +
+  externalPhone String? // normalized digits with optional +
   externalName  String?
   alias         String?
-  favorite      Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  favorite      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // name the two different relations to User:
   owner User  @relation("ContactsOwned", fields: [ownerId], references: [id])

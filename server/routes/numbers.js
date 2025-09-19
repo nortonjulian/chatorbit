@@ -2,7 +2,7 @@ import express from 'express';
 import prisma from '../utils/prismaClient.js';
 import * as telco from '../lib/telco/index.js';
 import { requireAuth } from '../middleware/auth.js';
-import requirePremium from '../middleware/requirePremium.js';
+import { requirePremium } from '../middleware/requirePremium.js';
 
 const router = express.Router();
 

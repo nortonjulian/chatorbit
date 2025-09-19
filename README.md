@@ -1,6 +1,7 @@
 # ChatOrbit
 
-🚀 **ChatOrbit** is a modern full-stack messaging app designed for **real-time conversations**, **secure communication**, and **global reach**. Built as a monorepo (client + server), it supports text, voice, video, media sharing, and advanced features like end-to-end encryption, call/text forwarding, premium subscriptions, and more.
+🚀 **ChatOrbit** is a modern full-stack messaging app designed for **real-time conversations**, **secure communication**, and **global reach**.  
+Built as a monorepo (client + server), it supports text, voice, video, media sharing, call/text forwarding, premium subscriptions, and more.
 
 ---
 
@@ -8,74 +9,110 @@
 
 ### Core Messaging
 - Real-time chat with WebSockets (Socket.IO).
-- Chatrooms, 1:1 messages, and group chats.
-- Support for media uploads (images, audio, video).
-- Inline translation (Google/DeepL) with user language preferences.
+- Chatrooms, 1:1, and group chats.
+- Media uploads (images, audio, video).
+- Inline translation (Google/DeepL) with per-user language preferences.
 - Message editing, deletion, read receipts, and disappearing messages.
-- Contact management: save users, assign aliases, quick-start chats.
+- Contact management (save users, assign aliases, start chats quickly).
 
 ### Security & Privacy
 - Hybrid **end-to-end encryption** (per-user session keys).
-- Optional **read receipts** and disappearing messages (configurable).
+- Configurable read receipts & disappearing messages.
 - Background job auto-deletes expired messages.
-- Upload scanning (antivirus) + strict file type/size limits.
-- Session-aware login/logout with bcrypt + JWT auth.
+- File upload scanning (antivirus) + MIME/size limits.
+- bcrypt password hashing + JWT auth.
 
 ### Calling & Forwarding
-- Video/voice calls with in-app call UI.
-- **Call Forwarding:** route calls from ChatOrbit numbers to external phone numbers (with quiet hours).
-- **Text Forwarding:** receive SMS in-app and optionally forward to a phone number or email.
-- Alias dialer: place outbound calls from your ChatOrbit number.
+- In-app video/voice calls with modern UI.
+- **Call forwarding**: route ChatOrbit calls → external numbers (with quiet hours).
+- **Text forwarding**: forward SMS → phone number or email.
+- Alias dialer: make outbound calls using your ChatOrbit number.
 
 ### Premium Features
-- Premium-only pages & features gated with `RequirePremium`.
-- Premium plans unlock backups, ad-free sidebar, forwarding, and more.
+- Premium-only routes/pages (`RequirePremium` guard).
+- Unlock backups, ad-free sidebar, call/text forwarding, and more.
 
 ### Status & Social
 - Status feed (like stories) with audience controls:
   - Public / Followers / Contacts / Mutuals / Custom lists.
-- Expiry controls for status posts.
-- File attachments in statuses.
+- Expiry controls per status post.
+- File attachments supported.
 
 ### Accessibility & UX
-- Global screen-reader announcer (`A11yAnnouncer`).
-- Skip-to-content, proper aria-labels, focus rings.
+- Screen-reader announcer (`A11yAnnouncer`).
+- Skip-to-content, aria-labels, visible focus rings.
 - Keyboard-friendly: escape closes modals, enter can send messages.
-- Lighthouse a11y checks pass basic requirements.
+- Lighthouse a11y checks pass baseline.
 
 ### Admin
-- User, reports, and audit logs management via admin pages.
+- User management, reports, and audit logs.
 - Role-based admin route guard.
 
 ### Ads & Monetization
-- Configurable ad slots for free-tier users (sidebar, etc).
-- Premium users see ad-free experience.
+- Sidebar ad slots for free-tier users.
+- Premium = ad-free.
+
+## 📸 Screenshots
+
+![Chat UI](docs/images/chat.png)
+![Video Call](docs/images/call.png)
+![Status Feed](docs/images/status.png)
 
 ---
 
 ## 🏗️ Tech Stack
 
-### Frontend (client/)
+**Frontend (client):**
 - React (Vite) + Mantine UI + Tailwind utilities.
 - React Router v6.
-- State with React context/hooks.
-- Testing: Jest, React Testing Library, Playwright (E2E).
+- Jest + RTL for unit tests, Playwright for E2E.
 
-### Backend (server/)
+**Backend (server):**
 - Node.js + Express.
 - Prisma ORM + PostgreSQL.
-- Socket.IO for real-time.
-- Secure uploads with Multer + scanning.
-- Pino for logging; Sentry for error tracking.
-- Stripe integration (subscriptions/payments).
-- Telnyx/Bandwidth integration for calls + SMS.
+- Socket.IO for realtime.
+- Multer + ClamAV (uploads).
+- Pino (logging) + Sentry (error tracking).
+- Stripe integration (billing).
+- Telnyx + Bandwidth (SMS/calls).
 
-### Infra
-- PostgreSQL (local in dev, managed in staging/prod).
+**Infra:**
+- PostgreSQL locally + managed in staging/prod.
 - CI/CD with GitHub Actions + Render.
-- Secrets & variables configured via GitHub Actions → Environments.
+- Secrets/vars set via GitHub Actions → Environments.
 
 ---
 
-## 📂 Project Structure
+## ⚙️ Prerequisites
 
+Before running, install:
+
+- [Node.js v20+](https://nodejs.org/)
+- npm v9+ (ships with Node)
+- [PostgreSQL v14+](https://www.postgresql.org/)
+- (Optional) [Redis](https://redis.io/) for caching/queues
+- (Optional) [ClamAV](https://www.clamav.net/) for antivirus on uploads
+
+---
+
+## 🚀 Getting Started
+
+Clone and install:
+
+```bash
+# Clone
+git clone https://github.com/nortonjulian/chatorbit.git
+cd chatorbit
+
+# Install deps
+npm ci
+
+# Setup database
+cd server
+npx prisma migrate dev
+
+
+## 📜 License
+
+Proprietary – all rights reserved.  
+Contact ChatOrbit for licensing or usage.

@@ -11,6 +11,7 @@ import '@mantine/notifications/styles.css';
 import './styles.css';
 import './i18n';
 
+import { AdProvider } from './ads/AdProvider';
 import { SocketProvider } from './context/SocketContext';
 import { UserProvider } from './context/UserContext';
 import { CallProvider } from './context/CallContext';
@@ -21,8 +22,8 @@ import { chatOrbitTheme } from './theme';
 import { primeCsrf } from './api/axiosClient';
 
 // NEW: a11y + perf helpers
-import SkipToContent from './components/SkipToContent.js';
-import A11yAnnouncer from './components/A11yAnnouncer.js';
+import SkipToContent from "./components/SkipToContent.jsx";
+import A11yAnnouncer from './components/A11yAnnouncer.jsx';
 import { initWebVitals } from './utils/perf/vitals.js';
 
 const isProd = import.meta.env.PROD;

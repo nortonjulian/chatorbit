@@ -1,0 +1,39 @@
+openapi: 3.0.3
+info:
+  title: ChatOrbit API
+  version: 0.1.0
+servers:
+  - url: http://localhost:5002
+paths:
+  /auth/login:
+    post:
+      summary: Login with identifier + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: OK }
+  /messages:
+    post:
+      summary: Create message
+      responses:
+        '201': { description: Created }
+  /uploads:
+    post:
+      summary: Upload a file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Created }

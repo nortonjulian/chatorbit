@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import requirePremium from '../middleware/requirePremium.js';
+import { requirePremium } from '../middleware/requirePremium.js';
 import { respondWithUserBackup } from '../services/backupService.js';
 
 const r = Router();

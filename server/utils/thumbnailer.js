@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
-import { uploadDirs } from '../middleware/upload.js';
+import { uploadDirs } from '../middleware/uploads.js';
 
 const THUMBS_DIR = path.join(uploadDirs.ROOT, 'thumbs');
 fs.mkdirSync(THUMBS_DIR, { recursive: true });

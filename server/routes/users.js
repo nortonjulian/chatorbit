@@ -8,7 +8,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateRegistrationInput } from '../utils/validateUser.js';
 
 // 🔐 secure upload utilities (Option B)
-import { uploadAvatar, uploadDirs } from '../middleware/upload.js';
+import { uploadAvatar, uploadDirs } from '../middleware/uploads.js';
 import { scanFile } from '../utils/antivirus.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';
 

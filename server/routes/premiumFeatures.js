@@ -1,7 +1,7 @@
 import express from 'express';
 import prisma from '../utils/prismaClient.js';
 import { requireAuth } from '../middleware/auth.js';
-import requirePremium from '../middleware/requirePremium.js';
+import { requirePremium } from '../middleware/requirePremium.js';
 import { premiumConfig } from '../config/premiumConfig.js';
 
 const router = express.Router();
