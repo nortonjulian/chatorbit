@@ -1,6 +1,8 @@
 /**
  * @jest-environment node
  */
+import { jest } from '@jest/globals';
+
 import { buildQueues, areCompatible, tryMatch } from '../services/randomChatService.js';
 
 // fake prisma with only what we use

@@ -1,143 +1,113 @@
-// Minimal REST-based adapter for Bandwidth Numbers API.
-// Docs: https://docs.bandwidth.com/docs/numbers
-//
-// ENV needed (typical):
-// - BANDWIDTH_ACCOUNT_ID
-// - BANDWIDTH_USERNAME
-// - BANDWIDTH_PASSWORD
-//
-// Often also needed for full provisioning/routing:
-// - BANDWIDTH_SITE_ID
-// - BANDWIDTH_VOICE_APPLICATION_ID
-// - BANDWIDTH_MESSAGING_APPLICATION_ID
-//
-// NOTE: The Bandwidth Orders flow is more involved (Sites, Subscriptions, Orders).
-// Below is a pragmatic adapter: search works; purchase/release are left as either
-// "mock" (if BANDWIDTH_MOCK=true) or stubs to extend when you’re ready.
-
-const BASE = 'https://numbers.bandwidth.com/api/v1';
-
-function basicAuth() {
-  const u = process.env.BANDWIDTH_USERNAME;
-  const p = process.env.BANDWIDTH_PASSWORD;
-  if (!u || !p) return null;
-  const token = Buffer.from(`${u}:${p}`).toString('base64');
-  return { Authorization: `Basic ${token}` };
-}
-
 function ensureCreds() {
-  const id = process.env.BANDWIDTH_ACCOUNT_ID;
-  const u = process.env.BANDWIDTH_USERNAME;
-  const p = process.env.BANDWIDTH_PASSWORD;
-  if (!id || !u || !p) {
+  const { BANDWIDTH_ACCOUNT_ID, BANDWIDTH_USERNAME, BANDWIDTH_PASSWORD } = process.env;
+  if (!BANDWIDTH_ACCOUNT_ID || !BANDWIDTH_USERNAME || !BANDWIDTH_PASSWORD) {
     throw new Error('BANDWIDTH_ACCOUNT_ID / BANDWIDTH_USERNAME / BANDWIDTH_PASSWORD are required');
   }
 }
 
-async function bwFetch(urlPath, opts = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...basicAuth(),
-    ...(opts.headers || {}),
-  };
-  const res = await fetch(`${BASE}${urlPath}`, { ...opts, headers });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Bandwidth API ${urlPath} failed: ${res.status} ${text || res.statusText}`);
-  }
-  // Some endpoints return empty 204; guard JSON parse
-  const txt = await res.text();
-  return txt ? JSON.parse(txt) : {};
+async function getMessagingClient() {
+  const { BANDWIDTH_USERNAME, BANDWIDTH_PASSWORD } = process.env;
+  // 👇 allow tests to inject a mock module without resolver
+  const mod = globalThis.__BW_MESSAGING || (await import('@bandwidth/messaging'));
+  return new mod.Messaging.Client({
+    basicAuthUsername: BANDWIDTH_USERNAME,
+    basicAuthPassword: BANDWIDTH_PASSWORD,
+  });
+}
+
+async function getNumbersClient() {
+  const { BANDWIDTH_USERNAME, BANDWIDTH_PASSWORD } = process.env;
+  // 👇 allow tests to inject a mock module without resolver
+  const mod = globalThis.__BW_NUMBERS || (await import('@bandwidth/numbers'));
+  return new mod.Numbers.Client({
+    basicAuthUsername: BANDWIDTH_USERNAME,
+    basicAuthPassword: BANDWIDTH_PASSWORD,
+  });
 }
 
 const adapter = {
   providerName: 'bandwidth',
 
-  /**
-   * Search available numbers
-   * @param {Object} p
-   * @param {string} [p.areaCode]
-   * @param {string} [p.country='US']  // Bandwidth focuses on US
-   * @param {string} [p.type='local']  // 'local' | 'tollFree'
-   * @param {number} [p.limit=20]
-   * @returns {Promise<{items:string[]}>}
-   */
-  async searchAvailable({ areaCode, country = 'US', type = 'local', limit = 20 } = {}) {
-    // If creds missing, return empty — keeps server usable in dev
-    const missing =
-      !process.env.BANDWIDTH_ACCOUNT_ID ||
-      !process.env.BANDWIDTH_USERNAME ||
-      !process.env.BANDWIDTH_PASSWORD;
+  async sendSms({ to, text, from, clientRef }) {
+    ensureCreds();
+    const {
+      BANDWIDTH_ACCOUNT_ID,
+      BANDWIDTH_FROM_NUMBER,
+      BANDWIDTH_MESSAGING_APPLICATION_ID,
+      BANDWIDTH_APPLICATION_ID,
+    } = process.env;
 
-    if (missing) {
-      console.warn('[bandwidth] credentials missing — returning empty search results.');
-      return { items: [] };
+    const applicationId = BANDWIDTH_MESSAGING_APPLICATION_ID || BANDWIDTH_APPLICATION_ID;
+    const resolvedFrom = from || BANDWIDTH_FROM_NUMBER;
+    if (!resolvedFrom || !applicationId) {
+      throw new Error('Missing Bandwidth messaging configuration');
     }
 
-    const acct = process.env.BANDWIDTH_ACCOUNT_ID;
+    const client = await getMessagingClient();
 
-    // Ref: GET /accounts/{accountId}/availableNumbers
-    // Docs accept filters like areaCode, quantity, tollFree, etc.
-    const qs = new URLSearchParams();
-    if (areaCode) qs.set('areaCode', String(areaCode));
-    if (limit) qs.set('quantity', String(limit));
-    if (type && type.toLowerCase().includes('toll')) qs.set('tollFree', 'true');
+    const body = {
+      applicationId,
+      to: [to],
+      from: resolvedFrom,
+      text,
+      tag: clientRef,
+    };
 
-    const json = await bwFetch(`/accounts/${acct}/availableNumbers?${qs.toString()}`, {
-      method: 'GET',
+    const res = await client.createMessage(BANDWIDTH_ACCOUNT_ID, body);
+    const id = res?.data?.id || res?.id || '';
+    return { provider: 'bandwidth', messageId: id };
+  },
+
+  async checkNumberAvailability({ areaCode, limit = 20 } = {}) {
+    ensureCreds();
+    const { BANDWIDTH_ACCOUNT_ID } = process.env;
+
+    const client = await getNumbersClient();
+
+    const params = {};
+    if (areaCode) params.areaCode = String(areaCode);
+    if (limit) params.quantity = String(limit);
+
+    const res = await client.searchLocalAvailableNumbers(BANDWIDTH_ACCOUNT_ID, params);
+    const list = res?.data?.telephoneNumberList?.telephoneNumber || [];
+    return list.map((n) => ({ number: String(n), region: undefined }));
+  },
+
+  async purchaseNumber(arg) {
+    ensureCreds();
+    const { BANDWIDTH_ACCOUNT_ID } = process.env;
+    const phoneNumber = typeof arg === 'string' ? arg : arg?.phoneNumber;
+    if (!phoneNumber) throw new Error('phoneNumber required');
+
+    const client = await getNumbersClient();
+
+    const res = await client.createOrder(BANDWIDTH_ACCOUNT_ID, {
+      name: 'Test Order',
+      existingTelephoneNumberOrderType: {
+        telephoneNumberList: { telephoneNumber: [phoneNumber] },
+      },
     });
 
-    // Response shapes vary; try common fields
-    // Sometimes: { telephoneNumberList: { telephoneNumber: ["+1555..."] } }
-    // Or: { numbers: ["+1555..."] }
-    const list =
-      json?.telephoneNumberList?.telephoneNumber ||
-      json?.numbers ||
-      json?.availableNumbers ||
-      [];
-
-    const items = Array.isArray(list) ? list.map(String) : [];
-    return { items };
+    const id = res?.data?.order?.id || res?.order?.id || '';
+    return { id };
   },
 
-  /**
-   * Purchase/provision a number
-   * The real Bandwidth flow uses "orders" with Sites/Subscriptions.
-   * Provide a MOCK for now unless you’ve wired full provisioning.
-   */
-  async purchaseNumber({ phoneNumber }) {
-    if (process.env.BANDWIDTH_MOCK === 'true') {
-      console.warn('[bandwidth] MOCK purchaseNumber returning a fake order.');
-      return { order: { id: 'mock-order', phoneNumber } };
-    }
+  async releaseNumber(arg) {
     ensureCreds();
-    // TODO: Implement the full order payload once Sites/Apps are set.
-    // Docs: POST /accounts/{accountId}/orders
-    // https://docs.bandwidth.com/docs/numbers#orders
-    throw new Error('Bandwidth purchaseNumber not implemented yet. Set BANDWIDTH_MOCK=true for dev.');
+    const { BANDWIDTH_ACCOUNT_ID } = process.env;
+    const phoneNumber = typeof arg === 'string' ? arg : arg?.phoneNumber;
+    if (!phoneNumber) throw new Error('phoneNumber required');
+
+    const client = await getNumbersClient();
+
+    await client.createDisconnectTelephoneNumberOrder(BANDWIDTH_ACCOUNT_ID, {
+      disconnectTelephoneNumberOrderType: {
+        telephoneNumberList: { telephoneNumber: [phoneNumber] },
+      },
+    });
   },
 
-  /**
-   * Release a number
-   * The API for "releasing" numbers is via DELETE on TNs endpoint or via Orders (depending on setup).
-   */
-  async releaseNumber({ phoneNumber }) {
-    if (process.env.BANDWIDTH_MOCK === 'true') {
-      console.warn('[bandwidth] MOCK releaseNumber ok for', phoneNumber);
-      return;
-    }
-    ensureCreds();
-    // TODO: Implement per your Bandwidth account setup.
-    // Often: DELETE /accounts/{accountId}/phoneNumbers/{tn}
-    // https://docs.bandwidth.com/docs/numbers#delete-phone-number
-    throw new Error('Bandwidth releaseNumber not implemented yet. Set BANDWIDTH_MOCK=true for dev.');
-  },
-
-  async configureWebhooks(_p) {
-    // TODO: attach messaging/voice application IDs if you’re using Bandwidth for inbound/outbound
-    return;
-  },
+  async configureWebhooks() {},
 };
 
 export default adapter;

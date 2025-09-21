@@ -1,13 +1,3 @@
-// Minimal REST-based adapter using Telnyx v2 API.
-// Docs: https://developers.telnyx.com/docs/api
-//
-// ENV needed (typical):
-// - TELNYX_API_KEY
-//
-// Optional for future routing/webhooks:
-// - TELNYX_MESSAGING_PROFILE_ID
-// - TELNYX_CONNECTION_ID
-
 const API = 'https://api.telnyx.com/v2';
 
 function authHeader() {
@@ -40,16 +30,59 @@ const adapter = {
   providerName: 'telnyx',
 
   /**
-   * Search available numbers
-   * @param {Object} p
-   * @param {string} [p.areaCode]
-   * @param {string} [p.country='US']
-   * @param {string} [p.type='local']  // 'local' | 'toll-free'
-   * @param {number} [p.limit=20]
-   * @returns {Promise<{items:string[]}>}
+   * Send SMS (REST v2)
+   * returns: { provider: 'telnyx', messageId: string }
+   */
+  async sendSms({ to, text, clientRef }) {
+    ensureKey();
+    if (!to || !text) throw new Error('to and text required');
+    const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID || undefined;
+    const from = process.env.TELNYX_FROM_NUMBER || undefined;
+
+    const body = {
+      to,
+      text,
+      ...(from ? { from } : {}),
+      ...(messagingProfileId ? { messaging_profile_id: messagingProfileId } : {}),
+      ...(clientRef ? { client_ref: clientRef } : {}),
+    };
+
+    const json = await telnyxFetch('/messages', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    const id = json?.data?.id || json?.id || null;
+    return { provider: 'telnyx', messageId: id };
+  },
+
+  /**
+   * Check number availability, mapping to [{ number, region }]
+   */
+  async checkNumberAvailability({ areaCode, country = 'US', type = 'local', limit = 20 } = {}) {
+    if (!process.env.TELNYX_API_KEY) {
+      // keep routes functional in dev without a key
+      return [];
+    }
+
+    const qs = new URLSearchParams();
+    if (country) qs.set('filter[country_code]', country);
+    if (areaCode) qs.set('filter[national_destination_code]', String(areaCode));
+    if (type) qs.set('filter[phone_number_type]', type);
+    if (limit) qs.set('page[size]', String(limit));
+
+    const json = await telnyxFetch(`/available_phone_numbers?${qs.toString()}`, { method: 'GET' });
+    const data = Array.isArray(json?.data) ? json.data : [];
+    return data.map((n) => ({
+      number: n?.phone_number || n?.phoneNumber || n?.number,
+      region: n?.locality || n?.region || null,
+    })).filter(x => x.number);
+  },
+
+  /**
+   * Search available numbers (returns { items: string[] })
    */
   async searchAvailable({ areaCode, country = 'US', type = 'local', limit = 20 } = {}) {
-    // If no key, return empty — keeps server routes working in dev
     if (!process.env.TELNYX_API_KEY) {
       console.warn('[telnyx] TELNYX_API_KEY missing — returning empty search results.');
       return { items: [] };
@@ -61,9 +94,7 @@ const adapter = {
     if (type) qs.set('filter[phone_number_type]', type);
     if (limit) qs.set('page[size]', String(limit));
 
-    // Ref: /v2/available_phone_numbers
     const json = await telnyxFetch(`/available_phone_numbers?${qs.toString()}`, { method: 'GET' });
-
     const items =
       (json?.data || [])
         .map((n) => n?.phone_number || n?.phoneNumber || n?.number)
@@ -74,47 +105,38 @@ const adapter = {
 
   /**
    * Purchase/provision a number
-   * @param {Object} p
-   * @param {string} p.phoneNumber // E.164
+   * Accepts: { phoneNumber } OR a string
+   * Returns: { id }
    */
-  async purchaseNumber({ phoneNumber }) {
+  async purchaseNumber(arg) {
     ensureKey();
+    const phoneNumber = typeof arg === 'string' ? arg : arg?.phoneNumber;
     if (!phoneNumber) throw new Error('phoneNumber required');
 
-    // Ref: POST /v2/number_orders
-    const body = {
-      phone_numbers: [{ phone_number: phoneNumber }],
-    };
-
+    const body = { phone_numbers: [{ phone_number: phoneNumber }] };
     const json = await telnyxFetch('/number_orders', {
       method: 'POST',
       body: JSON.stringify(body),
     });
 
-    return { order: json?.data || json };
+    const id = json?.data?.id || json?.id || null;
+    return { id };
   },
 
   /**
    * Release a number
-   * @param {Object} p
-   * @param {string} p.phoneNumber // E.164
+   * Accepts: { phoneNumber } OR a string
    */
-  async releaseNumber({ phoneNumber }) {
+  async releaseNumber(arg) {
     ensureKey();
+    const phoneNumber = typeof arg === 'string' ? arg : arg?.phoneNumber;
     if (!phoneNumber) throw new Error('phoneNumber required');
 
-    // Ref: DELETE /v2/phone_numbers/{id or phone_number}
-    // Telnyx supports using the phone number in path for delete.
     const enc = encodeURIComponent(phoneNumber);
     await telnyxFetch(`/phone_numbers/${enc}`, { method: 'DELETE' });
   },
 
-  /**
-   * Optional: configure inbound/outbound routing, webhooks, etc.
-   * No-op here; wire up if/when you add messaging/voice.
-   */
   async configureWebhooks(_p) {
-    // e.g., attach messaging profile, set webhooks, etc.
     return;
   },
 };

@@ -1,25 +1,70 @@
 /**
  * @jest-environment node
  */
-import * as telnyxModule from 'telnyx';
-import TelnyxProvider from '../lib/telco/telnyx.js';
+import { jest } from '@jest/globals';
 
-jest.mock('telnyx', () => {
-  const create = jest.fn(() => ({
-    messages: { create: jest.fn(async () => ({ data: { id: 'msg_123' } })) },
-    availablePhoneNumbers: { list: jest.fn(async () => ({ data: [{ phone_number: '+15555550123', locality: 'Denver' }] })) },
-    numberOrders: { create: jest.fn(async () => ({ data: { id: 'order_1' } })) },
-    phoneNumbers: {
-      list: jest.fn(async () => ({ data: [{ id: 'pn_1', phone_number: '+15555550123' }] })),
-      del: jest.fn(async () => ({})),
-    },
-  }));
-  return create;
+// Mock fetch BEFORE importing the provider
+const mockFetch = jest.fn(async (url, opts) => {
+  const u = String(url);
+  // /messages
+  if (u.includes('/messages') && opts?.method === 'POST') {
+    return {
+      ok: true,
+      json: async () => ({ data: { id: 'msg_123' } }),
+      text: async () => '',
+      status: 200,
+      statusText: 'OK',
+    };
+  }
+  // /available_phone_numbers
+  if (u.includes('/available_phone_numbers')) {
+    return {
+      ok: true,
+      json: async () => ({
+        data: [{ phone_number: '+15555550123', locality: 'Denver' }],
+      }),
+      text: async () => '',
+      status: 200,
+      statusText: 'OK',
+    };
+  }
+  // /number_orders
+  if (u.includes('/number_orders') && opts?.method === 'POST') {
+    return {
+      ok: true,
+      json: async () => ({ data: { id: 'order_1' } }),
+      text: async () => '',
+      status: 200,
+      statusText: 'OK',
+    };
+  }
+  // /phone_numbers/{...} DELETE
+  if (u.includes('/phone_numbers/') && opts?.method === 'DELETE') {
+    return {
+      ok: true,
+      json: async () => ({}),
+      text: async () => '',
+      status: 200,
+      statusText: 'OK',
+    };
+  }
+
+  // default: not found
+  return {
+    ok: false,
+    json: async () => ({}),
+    text: async () => 'not found',
+    status: 404,
+    statusText: 'Not Found',
+  };
 });
+global.fetch = mockFetch;
+
+import TelnyxProvider from '../lib/telco/telnyx.js';
 
 describe('TelnyxProvider', () => {
   beforeAll(() => {
-    process.env.TELNYX_API_KEY = 'test';
+    process.env.TELNYX_API_KEY = 'test_key';
     process.env.TELNYX_MESSAGING_PROFILE_ID = 'mp_123';
     process.env.TELNYX_FROM_NUMBER = '+15550000000';
   });

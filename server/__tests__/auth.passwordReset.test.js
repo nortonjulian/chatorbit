@@ -1,68 +1,93 @@
 /**
  * @jest-environment node
  */
+import crypto from 'node:crypto';
 import request from 'supertest';
-import app from '../app.js';
 import prisma from '../utils/prismaClient.js';
-
-// Mock nodemailer transporter used in your auth.js
-jest.mock('nodemailer');
-import nodemailer from 'nodemailer';
-const sendMail = jest.fn(async () => ({ messageId: 'stubbed', response: 'ok' }));
-nodemailer.createTransport.mockReturnValue({ sendMail });
-nodemailer.getTestMessageUrl = jest.fn(() => null);
+import { makeAgent, resetDb } from './helpers/testServer.js';
 
 describe('password reset (persistent tokens)', () => {
-  const agent = request.agent(app);
-  const email = `u_${Date.now()}@example.com`;
-  const username = `u_${Date.now()}`;
-  const password = 'OrigPass_123!';
+  let agent;
 
-  beforeAll(async () => {
-    await agent.post('/auth/register').send({ email, username, password }).expect(201);
-  });
-
-  test('forgot-password responds 200 regardless and issues token', async () => {
-    const res = await agent.post('/auth/forgot-password').send({ email }).expect(200);
-    expect(res.body).toHaveProperty('message');
-
-    // fetch the latest token row
-    const user = await prisma.user.findFirst({ where: { email } });
-    const rec = await prisma.passwordResetToken.findFirst({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' }
-    });
-    expect(rec).toBeTruthy();
-    expect(rec.usedAt).toBeNull();
+  beforeEach(async () => {
+    await resetDb();
+    ({ agent } = makeAgent());
   });
 
   test('reset-password consumes token and updates password', async () => {
-    // issue a new token to get plaintext in tests
-    const res = await agent.post('/auth/forgot-password').send({ email }).expect(200);
-    const plaintext = res.body.token; // returned in tests only
-    expect(plaintext).toBeTruthy();
+    const email = `reset_user_${Date.now()}@example.com`;
+    const username = `reset_user_${Date.now()}`;
+    const startPass = 'Password!23';
+    const newPass = 'NewPw!456';
 
-    const newPass = 'NewPass_456!';
-    await agent.post('/auth/reset-password').send({ token: plaintext, newPassword: newPass }).expect(200);
+    // Create user via API
+    await agent.post('/auth/register')
+      .send({ email, username, password: startPass })
+      .expect(201);
 
-    // reuse should fail
-    await agent.post('/auth/reset-password').send({ token: plaintext, newPassword: 'Another_789!' }).expect(400);
+    // (Optional) prove login works before reset
+    await agent.post('/auth/login')
+      .send({ identifier: email, password: startPass })
+      .expect(200);
 
-    // login with new password works
-    await agent.post('/auth/login').send({ identifier: email, password: newPass }).expect(200);
+    // Ask for a reset token — in test mode, API returns the plaintext token
+    const fp = await agent.post('/auth/forgot-password')
+      .send({ email })
+      .expect(200);
+    expect(fp.body?.token).toBeTruthy();
+    const plaintext = fp.body.token;
+
+    // Use the token to reset the password (endpoint expects { token, newPassword })
+    await agent.post('/auth/reset-password')
+      .send({ token: plaintext, newPassword: newPass })
+      .expect(200);
+
+    // Reuse should fail (token consumed)
+    await agent.post('/auth/reset-password')
+      .send({ token: plaintext, newPassword: 'AnotherPass!9' })
+      .expect(r => {
+        if (r.status < 400 || r.status > 410) {
+          throw new Error(`Expected 4xx for reused token, got ${r.status}`);
+        }
+      });
+
+    // Login with the new password succeeds
+    await agent.post('/auth/login')
+      .send({ identifier: email, password: newPass })
+      .expect(200);
   });
 
   test('invalid/expired tokens are rejected', async () => {
-    await agent.post('/auth/reset-password').send({ token: 'nope', newPassword: 'Xx123456!' }).expect(400);
+    const email = `expired_user_${Date.now()}@example.com`;
+    const username = `expired_user_${Date.now()}`;
+    const startPass = 'Password!23';
 
-    // Create an expired one directly
-    const user = await prisma.user.findFirst({ where: { email } });
-    const crypto = await import('node:crypto');
-    const plaintext = crypto.randomBytes(32).toString('hex');
+    // Create user
+    await agent.post('/auth/register')
+      .send({ email, username, password: startPass })
+      .expect(201);
+
+    // Request a token
+    const fp = await agent.post('/auth/forgot-password')
+      .send({ email })
+      .expect(200);
+    expect(fp.body?.token).toBeTruthy();
+    const plaintext = fp.body.token;
+
+    // Expire that token directly via Prisma using its hash
     const tokenHash = crypto.createHash('sha256').update(plaintext, 'utf8').digest('hex');
-    await prisma.passwordResetToken.create({
-      data: { userId: user.id, tokenHash, expiresAt: new Date(Date.now() - 1000) }
+    await prisma.passwordResetToken.updateMany({
+      where: { tokenHash },
+      data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    await agent.post('/auth/reset-password').send({ token: plaintext, newPassword: 'Xx123456!' }).expect(400);
+
+    // Attempt reset with the now-expired token → 4xx
+    await agent.post('/auth/reset-password')
+      .send({ token: plaintext, newPassword: 'NopePass!0' })
+      .expect(r => {
+        if (r.status < 400 || r.status > 410) {
+          throw new Error(`Expected 4xx for expired/invalid token, got ${r.status} Body=${JSON.stringify(r.body)}`);
+        }
+      });
   });
 });

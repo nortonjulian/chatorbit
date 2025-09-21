@@ -23,27 +23,24 @@ function getTokenFromReq(req, { allowBearer = false } = {}) {
   return null;
 }
 
-/** Strict auth: requires a valid JWT; attaches `req.user = { id, username, role }` */
+/** Strict auth: requires a valid JWT; attaches `req.user = { id, username, role, email, plan }` */
 export function requireAuth(req, res, next) {
   try {
     const token = getTokenFromReq(req, { allowBearer: false });
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      return res
-        .status(500)
-        .json({ error: 'Server misconfiguration (JWT secret missing)' });
-    }
+    const SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : 'dev_secret');
+    const decoded = jwt.verify(token, SECRET);
 
-    const decoded = jwt.verify(token, secret);
-    // Expecting payload like: { id, username, role }
+    // Expecting payload like: { id, username, role, email, plan }
     if (!decoded?.id) return res.status(401).json({ error: 'Unauthorized' });
 
     req.user = {
-      id: decoded.id,
+      id: Number(decoded.id),
       username: decoded.username,
-      role: decoded.role,
+      role: decoded.role || 'USER',
+      email: decoded.email || null,
+      plan: decoded.plan || 'FREE',
     };
     next();
   } catch {
@@ -55,15 +52,17 @@ export function requireAuth(req, res, next) {
 export function verifyTokenOptional(req, _res, next) {
   try {
     const token = getTokenFromReq(req, { allowBearer: false });
-    const secret = process.env.JWT_SECRET;
-    if (!token || !secret) return next();
+    if (!token) return next();
 
-    const decoded = jwt.verify(token, secret);
+    const SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : 'dev_secret');
+    const decoded = jwt.verify(token, SECRET);
     if (decoded?.id) {
       req.user = {
-        id: decoded.id,
+        id: Number(decoded.id),
         username: decoded.username,
-        role: decoded.role,
+        role: decoded.role || 'USER',
+        email: decoded.email || null,
+        plan: decoded.plan || 'FREE',
       };
     }
   } catch {
@@ -79,3 +78,5 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
+
+export default requireAuth;

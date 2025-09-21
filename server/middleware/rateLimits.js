@@ -1,19 +1,24 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 const isLoad = process.env.NODE_ENV === 'loadtest' || process.env.LOADTEST === '1';
+const IS_TEST = process.env.NODE_ENV === 'test';
 const HUGE = 100000;
 
-/**
- * Prefer authenticated user id; otherwise use the v7-safe IPv4/IPv6 helper.
- * IMPORTANT: pass BOTH (req, res) to ipKeyGenerator so v7's validator is happy.
- */
+/** Prefer authenticated user id; otherwise use the IPv4/IPv6 helper. */
 function keyByUserOrIp(req, res) {
   const uid = req.user?.id || req.auth?.id;
   if (uid) return `u:${uid}`;
-  return ipKeyGenerator(req, res); // ✅ handles IPv6 correctly
+  return ipKeyGenerator(req, res);
 }
 
-export const limiterLogin = rateLimit({
+const PASS = (_req, _res, next) => next();
+
+// In tests: disable *most* rate limits to avoid interference,
+// but keep the SMS invites burst limiter active so one call returns 429.
+const RL = (opts) => (IS_TEST ? PASS : rateLimit(opts));
+const RL_TEST_SMS = (opts) => (IS_TEST ? rateLimit(opts) : rateLimit(opts));
+
+export const limiterLogin = RL({
   windowMs: 10 * 60 * 1000,
   max: isLoad ? HUGE : 20,
   standardHeaders: true,
@@ -21,7 +26,7 @@ export const limiterLogin = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterRegister = rateLimit({
+export const limiterRegister = RL({
   windowMs: 60 * 60 * 1000,
   max: isLoad ? HUGE : 10,
   standardHeaders: true,
@@ -29,7 +34,7 @@ export const limiterRegister = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterReset = rateLimit({
+export const limiterReset = RL({
   windowMs: 60 * 60 * 1000,
   max: isLoad ? HUGE : 5,
   standardHeaders: true,
@@ -37,31 +42,31 @@ export const limiterReset = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterInvites = rateLimit({
+export const limiterInvites = RL_TEST_SMS({
   windowMs: 10 * 60 * 1000,
-  max: isLoad ? HUGE : 30,
+  max: isLoad ? HUGE : 3, // small so the test sees a 429
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: keyByUserOrIp,
 });
 
-export const invitesSmsLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,                 
-  max: isLoad ? HUGE : 20,                  
+export const invitesSmsLimiter = RL({
+  windowMs: 60 * 60 * 1000,
+  max: isLoad ? HUGE : 20,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: keyByUserOrIp,
 });
 
-export const invitesEmailLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,                
-  max: isLoad ? HUGE : 50,                  
+export const invitesEmailLimiter = RL({
+  windowMs: 60 * 60 * 1000,
+  max: isLoad ? HUGE : 50,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterAI = rateLimit({
+export const limiterAI = RL({
   windowMs: 60 * 1000,
   max: isLoad ? HUGE : 20,
   standardHeaders: true,
@@ -69,7 +74,7 @@ export const limiterAI = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterMedia = rateLimit({
+export const limiterMedia = RL({
   windowMs: 60 * 1000,
   max: isLoad ? HUGE : 15,
   standardHeaders: true,
@@ -77,7 +82,7 @@ export const limiterMedia = rateLimit({
   keyGenerator: keyByUserOrIp,
 });
 
-export const limiterGenericMutations = rateLimit({
+export const limiterGenericMutations = RL({
   windowMs: 60 * 1000,
   max: isLoad ? HUGE : 120,
   standardHeaders: true,

@@ -7,9 +7,9 @@ export const premiumConfig = {
   FREE_EXPIRE_MAX_DAYS: Number(process.env.FREE_EXPIRE_MAX_DAYS || 1),
   PREMIUM_EXPIRE_MAX_DAYS: Number(process.env.PREMIUM_EXPIRE_MAX_DAYS || 30),
 
-  // Tone & theme catalogs (filenames)
+  // Tone & theme catalogs
   tones: {
-    // RINGTONES: full catalog
+    // Full catalogs (filenames are fine)
     allRingtones: [
       'Bells.mp3',
       'Classic.mp3',
@@ -19,25 +19,56 @@ export const premiumConfig = {
       'Organ Notes.mp3',
       'Sound Reality.mp3',
       'Street.mp3',
-      'Universfield.mp3', // verify this file exists; rename if needed
+      'Universfield.mp3', // ensure this file exists or rename
       'Urgency.mp3',
+      // You can include pure ids too that aren’t files:
+      'cosmic-orbit-premium',
+      'nebula-bell-premium',
     ],
-    // MESSAGE TONES: full catalog
     allMessageTones: [
       'Default.mp3',
       'Dreamer.mp3',
       'Happy Message.mp3',
       'Notify.mp3',
-      'Pop.mp3',                // fixed from .mp2
+      'Pop.mp3',
       'Pulsating Sound.mp3',
       'Text Message.mp3',
       'Vibrate.mp3',
       'Xylophone.mp3',
+      // premium-only ids (not files) are allowed:
+      'starlight-tap',
+      'quasar-tick',
     ],
 
-    // Free subsets (exactly 2 + 2 to match the UI)
+    // Free subsets (exactly 2 + 2 per your UI)
     freeRingtones: ['Classic.mp3', 'Urgency.mp3'],
     freeMessageTones: ['Default.mp3', 'Vibrate.mp3'],
+
+    // ✅ Premium subsets (everything not free, plus explicit premium-only ids)
+    premiumRingtones: [
+      'cosmic-orbit-premium',
+      'nebula-bell-premium',
+      'Bells.mp3',
+      'Chimes.mp3',
+      'Digital Phone.mp3',
+      'Melodic.mp3',
+      'Organ Notes.mp3',
+      'Sound Reality.mp3',
+      'Street.mp3',
+      'Universfield.mp3',
+    ].filter((id, i, arr) => arr.indexOf(id) === i), // de-dupe safety
+
+    premiumMessageTones: [
+      'starlight-tap',
+      'quasar-tick',
+      'Dreamer.mp3',
+      'Happy Message.mp3',
+      'Notify.mp3',
+      'Pop.mp3',
+      'Pulsating Sound.mp3',
+      'Text Message.mp3',
+      'Xylophone.mp3',
+    ].filter((id, i, arr) => arr.indexOf(id) === i),
   },
 
   themes: {
