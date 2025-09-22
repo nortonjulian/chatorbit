@@ -2,9 +2,8 @@ name: CI
 
 on:
   pull_request:
-    branches-ignore: ['**']   # match nothing
   push:
-    branches-ignore: ['**']   # match nothing
+    branches: [ main ]
 
 jobs:
   ci:

@@ -2,8 +2,8 @@ name: CD
 
 on:
   push:
-    # branches: [ main ]
-  workflow_dispatch: {} # TEMP
+    branches: [ main ]
+  workflow_dispatch: {} 
 
 jobs:
   deploy-staging:
