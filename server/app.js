@@ -41,6 +41,9 @@ import uploadsRouter from './routes/uploads.js';
 import smsRouter from './routes/sms.js';
 import voiceRouter from './routes/voice.js';
 import settingsForwardingRouter from './routes/settings.forwarding.js';
+import calendarRouter from './routes/calendar.js';
+import shareEventRouter from './routes/shareEvent.js';
+import eventLinksRouter from './routes/eventLinks.js';
 
 // 🔒 auth gates
 import { requireAuth } from './middleware/auth.js';
@@ -176,7 +179,10 @@ export function createApp() {
       next();
     });
   }
-  app.get('/auth/csrf', (_req, res) => res.json({ ok: true }));
+  app.get('/auth/csrf', (req, res) => {
+    setCsrfCookie(req, res);
+    res.json({ csrfToken: req.csrfToken() });
+  });
 
   /* Health */
   app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -234,6 +240,10 @@ export function createApp() {
 
   // Contacts bulk import (mounted under /api to match your Vite proxy)
   app.use('/api', contactsImportRouter);
+
+  app.use('/calendar', calendarRouter);
+  app.use('/', shareEventRouter);
+  app.use('/', eventLinksRouter);
 
   /* Status flag */
   const STATUS_ENABLED_FLAG = String(process.env.STATUS_ENABLED || '').toLowerCase() === 'true';

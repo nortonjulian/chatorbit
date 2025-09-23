@@ -70,9 +70,4 @@ export const premiumConfig = {
       'Xylophone.mp3',
     ].filter((id, i, arr) => arr.indexOf(id) === i),
   },
-
-  themes: {
-    free: ['light', 'dark'],
-    premium: ['amoled', 'neon', 'sunset', 'midnight', 'solarized'],
-  },
 };

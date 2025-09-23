@@ -17,17 +17,24 @@ export function buildCsrf({ isProd = process.env.NODE_ENV === 'production', cook
     cookie: {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
+      // 'lax' is usually friendlier for SPAs; 'strict' can be okay on same-site localhost,
+      // but 'lax' avoids edge cases with redirects. Pick what you prefer.
+      sameSite: 'lax',
       domain: cookieDomain || undefined,
       path: '/',
     },
-    // Accept token from header primarily; fallbacks for flexibility
-    value: (req) =>
-      req.headers['x-csrf-token'] ||
-      req.get?.('x-csrf-token') ||
-      req.body?._csrf ||
-      req.query?._csrf ||
-      req.cookies?.['XSRF-TOKEN'],
+    value: (req) => {
+      const h = req.headers || {};
+      // Node lowercases header names, so check lowercase keys
+      return (
+        h['x-csrf-token'] ||
+        h['csrf-token'] ||
+        h['x-xsrf-token'] ||
+        req.body?._csrf ||
+        req.query?._csrf ||
+        req.cookies?.['XSRF-TOKEN'] // double-submit fallback
+      );
+    },
   });
 }
 
