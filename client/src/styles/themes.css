@@ -1,0 +1,21 @@
+:root {
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --card: #ffffff;
+  --accent: #3b82f6;
+}
+
+html[data-theme="light"] {
+  --bg: #ffffff; --fg: #0a0a0a; --card:#ffffff; --accent:#3b82f6;
+}
+
+html[data-theme="dark"] {
+  --bg: #0b0b0f; --fg: #f3f4f6; --card:#121218; --accent:#60a5fa;
+}
+
+/* Premium examples */
+html[data-theme="amoled"]   { --bg:#000000; --fg:#e5e7eb; --card:#050505; --accent:#22d3ee; }
+html[data-theme="neon"]     { --bg:#0a0a0a; --fg:#eaffff; --card:#101010; --accent:#39ff14; }
+html[data-theme="sunset"]   { --bg:#1b0e10; --fg:#ffe9d6; --card:#241316; --accent:#ff7a59; }
+html[data-theme="midnight"] { --bg:#0a1020; --fg:#e6eeff; --card:#0f172a; --accent:#7aa2ff; }
+html[data-theme="solarized"]{ --bg:#fdf6e3; --fg:#073642; --card:#eee8d5; --accent:#268bd2; }

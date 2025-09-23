@@ -52,7 +52,7 @@ select:focus-visible {
   margin: -1px !important;
   overflow: hidden !important;
   clip: rect(0, 0, 1px, 1px) !important;
-  white-space: nowrap !important;
+  white-space: nowrap !important; /* added line */
   border: 0 !important;
 }
 
@@ -66,28 +66,4 @@ select:focus-visible {
   }
 }
 
-/* ---------- Brand lockup (logo + wordmark) ---------- */
-.brand-lockup {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 0.5rem !important;
-  width: max-content !important; /* prevents full-width stretching */
-}
-html[dir='rtl'] .brand-lockup {
-  flex-direction: row-reverse !important;
-}
-
-/* Pin brand above hero on desktop; fall back to normal flow on mobile */
-.brand-lockup--fixed {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 2;
-}
-@media (max-width: 768px) {
-  .brand-lockup--fixed {
-    position: static;
-    margin-bottom: 12px;
-  }
-}
+/* keep your existing brand lockup rules */

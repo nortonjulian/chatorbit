@@ -148,8 +148,4 @@ export const premiumConfig = {
     freeMessageTones: FREE_MESSAGE,
     premiumMessageTones: ALL_MESSAGE_TONES.map((x) => x.value).filter((v) => !FREE_MESSAGE.includes(v)),
   },
-  themes: {
-    free: ['light', 'dark'],
-    premium: ['amoled', 'neon', 'sunset', 'midnight', 'solarized'],
-  },
 };

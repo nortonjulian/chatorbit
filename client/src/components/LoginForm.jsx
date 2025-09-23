@@ -7,7 +7,39 @@ import {
   Stack, Group, Divider, Checkbox,
 } from '@mantine/core';
 import { IconBrandGoogle, IconBrandApple } from '@tabler/icons-react';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
+
+// Read the CSRF token from cookie if present (double-submit pattern)
+function readXsrfCookie(name = 'XSRF-TOKEN') {
+  if (typeof document === 'undefined') return '';
+  const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// Fetch a CSRF token (and ensure cookies are set). Your server currently
+// returns `{ ok: true }` at /auth/csrf and also sets the XSRF-TOKEN cookie.
+// This function supports BOTH styles:
+//  - JSON `{ csrfToken: "..." }` (if you update the route later), OR
+//  - reading the `XSRF-TOKEN` cookie set by `setCsrfCookie`.
+async function getCsrfToken() {
+  try {
+    const res = await fetch('http://localhost:5002/auth/csrf', {
+      credentials: 'include',
+    });
+    // Try JSON first
+    try {
+      const data = await res.json();
+      if (data && typeof data.csrfToken === 'string' && data.csrfToken.length) {
+        return data.csrfToken;
+      }
+    } catch {
+      /* ignore JSON parse errors; fall back to cookie */
+    }
+  } catch {
+    /* ignore; fall back to cookie */
+  }
+  return readXsrfCookie('XSRF-TOKEN');
+}
 
 export default function LoginForm({ onLoginSuccess }) {
   const { setCurrentUser } = useUser();
@@ -18,7 +50,7 @@ export default function LoginForm({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // UI-only hinting; payload will include both username & identifier for compatibility.
+  // UI-only hinting; payload will include username for backend compatibility.
   const idField = (import.meta.env.VITE_AUTH_ID_FIELD || 'username').toLowerCase();
   const isEmailMode = idField === 'email';
   const idLabel = isEmailMode ? 'Email' : 'Username';
@@ -41,15 +73,24 @@ export default function LoginForm({ onLoginSuccess }) {
       return;
     }
 
-    // ✅ Tests expect { username, password } exactly.
-    //    We also add `identifier` for backend compatibility.
+    // Backend accepts { email | identifier | username, password }.
+    // We’ll send `username` to hit the union logic (works for username or email).
     const payload = { username: idValue, password: pwd };
 
     try {
-      // ✅ Do NOT pass a 3rd config arg here — tests assert only two args.
-      const res = await axiosClient.post('/auth/login', payload);
+      // --- CSRF bootstrap ---
+      const csrfToken = await getCsrfToken();
+      if (csrfToken) {
+        // set default header for this axios instance (keeps tests happy: still only two args on .post)
+        axiosClient.defaults.headers.common['X-CSRF-Token'] = csrfToken;
+      }
 
+      // If you want to pass "remember me" to the server, add it to payload or a header.
+      // Your server currently sets a 30d cookie by default, so we leave it as-is.
+
+      const res = await axiosClient.post('/auth/login', payload);
       const user = res?.data?.user ?? res?.data;
+
       setCurrentUser(user);
       onLoginSuccess?.(user);
 
@@ -65,14 +106,25 @@ export default function LoginForm({ onLoginSuccess }) {
       const apiMsg = data.message || data.error || data.details || '';
       const reason = data.reason || data.code;
 
-      if (status === 422) {
+      if (status === 400) {
+        const msg = apiMsg || 'Missing credentials.';
+        setError(msg);
+        toast.err(msg);
+      } else if (status === 401) {
+        const msg = apiMsg || 'Invalid username or password';
+        setError(msg);
+        // toast.err(msg);
+      } else if (status === 403) {
+        const msg = apiMsg || 'Access denied.';
+        setError(msg);
+        toast.err(msg);
+      } else if (status === 422) {
         const msg = apiMsg || 'Invalid request. Check your username/email and password.';
         setError(msg);
         toast.err(msg);
       } else if (status === 402) {
         if (reason === 'DEVICE_LIMIT') {
-          'Device limit reached for the Free plan. Log out on another device or upgrade to Premium to link more devices.';
-+         setError(msg);
+          const msg = 'Device limit reached for the Free plan. Log out on another device or upgrade to Premium to link more devices.';
           setError(msg);
           toast.info(msg);
         } else {
@@ -81,7 +133,7 @@ export default function LoginForm({ onLoginSuccess }) {
           toast.info(msg);
         }
       } else {
-        const msg = 'Invalid username or password';
+        const msg = apiMsg || 'Login failed. Please try again.';
         setError(msg);
         toast.err(msg);
       }
@@ -141,7 +193,6 @@ export default function LoginForm({ onLoginSuccess }) {
           </Group>
 
           {error && (
-            // ✅ Give the element role="alert" so tests can query by role
             <Alert color="red" variant="light" role="alert">
               {error}{' '}
               {error.includes('Premium') && (

@@ -1,93 +1,105 @@
 import axios from 'axios';
 
-axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
-axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+/** -------- Base URL detection (Vite first) -------- */
+const viteBase =
+  (typeof import.meta !== 'undefined' && import.meta.env && (
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+  )) || null;
 
-const baseURL =
-  (typeof process !== 'undefined' &&
-    process.env &&
-    (process.env.VITE_API_URL || process.env.VITE_API_BASE_URL)) ||
-  (typeof window !== 'undefined' && window.__API_URL__) ||
-  'http://localhost:5002';
+const winBase =
+  (typeof window !== 'undefined' && window.__API_URL__) || null;
 
+const nodeBase =
+  (typeof process !== 'undefined' && process.env && (
+    process.env.VITE_API_BASE_URL || process.env.VITE_API_URL
+  )) || null;
+
+const baseURL = viteBase || winBase || nodeBase || 'http://localhost:5002';
+
+/** -------- Axios instance -------- */
 const axiosClient = axios.create({
   baseURL,
-  withCredentials: true,
+  withCredentials: true,           // <- REQUIRED so cookies are sent/stored
   timeout: 20000,
-  xsrfCookieName: 'XSRF-TOKEN',
-  xsrfHeaderName: 'X-XSRF-TOKEN',
+  xsrfCookieName: 'XSRF-TOKEN',    // <- cookie name we read from
+  xsrfHeaderName: 'X-XSRF-TOKEN',  // <- header name we send
   headers: {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
   },
 });
 
+/** -------- Helpers -------- */
+function readCookie(name) {
+  if (typeof document === 'undefined') return '';
+  const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+async function ensureCsrfPrimed() {
+  // If we already have the readable cookie, we’re good.
+  if (readCookie('XSRF-TOKEN')) return;
+
+  try {
+    // This endpoint should set _csrf (httpOnly) + XSRF-TOKEN (readable)
+    await axiosClient.get('/auth/csrf', { withCredentials: true });
+  } catch {
+    // Even if this fails, we’ll still try to proceed; server will 403 if needed.
+  }
+}
+
+/** -------- Interceptors -------- */
+
+// Attach CSRF for mutating requests and ensure it’s primed.
+axiosClient.interceptors.request.use(async (config) => {
+  const method = String(config.method || 'get').toUpperCase();
+  const isMutating = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+
+  if (isMutating) {
+    await ensureCsrfPrimed();
+
+    // If axios xsrf machinery didn’t add the header yet, set it from cookie manually.
+    const hasHeader =
+      (config.headers && (config.headers['X-XSRF-TOKEN'] || config.headers['x-xsrf-token'])) ||
+      (axiosClient.defaults.headers.common && axiosClient.defaults.headers.common['X-XSRF-TOKEN']);
+
+    if (!hasHeader) {
+      const token = readCookie('XSRF-TOKEN');
+      if (token) {
+        config.headers = config.headers || {};
+        config.headers['X-XSRF-TOKEN'] = token;
+      }
+    }
+  }
+
+  return config;
+});
+
+// Dev-friendly error log
+axiosClient.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (typeof window !== 'undefined' && import.meta?.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('axios error:', {
+        url: err?.config?.url,
+        method: err?.config?.method,
+        status: err?.response?.status,
+        data: err?.response?.data,
+      });
+    }
+    return Promise.reject(err);
+  }
+);
+
 export default axiosClient;
 
-// ---- CSRF prime (unchanged) ----
+/** ------- Optional: explicit CSRF primer you can call on app start ------- */
 let _csrfPrimed = false;
 export async function primeCsrf() {
   if (_csrfPrimed) return;
-  try { await axiosClient.get('/auth/csrf'); } catch {}
+  try {
+    await axiosClient.get('/auth/csrf', { withCredentials: true });
+  } catch {}
   _csrfPrimed = true;
 }
-
-// ---- HMR-safe interceptors ----
-let _attached = false;
-let _reqId = null;
-let _resId = null;
-
-function attachInterceptorsOnce() {
-  if (_attached) return;
-  _attached = true;
-
-  _resId = axiosClient.interceptors.response.use(
-    (res) => res,
-    (err) => {
-      const status = err?.response?.status;
-      const cfg = err?.config || {};
-      const data = err?.response?.data || {};
-      const reason = data.reason || data.code;
-
-      if (status === 401 && typeof window !== 'undefined') {
-        try { window.dispatchEvent(new CustomEvent('auth-unauthorized')); } catch {}
-      }
-
-      if (status === 402) {
-        const isAuthFlow =
-          typeof cfg.url === 'string' &&
-          (cfg.url.includes('/auth/login') || cfg.url.includes('/auth/logout'));
-
-        if (cfg.__suppressUpgradeRedirect || isAuthFlow) {
-          err.isPlanGate = true;
-          err.planReason = reason || 'PREMIUM_REQUIRED';
-          return Promise.reject(err);
-        }
-        if (typeof window !== 'undefined' && window.location?.assign) {
-          window.location.assign('/settings/upgrade');
-        }
-      }
-
-      return Promise.reject(err);
-    }
-  );
-
-  // HMR cleanup — use eval so Jest never parses `import.meta`
-  let viteHot;
-  try {
-    // eslint-disable-next-line no-eval
-    viteHot = (0, eval)('import.meta.hot');
-  } catch {
-    viteHot = undefined;
-  }
-  if (viteHot) {
-    viteHot.dispose(() => {
-      if (_reqId != null) axiosClient.interceptors.request.eject(_reqId);
-      if (_resId != null) axiosClient.interceptors.response.eject(_resId);
-      _attached = false;
-      _reqId = _resId = null;
-    });
-  }
-}
-
-attachInterceptorsOnce();

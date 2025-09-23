@@ -13,7 +13,7 @@ import {
   Skeleton,
 } from '@mantine/core';
 import { IconRefresh, IconTrash, IconMessagePlus } from '@tabler/icons-react';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function ContactList({ currentUserId, onChanged }) {
   const navigate = useNavigate();

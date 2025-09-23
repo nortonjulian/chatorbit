@@ -31,7 +31,7 @@ import EventSuggestionBar from './EventSuggestionBar.jsx';
 import socket from '../lib/socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient';
 import axiosClient from '../api/axiosClient';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 // ✅ Smart Replies
 import SmartReplyBar from './SmartReplyBar.jsx';

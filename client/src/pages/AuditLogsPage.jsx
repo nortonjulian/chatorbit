@@ -9,7 +9,7 @@ import {
   Table,
   Alert,
 } from '@mantine/core';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function AuditLogsPage() {
   const [items, setItems] = useState([]);

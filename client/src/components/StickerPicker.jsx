@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, TextInput, SimpleGrid, Image, Loader } from '@mantine/core';
 import axiosClient from '../api/axiosClient';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function StickerPicker({ opened, onClose, onPick }) {
   const [q, setQ] = useState('');

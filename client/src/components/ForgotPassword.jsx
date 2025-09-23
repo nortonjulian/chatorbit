@@ -12,7 +12,7 @@ import {
   Anchor,
   Text,
 } from '@mantine/core';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');

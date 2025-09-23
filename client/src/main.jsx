@@ -9,6 +9,8 @@ import { BrowserRouter } from 'react-router-dom';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
+import './styles/themes.css';
+
 import './i18n';
 
 import { AdProvider } from './ads/AdProvider';
@@ -21,10 +23,14 @@ import App from './App.jsx';
 import { chatOrbitTheme } from './theme';
 import { primeCsrf } from './api/axiosClient';
 
-// NEW: a11y + perf helpers
+// a11y + perf helpers
 import SkipToContent from "./components/SkipToContent.jsx";
 import A11yAnnouncer from './components/A11yAnnouncer.jsx';
 import { initWebVitals } from './utils/perf/vitals.js';
+
+// THEME MANAGER: single source of truth
+import { applyTheme, getTheme, onThemeChange, setTheme } from './utils/themeManager';
+applyTheme(); // apply stored/default theme on boot
 
 const isProd = import.meta.env.PROD;
 
@@ -56,24 +62,7 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
   })();
 }
 
-/* ------------- Dev-only a11y audit (best-effort) ------------- */
-if (import.meta.env.DEV) {
-  Promise.all([import('@axe-core/react'), import('react'), import('react-dom')])
-    .then(([{ default: axe }, ReactMod, ReactDOMMod]) => {
-      const ReactForAxe = ReactMod.default || ReactMod;
-      const ReactDOMForAxe = ReactDOMMod.default || ReactDOMMod;
-      setTimeout(() => axe(ReactForAxe, ReactDOMForAxe, 1000), 0);
-    })
-    .catch(() => {});
-}
-
-/* ---------------- Theming helpers ---------------- */
-function getInitialScheme() {
-  const saved = localStorage.getItem('co-theme');
-  if (saved === 'dark' || saved === 'light') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light';
-}
-
+/* ---------------- Mantine theme ---------------- */
 const theme = createTheme({
   ...chatOrbitTheme,
   primaryShade: 6,
@@ -86,19 +75,21 @@ const theme = createTheme({
 
 /* ---------------- Root ---------------- */
 function Root() {
-  const [scheme, setScheme] = React.useState(getInitialScheme());
+  // Mantine needs 'light' | 'dark' only; map current theme to that bucket.
+  const [scheme, setScheme] = React.useState(getTheme() === 'dark' ? 'dark' : 'light');
 
   // Prime CSRF cookie/header once at app startup
   React.useEffect(() => {
     primeCsrf();
   }, []);
 
+  // Reflect external theme changes (e.g., ThemeSelect) into Mantine scheme
   React.useEffect(() => {
-    localStorage.setItem('co-theme', scheme);
-    document.documentElement.setAttribute('data-theme', scheme);
-  }, [scheme]);
+    const unsub = onThemeChange((t) => setScheme(t === 'dark' ? 'dark' : 'light'));
+    return unsub;
+  }, []);
 
-  // NEW: start collecting Web Vitals (lazy-loaded)
+  // start collecting Web Vitals (lazy-loaded)
   React.useEffect(() => {
     initWebVitals();
   }, []);
@@ -108,22 +99,24 @@ function Root() {
       <MantineProvider theme={theme} defaultColorScheme={scheme}>
         <Notifications position="top-right" limit={3} />
 
-        {/* NEW: a11y helpers mounted once */}
+        {/* a11y helpers mounted once */}
         <SkipToContent targetId="main-content" />
         <A11yAnnouncer />
 
         {/* IMPORTANT: SocketProvider must wrap UserProvider */}
         <SocketProvider>
           <UserProvider>
-            {/* AdProvider needs to be inside UserProvider so it can read plan and disable ads for Premium */}
+            {/* AdProvider inside UserProvider so it can read plan and disable ads for Premium */}
             <AdProvider>
               <CallProvider>
                 <BrowserRouter>
                   <App
                     themeScheme={scheme}
-                    onToggleTheme={() =>
-                      setScheme((s) => (s === 'light' ? 'dark' : 'light'))
-                    }
+                    onToggleTheme={() => {
+                      // Drive through themeManager (single source of truth)
+                      const next = scheme === 'light' ? 'dark' : 'light';
+                      setTheme(next);
+                    }}
                   />
                 </BrowserRouter>
               </CallProvider>

@@ -31,8 +31,9 @@ import SoundSettings from './SoundSettings';
 import LinkedDevicesPanel from './LinkedDevicesPanel';
 import PrivacySection from '../pages/PrivacySection';
 
-// themes catalog lives with sounds to keep Free/Premium lists in one place
-import { premiumConfig } from '@/utils/sounds';
+// ⬇️ NEW: Theme picker + getter (single source of truth)
+import ThemeSelect from '../components/settings/ThemeSelect.jsx';
+import { getTheme } from '../utils/themeManager.js';
 
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
@@ -240,21 +241,7 @@ export default function UserProfile({ onLanguageChange }) {
   const planUpper = (currentUser.plan || 'FREE').toUpperCase();
   const isPremium = planUpper === 'PREMIUM';
 
-  // Themes — Free vs Premium from premiumConfig
-  const freeThemes = premiumConfig.themes.free;        // ['light', 'dark']
-  const premiumThemes = premiumConfig.themes.premium;  // ['amoled', 'neon', 'sunset', 'midnight', 'solarized']
-  const toOption = (v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) });
-
-  const themeOptions = [
-    { group: 'Free', items: freeThemes.map(toOption) },
-    {
-      group: 'Premium',
-      items: premiumThemes.map((v) => ({ ...toOption(v), disabled: !isPremium })),
-    },
-  ];
-
   const [preferredLanguage, setPreferredLanguage] = useState(currentUser.preferredLanguage || 'en');
-  const [theme, setTheme] = useState(currentUser.theme || freeThemes[0]);
   const [allowExplicitContent, setAllowExplicitContent] = useState(currentUser.allowExplicitContent ?? true);
   const [enableReadReceipts, setEnableReadReceipts] = useState(currentUser.enableReadReceipts ?? false);
   const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(currentUser.autoDeleteSeconds || 0);
@@ -263,18 +250,13 @@ export default function UserProfile({ onLanguageChange }) {
   const [privacyHoldToReveal, setPrivacyHoldToReveal] = useState(currentUser.privacyHoldToReveal ?? false);
   const [notifyOnCopy, setNotifyOnCopy] = useState(currentUser.notifyOnCopy ?? false);
 
-  // keep current theme valid if plan changes
-  useEffect(() => {
-    const allowed = new Set([...freeThemes, ...(isPremium ? premiumThemes : [])]);
-    if (!allowed.has(theme)) setTheme(freeThemes[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPremium]);
-
   const saveSettings = async () => {
     try {
+      const chosenTheme = getTheme(); // read what's currently applied/stored
+
       await axiosClient.patch(`/users/${currentUser.id}`, {
         preferredLanguage,
-        theme,
+        theme: chosenTheme,
         allowExplicitContent,
         enableReadReceipts,
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
@@ -290,7 +272,7 @@ export default function UserProfile({ onLanguageChange }) {
       setCurrentUser((prev) => ({
         ...prev,
         preferredLanguage,
-        theme,
+        theme: chosenTheme,
         allowExplicitContent,
         enableReadReceipts,
         autoDeleteSeconds: parseInt(autoDeleteSeconds || 0, 10),
@@ -436,20 +418,8 @@ export default function UserProfile({ onLanguageChange }) {
             </Text>
           </Card>
         )}
-        <Select
-          label={t('profile.theme', 'Theme')}
-          value={theme}
-          onChange={(v) => {
-            if (!v) return;
-            if (!isPremium && premiumThemes.includes(v)) {
-              notifications.show({ color: 'blue', message: t('profile.themePremiumGate', 'Upgrade to use premium themes.') });
-              return;
-            }
-            setTheme(v);
-          }}
-          data={themeOptions}
-          withinPortal
-        />
+        {/* ⬇️ Theme picker replaces the old Select */}
+        <ThemeSelect isPremium={isPremium} />
 
         {/* Sounds */}
         <Divider label={t('profile.soundSettings', 'Sounds')} labelPosition="center" />

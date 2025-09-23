@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Switch, Group, Text } from '@mantine/core';
 import axios from '../api/axiosClient';
 import { useUser } from '../context/UserContext';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function PrivacySection() {
   const { currentUser, setCurrentUser } = useUser();

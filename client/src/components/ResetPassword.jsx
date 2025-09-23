@@ -11,7 +11,7 @@ import {
   Text,
   Stack,
 } from '@mantine/core';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();

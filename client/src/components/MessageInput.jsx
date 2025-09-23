@@ -13,7 +13,7 @@ import { IconSend, IconPaperclip } from '@tabler/icons-react';
 import axiosClient from '../api/axiosClient';
 import StickerPicker from './StickerPicker.jsx';
 import FileUploader from './FileUploader.jsx';
-import { toast } from '../utils/toast';
+// import { toast } from '../utils/toast';
 import { encryptForRoom } from '@/utils/encryptionClient';
 
 const TTL_OPTIONS = [
