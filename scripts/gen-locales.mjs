@@ -80,6 +80,12 @@ async function tryImport(urlish) {
   try { return await import(urlish); } catch { return null; }
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function fileExists(p) {
+  try { await fs.access(p); return true; } catch { return false; }
+}
+function deepEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 // --------------- main ----------------
 (async () => {
@@ -175,6 +181,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     console.log(`[gen-locales] ${SRC_LNG} -> ${lng} (api: ${apiCode}) ${isSupported ? '' : '[NOT SUPPORTED]'}`);
 
     const dir = path.join(OUT_DIR, lng);
+    const outPath = path.join(dir, "translation.json");
     await fs.mkdir(dir, { recursive: true });
 
     try {
@@ -182,15 +189,36 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         ? await translateObject(sourceJson, apiCode)
         : sourceJson; // fallback to source text if unsupported
 
-      await fs.writeFile(path.join(dir, "translation.json"), JSON.stringify(payload, null, 2), "utf8");
+      const translationIdentical = isSupported && deepEqual(payload, sourceJson);
+
+      if (!isSupported || translationIdentical) {
+        // Treat identical-to-source as a failure-like outcome
+        if (translationIdentical) failed.push(lng);
+        if (!isSupported) unsupported.push(lng);
+
+        const exists = await fileExists(outPath);
+        if (exists) {
+          console.warn(`[gen-locales] ${lng}: translation identical/unsupported; keeping existing file.`);
+        } else {
+          console.warn(`[gen-locales] ${lng}: translation identical/unsupported; writing fallback (no existing file).`);
+          await fs.writeFile(outPath, JSON.stringify(sourceJson, null, 2), "utf8");
+        }
+      } else {
+        await fs.writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
+        console.log(`[gen-locales] Wrote ${path.relative(process.cwd(), outPath)}`);
+      }
     } catch (e) {
       const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || e);
-      console.warn(`[gen-locales] Translate failed for ${lng}: ${msg}. Falling back to source text.`);
+      console.warn(`[gen-locales] Translate failed for ${lng}: ${msg}.`);
       failed.push(lng);
-      await fs.writeFile(path.join(dir, "translation.json"), JSON.stringify(sourceJson, null, 2), "utf8");
+      const exists = await fileExists(outPath);
+      if (!exists) {
+        console.warn(`[gen-locales] ${lng}: writing fallback because no existing file.`);
+        await fs.writeFile(outPath, JSON.stringify(sourceJson, null, 2), "utf8");
+      } else {
+        console.warn(`[gen-locales] ${lng}: keeping existing file; not overwriting with fallback.`);
+      }
     }
-
-    if (!isSupported) unsupported.push(lng);
 
     // Throttle between languages to avoid QPS/rate limits
     await sleep(200); // adjust to 200–500ms if needed
@@ -216,5 +244,5 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   );
   console.log("[gen-locales] Wrote manifest.json with", codes.length, "languages");
   if (unsupported.length) console.log("[gen-locales] Unsupported (API):", unsupported.join(", "));
-  if (failed.length) console.log("[gen-locales] Failed to translate:", failed.join(", "));
+  if (failed.length) console.log("[gen-locales] Failed/identical translations:", failed.join(", "));
 })();
