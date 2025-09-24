@@ -1,10 +1,5 @@
 {
-  "common": {
-    "save": "Save",
-    "cancel": "Cancel",
-    "refresh": "Refresh",
-    "noMatches": "No matches"
-  },
+  "common": { "save": "Save", "cancel": "Cancel", "refresh": "Refresh", "noMatches": "No matches" },
   "profile": {
     "title": "User Profile",
     "preferredLanguage": "Preferred language",
