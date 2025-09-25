@@ -44,6 +44,7 @@ import settingsForwardingRouter from './routes/settings.forwarding.js';
 import calendarRouter from './routes/calendar.js';
 import shareEventRouter from './routes/shareEvent.js';
 import eventLinksRouter from './routes/eventLinks.js';
+import a11yRouter from './routes/a11y.js';
 
 // 🔒 auth gates
 import { requireAuth } from './middleware/auth.js';
@@ -224,6 +225,8 @@ export function createApp() {
   app.use('/rooms', roomsRouter);
   app.use('/chatrooms', roomsRouter);
   app.use('/messages', messagesRouter);
+
+  app.use(a11yRouter); 
 
   app.use('/follows', followsRouter);
   app.use('/random-chats', randomChatsRouter);

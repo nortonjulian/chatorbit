@@ -19,3 +19,19 @@ html[data-theme="neon"]     { --bg:#0a0a0a; --fg:#eaffff; --card:#101010; --acce
 html[data-theme="sunset"]   { --bg:#1b0e10; --fg:#ffe9d6; --card:#241316; --accent:#ff7a59; }
 html[data-theme="midnight"] { --bg:#0a1020; --fg:#e6eeff; --card:#0f172a; --accent:#7aa2ff; }
 html[data-theme="solarized"]{ --bg:#fdf6e3; --fg:#073642; --card:#eee8d5; --accent:#268bd2; }
+
+/* Use the theme variables globally */
+html, body, #root {
+  background: var(--bg);
+  color: var(--fg);
+  /* optional, helps text color apply everywhere by default */
+}
+
+.card {
+  background: var(--card);
+}
+
+a,
+.button-primary {
+  color: var(--accent);
+}

@@ -24,18 +24,13 @@ export default function PrivacySection() {
   };
 
   return (
-    <Group justify="space-between" mt="md">
+    <Group justify="space-between" mt="md" align="flex-start">
       <div>
         <Text fw={600}>Strict end-to-end encryption</Text>
         <Text c="dimmed" size="sm">
           Store only ciphertext on the server. Disables AI/Translate and moderation previews.
         </Text>
       </div>
-      <Switch
-        checked={!!currentUser?.strictE2EE}
-        onChange={(e) => onToggle(e.currentTarget.checked)}
-        disabled={saving}
-      />
     </Group>
   );
 }

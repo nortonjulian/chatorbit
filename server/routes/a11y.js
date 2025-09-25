@@ -17,6 +17,7 @@ const A11Y_KEYS = new Set([
   'a11yVoiceNoteSTT',
   'a11yCaptionFont',
   'a11yCaptionBg',
+  'a11yUiFont',     
   // phase 2 extras (optional if you added them to schema)
   'a11yStoreTranscripts',
   'a11yTranscriptRetentionDays',
@@ -103,6 +104,7 @@ router.patch('/users/me/a11y', requireAuth, async (req, res) => {
         a11yVoiceNoteSTT: true,
         a11yCaptionFont: true,
         a11yCaptionBg: true,
+        a11yUiFont: true,    
         a11yStoreTranscripts: true,
         a11yTranscriptRetentionDays: true,
         a11yCaptionPosition: true,
