@@ -20,17 +20,25 @@ import { CallProvider } from './context/CallContext';
 
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
-import { chatOrbitTheme } from './theme';
+import { chatOrbitTheme } from './theme.js';
 import { primeCsrf } from './api/axiosClient';
 
 // a11y + perf helpers
-import SkipToContent from "./components/SkipToContent.jsx";
+import SkipToContent from './components/SkipToContent.jsx';
 import A11yAnnouncer from './components/A11yAnnouncer.jsx';
 import { initWebVitals } from './utils/perf/vitals.js';
 
 // THEME MANAGER: single source of truth
-import { applyTheme, getTheme, onThemeChange, setTheme } from './utils/themeManager';
-applyTheme(); // apply stored/default theme on boot
+import {
+  applyTheme,
+  getTheme,
+  onThemeChange,
+  setTheme,
+  isDarkTheme,
+} from './utils/themeManager';
+
+// Apply stored/default theme on boot (sets data-theme and notifies)
+applyTheme();
 
 const isProd = import.meta.env.PROD;
 
@@ -65,27 +73,54 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
 /* ---------------- Mantine theme ---------------- */
 const theme = createTheme({
   ...chatOrbitTheme,
-  primaryShade: 6,
+  primaryShade: 5,
   components: {
-    TextInput: { defaultProps: { size: 'md', variant: 'filled' } },
-    PasswordInput: { defaultProps: { size: 'md', variant: 'filled' } },
-    Button: { defaultProps: { radius: 'xl', size: 'md' } },
+    // keep all styles/variants from chatOrbitTheme
+    ...chatOrbitTheme.components,
+
+    TextInput: {
+      ...chatOrbitTheme.components?.TextInput,
+      defaultProps: {
+        ...(chatOrbitTheme.components?.TextInput?.defaultProps || {}),
+        size: 'md',
+        variant: 'filled',
+      },
+    },
+
+    PasswordInput: {
+      ...chatOrbitTheme.components?.PasswordInput,
+      defaultProps: {
+        ...(chatOrbitTheme.components?.PasswordInput?.defaultProps || {}),
+        size: 'md',
+        variant: 'filled',
+      },
+    },
+
+    Button: {
+      ...chatOrbitTheme.components?.Button,
+      defaultProps: {
+        ...(chatOrbitTheme.components?.Button?.defaultProps || {}),
+        radius: 'xl',
+        size: 'md',
+      },
+    },
   },
 });
 
+
 /* ---------------- Root ---------------- */
 function Root() {
-  // Mantine needs 'light' | 'dark' only; map current theme to that bucket.
-  const [scheme, setScheme] = React.useState(getTheme() === 'dark' ? 'dark' : 'light');
+  // Mantine wants 'light' | 'dark'; map custom themes with isDarkTheme
+  const [scheme, setScheme] = React.useState(isDarkTheme(getTheme()) ? 'dark' : 'light');
 
   // Prime CSRF cookie/header once at app startup
   React.useEffect(() => {
     primeCsrf();
   }, []);
 
-  // Reflect external theme changes (e.g., ThemeSelect) into Mantine scheme
+  // Keep Mantine scheme in sync with our theme manager
   React.useEffect(() => {
-    const unsub = onThemeChange((t) => setScheme(t === 'dark' ? 'dark' : 'light'));
+    const unsub = onThemeChange((t) => setScheme(isDarkTheme(t) ? 'dark' : 'light'));
     return unsub;
   }, []);
 
@@ -113,7 +148,8 @@ function Root() {
                   <App
                     themeScheme={scheme}
                     onToggleTheme={() => {
-                      // Drive through themeManager (single source of truth)
+                      // Flip between base light/dark buckets through themeManager,
+                      // regardless of which custom theme is active.
                       const next = scheme === 'light' ? 'dark' : 'light';
                       setTheme(next);
                     }}

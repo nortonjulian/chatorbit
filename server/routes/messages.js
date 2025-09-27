@@ -17,6 +17,9 @@ import { scanFile } from '../utils/antivirus.js';
 import { ensureThumb } from '../utils/thumbnailer.js';
 import { signDownloadToken } from '../utils/downloadTokens.js';
 
+// 🔁 Lazy, on-read translation (Google Cloud)
+import { maybeTranslateForTarget } from '../services/translation/translateMessage.js';
+
 // In test mode, allow membership fallback & message memory
 import { __mem as roomsMem } from './rooms.js';
 
@@ -473,12 +476,14 @@ router.get('/:chatRoomId', requireAuth, async (req, res) => {
     });
     const myLang = requester?.preferredLanguage || 'en';
 
-    const shapedDb = items
-      .filter((m) => !(m.deletedBySender && m.sender.id === requesterId))
-      .map((m) => {
-        const isSender = m.sender.id === requesterId;
+    // --- Lazy translation for the current viewer (no schema changes needed) ---
+    const translationEnabled = process.env.TRANSLATION_ENABLED === 'true';
+    const translatedForMeMap = new Map(); // messageId -> translated string (or null)
 
-        const fromMap =
+    if (translationEnabled && items.length && myLang) {
+      const jobs = items.map(async (m) => {
+        // Prefer DB-cached translations if present
+        const preCached =
           m.translations && typeof m.translations === 'object'
             ? (m.translations[myLang] ?? null)
             : null;
@@ -486,7 +491,57 @@ router.get('/:chatRoomId', requireAuth, async (req, res) => {
           m.translatedTo && m.translatedTo === myLang
             ? m.translatedContent
             : null;
-        const translatedForMe = fromMap || legacy || null;
+
+        if (preCached || legacy) {
+          translatedForMeMap.set(m.id, preCached || legacy || null);
+          return;
+        }
+
+        const src = m.rawContent || '';
+        if (!src.trim()) {
+          translatedForMeMap.set(m.id, null);
+          return;
+        }
+
+        try {
+          const { translatedText } = await maybeTranslateForTarget(src, null, myLang);
+          translatedForMeMap.set(m.id, translatedText || null);
+
+          // OPTIONAL DB cache (keep GET side-effect free by default)
+          // if (translatedText) {
+          //   const nextTranslations =
+          //     (m.translations && typeof m.translations === 'object') ? { ...m.translations } : {};
+          //   nextTranslations[myLang] = translatedText;
+          //   await prisma.message.update({
+          //     where: { id: m.id },
+          //     data: { translations: nextTranslations },
+          //     select: { id: true },
+          //   });
+          // }
+        } catch {
+          translatedForMeMap.set(m.id, null);
+        }
+      });
+
+      await Promise.all(jobs);
+    }
+
+    const shapedDb = items
+      .filter((m) => !(m.deletedBySender && m.sender.id === requesterId))
+      .map((m) => {
+        const isSender = m.sender.id === requesterId;
+
+        const preCached =
+          m.translations && typeof m.translations === 'object'
+            ? (m.translations[myLang] ?? null)
+            : null;
+        const legacy =
+          m.translatedTo && m.translatedTo === myLang
+            ? m.translatedContent
+            : null;
+        // Prefer: DB-cached (JSON) > legacy columns > newly-computed (lazy)
+        const live = translatedForMeMap.get(m.id) ?? null;
+        const translatedForMe = preCached || legacy || live || null;
 
         const encryptedKeyForMe = m.keys?.[0]?.encryptedKey || null;
 

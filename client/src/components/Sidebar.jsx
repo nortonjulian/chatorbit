@@ -117,7 +117,7 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       <Drawer
         opened={profileOpen}
         onClose={() => setProfileOpen(false)}
-        title="Settings"
+        // title="Settings"
         position="right"
         size="md"
         radius="lg"

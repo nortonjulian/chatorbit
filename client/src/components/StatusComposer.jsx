@@ -27,6 +27,49 @@ const AUDIENCE = [
 // Set to null to disable client-side size checks.
 const CLIENT_MAX_FILE_MB = 100;
 
+// 🔊 AUDIO: small helper reads duration of a File (audio/*) via <audio> metadata
+async function readAudioDurationSec(file) {
+  return new Promise((resolve) => {
+    try {
+      const el = document.createElement('audio');
+      el.preload = 'metadata';
+      el.src = URL.createObjectURL(file);
+      el.onloadedmetadata = () => {
+        const sec = Math.round(el.duration || 0);
+        URL.revokeObjectURL(el.src);
+        resolve(Number.isFinite(sec) ? sec : null);
+      };
+      el.onerror = () => {
+        try { URL.revokeObjectURL(el.src); } catch {}
+        resolve(null);
+      };
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+// 🔊 AUDIO: builds attachmentsMeta[] with kind + duration (for audio)
+// idx aligns with the order we append files to FormData
+async function buildAttachmentsMeta(files) {
+  const meta = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const mime = String(f.type || '');
+    if (mime.startsWith('image/')) {
+      meta.push({ idx: i, kind: 'IMAGE' });
+    } else if (mime.startsWith('video/')) {
+      meta.push({ idx: i, kind: 'VIDEO' });
+    } else if (mime.startsWith('audio/')) {
+      const durationSec = await readAudioDurationSec(f);
+      meta.push({ idx: i, kind: 'AUDIO', durationSec: durationSec ?? null });
+    } else {
+      // leave unknowns out; server will 415 if unsupported
+    }
+  }
+  return meta;
+}
+
 export default function StatusComposer({ opened, onClose }) {
   const [caption, setCaption] = useState('');
   const [files, setFiles] = useState([]);
@@ -57,7 +100,7 @@ export default function StatusComposer({ opened, onClose }) {
       if (!Array.isArray(parsed)) throw new Error('Not an array');
       return parsed;
     } catch {
-      toast.err('Custom audience must be a JSON array of user IDs.');
+      toast?.err?.('Custom audience must be a JSON array of user IDs.');
       return null;
     }
   }
@@ -65,7 +108,7 @@ export default function StatusComposer({ opened, onClose }) {
   function validateBeforeSubmit() {
     const seconds = Number(ttl);
     if (!Number.isFinite(seconds) || seconds <= 0) {
-      toast.err('Please choose a valid expiration.');
+      toast?.err?.('Please choose a valid expiration.');
       return null;
     }
     const parsedCustom = parseCustomAudience();
@@ -74,7 +117,7 @@ export default function StatusComposer({ opened, onClose }) {
     // ✅ Allow empty caption and no files (tests submit minimal forms)
     // If you want to enforce content in the app, you can re-enable this later:
     // if (!caption.trim() && files.length === 0) {
-    //   toast.info('Add a caption or attach a file.');
+    //   toast?.info?.('Add a caption or attach a file.');
     //   return null;
     // }
 
@@ -90,11 +133,12 @@ export default function StatusComposer({ opened, onClose }) {
   function onAddFile(f) {
     if (!f) return;
     if (CLIENT_MAX_FILE_MB && f.size > CLIENT_MAX_FILE_MB * 1024 * 1024) {
-      toast.err(
+      toast?.err?.(
         `That file is ${humanSize(f.size)}. Max allowed here is ~${CLIENT_MAX_FILE_MB}MB.`
       );
       return;
     }
+    // Even though FileInput is not multiple, allow users to add more by picking again
     setFiles((prev) => [...prev, f]);
   }
 
@@ -138,18 +182,24 @@ export default function StatusComposer({ opened, onClose }) {
         // The server expects a JSON array in string form
         form.append('customAudienceIds', JSON.stringify(parsedCustom));
       }
+
+      // 🔊 AUDIO: include files in the order we’ll describe in attachmentsMeta
       files.forEach((f) => form.append('files', f));
+
+      // 🔊 AUDIO: attach meta so backend knows which is AUDIO and its durationSec
+      const meta = await buildAttachmentsMeta(files);
+      if (meta.length) form.append('attachmentsMeta', JSON.stringify(meta));
 
       // ✅ Explicit headers so tests can assert Content-Type
       await axiosClient.post('/status', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      toast.ok('Your status is live.');
+      toast?.ok?.('Your status is live.');
       resetForm();
       onClose?.();
     } catch (err) {
-      toast.err(`Post failed: ${statusErrorMessage(err)}`);
+      toast?.err?.(`Post failed: ${statusErrorMessage(err)}`);
     } finally {
       setLoading(false);
     }
@@ -243,7 +293,9 @@ export default function StatusComposer({ opened, onClose }) {
                 >
                   <Group gap={6}>
                     <Text size="sm">
-                      {f.name} · {humanSize(f.size)}
+                      {f.name} · {humanSize(f.size)}{' '}
+                      {/* show type hint */}
+                      {f.type?.startsWith('audio/') ? '· audio' : f.type?.startsWith('video/') ? '· video' : f.type?.startsWith('image/') ? '· image' : ''}
                     </Text>
                     <Tooltip label="Remove">
                       <ActionIcon

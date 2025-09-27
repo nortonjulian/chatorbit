@@ -1,18 +1,87 @@
 import { createTheme } from '@mantine/core';
 
 export const chatOrbitTheme = createTheme({
-  /** Brand colors: accessible blues/yellows */
   colors: {
-    orbitBlue: [
-      '#e8f0ff', '#cfe0ff', '#a7c5ff', '#7aa6ff', '#4c85ff',
-      '#276bff', '#1a5df3', '#1348c1', '#0d3591', '#072361'
-    ],
-    orbitYellow: [
-      '#fff9e6', '#fff1c2', '#ffe58a', '#ffd64d', '#ffc61a',
-      '#e6ad00', '#b38700', '#806100', '#4d3a00', '#1a1400'
-    ],
+    // Mantine’s primary palette proxies to your CSS var
+    orbit: Array(10).fill('var(--accent)'),
   },
-  primaryColor: 'orbitBlue',
-  fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+  primaryColor: 'orbit',
+  primaryShade: 5,
   defaultRadius: 'lg',
+  fontFamily:
+    'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+
+  components: {
+    Button: {
+      defaultProps: { radius: 'xl', size: 'md', variant: 'filled' },
+      styles: () => ({
+        root: {
+          background: 'var(--orbit-gradient, var(--accent))',
+          color: '#fff',
+          border: 'none',
+          boxShadow: '0 6px 20px rgba(43,109,246,0.22)',
+        },
+      }),
+      variants: {
+        filled: () => ({
+          root: {
+            background: 'var(--orbit-gradient, var(--accent))',
+            color: '#fff',
+            border: 'none',
+          },
+        }),
+        light: () => ({
+          root: {
+            background: 'transparent',
+            color: 'var(--accent)',
+            border: '1px solid var(--border)',
+          },
+        }),
+      },
+    },
+
+    TextInput: {
+      defaultProps: { size: 'md', variant: 'filled' },
+      styles: () => ({
+        input: {
+          backgroundColor: 'var(--card)',
+          color: 'var(--fg)',
+          borderColor: 'var(--border)',
+          boxShadow: 'none',
+        },
+        label: { color: 'var(--fg)' },
+      }),
+      variants: {
+        filled: () => ({
+          input: {
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--border)',
+            color: 'var(--fg)',
+          },
+        }),
+      },
+    },
+
+    PasswordInput: {
+      defaultProps: { size: 'md', variant: 'filled' },
+      styles: () => ({
+        input: {
+          backgroundColor: 'var(--card)',
+          color: 'var(--fg)',
+          borderColor: 'var(--border)',
+          boxShadow: 'none',
+        },
+        label: { color: 'var(--fg)' },
+      }),
+      variants: {
+        filled: () => ({
+          input: {
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--border)',
+            color: 'var(--fg)',
+          },
+        }),
+      },
+    },
+  },
 });

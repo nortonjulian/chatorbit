@@ -1,12 +1,17 @@
 import express from 'express';
-import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { requireAuth } from '../middleware/auth.js';
 import prisma from '../utils/prismaClient.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createStatusService } from '../services/statusService.js';
 
+// 🔐 Reuse the hardened media pipeline used in messages.js
+import { uploadMedia } from '../middleware/uploads.js';
+import { scanFile } from '../utils/antivirus.js';
+import { signDownloadToken } from '../utils/downloadTokens.js';
+
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
 
 const IS_DEV_FALLBACKS =
   String(process.env.DEV_FALLBACKS || '').toLowerCase() === 'true' ||
@@ -71,10 +76,16 @@ async function ensureUserExists(id) {
   }
 }
 
-/**
- * Create a minimal Status directly via Prisma that matches what the tests assert.
- * We keep it schema-tolerant: try progressively simpler payloads to avoid 500s.
- */
+/** Short-lived signed URL for private /media/* paths */
+function toSigned(rel, ownerId) {
+  if (!rel) return null;
+  // If it's already an absolute URL, keep as-is
+  if (/^https?:\/\//i.test(rel)) return rel;
+  const token = signDownloadToken({ path: rel, ownerId, ttlSec: 300 });
+  return `/files?token=${encodeURIComponent(token)}`;
+}
+
+/** Create a minimal Status directly via Prisma (fallback path) */
 async function fallbackCreateStatus({
   authorId,
   caption,
@@ -174,9 +185,7 @@ async function fallbackCreateStatus({
   }
 }
 
-/**
- * Upsert a view; if upsert fails due to constraint naming differences, use a tolerant fallback.
- */
+/** Upsert a view with tolerant fallbacks */
 async function tolerantUpsertView(statusId, viewerId) {
   try {
     await prisma.statusView.upsert({
@@ -197,9 +206,7 @@ async function tolerantUpsertView(statusId, viewerId) {
   }
 }
 
-/**
- * Toggle a reaction; tolerate schema differences; fall back to in-memory.
- */
+/** Toggle a reaction with tolerant fallbacks (and in-mem ultimate fallback) */
 async function tolerantToggleReaction(statusId, userId, emoji) {
   // Strict composite unique
   try {
@@ -246,11 +253,15 @@ async function tolerantToggleReaction(statusId, userId, emoji) {
 
 /**
  * POST /status  (create)
+ * Accepts:
+ *   - multipart "files" (image/video/audio)
+ *   - attachmentsInline (JSON[]) optional
+ *   - attachmentsMeta (JSON[]) optional; items like { idx, kind, width, height, durationSec, caption }
  */
 router.post(
   '/',
   requireAuth,
-  upload.array('files', 5),
+  uploadMedia.array('files', 5), // 🔐 hardened storage (same as messages.js)
   asyncHandler(async (req, res) => {
     const authorId = Number(req.user.id);
 
@@ -261,31 +272,67 @@ router.post(
       customAudienceIds,
       expireSeconds,
       attachmentsInline,
+      attachmentsMeta,         // 👈 NEW: enrich file metadata (e.g., audio duration)
     } = req.body || {};
     if (!caption && typeof content === 'string') caption = content;
 
     const A = normalizeAudience(audience);
 
-    const uploaded = (req.files || []).map((f) => {
-      const mt = f.mimetype || '';
-      const kind =
-        mt.startsWith('image/') ? 'IMAGE' :
-        mt.startsWith('video/') ? 'VIDEO' :
-        mt.startsWith('audio/') ? 'AUDIO' : 'FILE';
-      return { kind, url: `/uploads/${f.filename}`, mimeType: mt };
-    });
+    // Parse meta & inline safely
+    let meta = [];
+    try {
+      meta = JSON.parse(attachmentsMeta || '[]');
+      if (!Array.isArray(meta)) meta = [];
+    } catch { meta = []; }
 
     let inline = [];
     try { inline = JSON.parse(attachmentsInline || '[]') || []; } catch {}
-    inline = inline.map((a) => ({
-      kind: a.kind,
-      url: a.url,
-      mimeType: a.mimeType || '',
-      width: a.width ?? null,
-      height: a.height ?? null,
-      durationSec: a.durationSec ?? null,
-      caption: a.caption ?? null,
-    }));
+    inline = inline
+      .filter((a) => a && a.url && a.kind)
+      .map((a) => ({
+        kind: a.kind,
+        url: a.url,
+        mimeType: a.mimeType || (a.kind === 'STICKER' ? 'image/webp' : ''),
+        width: a.width ?? null,
+        height: a.height ?? null,
+        durationSec: a.durationSec ?? null,
+        caption: a.caption ?? null,
+      }));
+
+    // Process uploaded files with AV scan; store as /media/<name>
+    const files = Array.isArray(req.files) ? req.files : [];
+    const uploaded = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const m = meta.find((x) => Number(x.idx) === i) || {};
+      const mime = f.mimetype || '';
+
+      // Antivirus scan; delete & skip if bad
+      const av = await scanFile(f.path);
+      if (!av.ok) {
+        try { await fs.promises.unlink(f.path); } catch {}
+        continue;
+      }
+
+      const relName = path.basename(f.path);
+      const relPath = path.join('media', relName);
+
+      uploaded.push({
+        kind: mime.startsWith('image/')
+          ? 'IMAGE'
+          : mime.startsWith('video/')
+          ? 'VIDEO'
+          : mime.startsWith('audio/')
+          ? 'AUDIO'
+          : 'FILE',
+        url: relPath,
+        mimeType: mime,
+        width: m.width ?? null,
+        height: m.height ?? null,
+        durationSec: m.durationSec ?? null, // ← audio length passed from client if available
+        caption: m.caption ?? null,
+      });
+    }
 
     let customIds = [];
     try { customIds = JSON.parse(customAudienceIds || '[]') || []; } catch {}
@@ -303,7 +350,19 @@ router.post(
         customAudienceIds: customIds,
         expireSeconds: Number(expireSeconds) || 24 * 3600,
       });
-      return res.status(201).json(saved);
+
+      // Shape response with short-lived signed URLs for any private paths
+      const shaped = {
+        ...saved,
+        assets: Array.isArray(saved?.assets)
+          ? saved.assets.map((a) => ({
+              ...a,
+              url: a?.url ? toSigned(a.url, authorId) : a?.url ?? null,
+            }))
+          : [],
+      };
+
+      return res.status(201).json(shaped);
     } catch (e) {
       if (IS_DEV_FALLBACKS) {
         await ensureUserExists(authorId);
@@ -315,7 +374,18 @@ router.post(
           customAudienceIds: customIds,
           expireSeconds: Number(expireSeconds) || 24 * 3600,
         });
-        return res.status(201).json(saved);
+
+        const shaped = {
+          ...saved,
+          assets: Array.isArray(saved?.assets)
+            ? saved.assets.map((a) => ({
+                ...a,
+                url: a?.url ? toSigned(a.url, authorId) : a?.url ?? null,
+              }))
+            : [],
+        };
+
+        return res.status(201).json(shaped);
       }
       return res.status(400).json({ error: e?.message || 'Bad request' });
     }
@@ -324,6 +394,7 @@ router.post(
 
 /**
  * GET /status/feed?tab=all|following|contacts&limit=&cursor=
+ * Now signs asset URLs for the viewing user (authorId as owner for token).
  */
 router.get(
   '/feed',
@@ -408,7 +479,12 @@ router.get(
       id: s.id,
       author: s.author,
       audience: s.audience,
-      assets: s.assets,
+      assets: Array.isArray(s.assets)
+        ? s.assets.map((a) => ({
+            ...a,
+            url: a?.url ? toSigned(a.url, s.authorId) : a?.url ?? null,
+          }))
+        : [],
       captionCiphertext: s.captionCiphertext,
       encryptedKeyForMe: keyByStatus[s.id] ?? null,
       expiresAt: s.expiresAt,
@@ -424,6 +500,7 @@ router.get(
 
 /**
  * GET /status/:id
+ * Signed asset URLs in response.
  */
 router.get(
   '/:id',
@@ -506,7 +583,12 @@ router.get(
     return res.json({
       id: status.id,
       author: status.author,
-      assets: status.assets,
+      assets: Array.isArray(status.assets)
+        ? status.assets.map((a) => ({
+            ...a,
+            url: a?.url ? toSigned(a.url, status.authorId) : a?.url ?? null,
+          }))
+        : [],
       captionCiphertext: status.captionCiphertext,
       encryptedKeyForMe: keyRow?.encryptedKey ?? null,
       expiresAt: status.expiresAt,

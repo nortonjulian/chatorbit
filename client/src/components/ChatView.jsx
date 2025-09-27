@@ -28,6 +28,7 @@ import dayjs from 'dayjs';
 import MessageInput from './MessageInput';
 import ReactionBar from './ReactionBar.jsx';
 import EventSuggestionBar from './EventSuggestionBar.jsx';
+import TranslatedText from './chat/TranslatedText.jsx';
 import socket from '../lib/socket';
 import { decryptFetchedMessages } from '../utils/encryptionClient';
 import axiosClient from '../api/axiosClient';
@@ -631,16 +632,21 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                         </Text>
                       )}
 
-                      <Text
-                        size="sm"
+                      {/* 🔤 Translated text renderer */}
+                      <TranslatedText
+                        originalText={msg.decryptedContent ?? msg.rawContent ?? msg.content ?? ''}
+                        translatedText={
+                          // respect a future profile toggle; default to ON if unset
+                          (currentUser?.autoTranslate ?? true) ? (msg.translatedForMe ?? null) : null
+                        }
+                        showBothDefault={!!currentUser?.showOriginalAndTranslation}
+                        condensed
                         onCopy={() => {
                           if (currentUser?.notifyOnCopy && socket && msg?.id) {
                             socket.emit('message_copied', { messageId: msg.id });
                           }
                         }}
-                      >
-                        {msg.decryptedContent || msg.translatedForMe || msg.content}
-                      </Text>
+                      />
 
                       {/* Images */}
                       {Array.isArray(msg.attachments) &&
@@ -702,12 +708,7 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
                       {/* Reactions */}
                       <ReactionBar message={msg} currentUserId={currentUserId} />
 
-                      {msg.translatedForMe && msg.rawContent && (
-                        <Text size="xs" mt={4} fs="italic">
-                          Original: {msg.rawContent}
-                        </Text>
-                      )}
-
+                      {/* TTL indicator */}
                       {msg.expiresAt && (
                         <Text size="xs" mt={4} fs="italic" c="red.6" ta="right">
                           Disappears in: {getTimeLeftString(msg.expiresAt)}

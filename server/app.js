@@ -45,6 +45,8 @@ import calendarRouter from './routes/calendar.js';
 import shareEventRouter from './routes/shareEvent.js';
 import eventLinksRouter from './routes/eventLinks.js';
 import a11yRouter from './routes/a11y.js';
+import translationsRouter from './routes/translations.js';
+import storiesRouter from './routes/stories.js';
 
 // 🔒 auth gates
 import { requireAuth } from './middleware/auth.js';
@@ -240,6 +242,8 @@ export function createApp() {
   app.use('/sms', smsRouter);
   app.use('/settings', settingsForwardingRouter);
   app.use('/premium', premiumRouter);
+  app.use('/translations', translationsRouter);
+  app.use('/stories', storiesRouter);
 
   // Contacts bulk import (mounted under /api to match your Vite proxy)
   app.use('/api', contactsImportRouter);

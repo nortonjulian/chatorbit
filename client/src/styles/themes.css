@@ -1,37 +1,95 @@
 :root {
-  --bg: #ffffff;
-  --fg: #0a0a0a;
+  /* Core brand */
+  --brand-blue:   #2b6df6; /* primary (matches logo phone/blue) */
+  --brand-purple: #6b3df6; /* orbit trail end */
+  --brand-gold:   #ffd166; /* star pop */
+  --brand-indigo: #1b2a5b; /* deep indigo for gradients */
+
+  /* Light theme defaults */
+  --bg:   #f7f9ff;
+  --fg:   #0a0a0a;
   --card: #ffffff;
-  --accent: #3b82f6;
+
+  /* Accents */
+  --accent: var(--brand-blue);
+  --accent-2: var(--brand-purple);
+  --accent-warm: var(--brand-gold);
+
+  /* Support tokens */
+  --muted: #e6ecff;
+  --muted-2: #ece7ff;
+  --border: #dbe3ff;
+  --ring: rgba(43, 109, 246, 0.45);
+  --shadow: 0 10px 30px rgba(27, 42, 91, 0.12);
+
+  /* Nice reusable gradient that mirrors the logo */
+  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
+  --orbit-warm-grad: linear-gradient(90deg, #fbd34d, #a855f7);
 }
 
+/* html[data-theme="light"] { */
+  /* --bg:   #f7f9ff;   very light “sky” */
+  /* --fg:   #0a0a0a; */
+  /* --card: #ffffff; */
+
+  /* --border: #dbe3ff; */
+  /* --ring: rgba(43, 109, 246, 0.45); */
+/* } */
+
+/* html[data-theme="dark"] { */
+  /* --bg:   #0b0f1a;       /* deep space */
+  /* --fg:   #e8eefc; */
+  /* --card: #121829;       /* slightly lifted surface */
+  /* --border: #203052; */ */
+  /* --muted: #11203d; */
+  /* --muted-2: #1a2347; */ */
+  /* --ring: rgba(99, 102, 241, 0.55); /* bluish/purple ring */
+/* } */ */
+
 html[data-theme="light"] {
-  --bg: #ffffff; --fg: #0a0a0a; --card:#ffffff; --accent:#3b82f6;
+  --bg:#f7f9ff; --fg:#0a0a0a; --card:#ffffff; --border:#dbe3ff;
+  --accent: var(--brand-blue);
+  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
 }
 
 html[data-theme="dark"] {
-  --bg: #0b0b0f; --fg: #f3f4f6; --card:#121218; --accent:#60a5fa;
+  --bg:#0b0f1a; --fg:#e8eefc; --card:#121829; --border:#203052;
+  --accent: var(--brand-purple);            /* <- flips in dark */
+  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
 }
 
-/* Premium examples */
-html[data-theme="amoled"]   { --bg:#000000; --fg:#e5e7eb; --card:#050505; --accent:#22d3ee; }
-html[data-theme="neon"]     { --bg:#0a0a0a; --fg:#eaffff; --card:#101010; --accent:#39ff14; }
-html[data-theme="sunset"]   { --bg:#1b0e10; --fg:#ffe9d6; --card:#241316; --accent:#ff7a59; }
-html[data-theme="midnight"] { --bg:#0a1020; --fg:#e6eeff; --card:#0f172a; --accent:#7aa2ff; }
-html[data-theme="solarized"]{ --bg:#fdf6e3; --fg:#073642; --card:#eee8d5; --accent:#268bd2; }
 
-/* Use the theme variables globally */
-html, body, #root {
-  background: var(--bg);
-  color: var(--fg);
-  /* optional, helps text color apply everywhere by default */
+/* Optional premium presets tuned to the logo vibe */
+html[data-theme="midnight"] {
+  --bg:#0a1020; --fg:#e6eeff; --card:#0f172a;
+  --accent: var(--brand-blue); --accent-2: var(--brand-purple); --accent-warm: var(--brand-gold);
 }
 
-.card {
-  background: var(--card);
-}
-
-a,
+/* Global usage */
+html, body, #root { background: var(--bg); color: var(--fg); }
+.card        { background: var(--card); box-shadow: var(--shadow); border: 1px solid var(--border); }
+a, .link     { color: var(--accent); }
 .button-primary {
-  color: var(--accent);
+  background: var(--orbit-gradient);
+  color: white;
+  border: none;
+  box-shadow: 0 6px 20px rgba(43,109,246,0.22);
 }
+.button-primary:hover { filter: brightness(1.05); }
+
+/* Focus ring consistent with brand */
+:focus-visible {
+  outline: 3px solid transparent;
+  box-shadow: 0 0 0 3px var(--ring);
+  border-radius: 8px;
+}
+
+/* Utilities that “feel like the logo” */
+.text-orbit-gradient {
+  background: var(--orbit-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.badge-gold { background: rgba(255,209,102,0.18); color: #8a6400; border: 1px solid rgba(255,209,102,0.45); }
+.orbit-glow { box-shadow: 0 8px 30px rgba(107,61,246,0.25), 0 2px 10px rgba(43,109,246,0.25); }

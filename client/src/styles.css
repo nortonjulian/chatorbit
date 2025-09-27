@@ -56,6 +56,13 @@ select:focus-visible {
   border: 0 !important;
 }
 
+.brand-lockup-logo {
+  height: 44px !important; /* try 44px or 48px */
+  width: auto !important;
+  object-fit: contain !important;
+}
+
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -67,3 +74,62 @@ select:focus-visible {
 }
 
 /* keep your existing brand lockup rules */
+
+/* ---------- Brand lockup positioning ---------- */
+/* Keep hero and lockup sharing the same left edge */
+.hero-block {
+  position: relative;           /* anchor for the fixed lockup */
+}
+
+/* The lockup itself */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Pin it above the hero, aligned to the title's left edge */
+.brand-lockup--fixed {
+  position: absolute;
+  inset-block-start: -6px;      /* nudge up/down to taste */
+  inset-inline-start: 0;        /* aligns with hero title left edge */
+}
+
+/* Logo + text sizes driven by CSS variables from the component */
+.brand-lockup__logo {
+  width: var(--logo-size, 44px);
+  height: auto;
+  object-fit: contain;
+}
+.brand-lockup__name {
+  font-size: var(--text-size, 24px);
+  margin: 0;
+  line-height: 1;
+}
+
+/* On small screens, let it flow naturally */
+@media (max-width: 62em) {
+  .brand-lockup--fixed {
+    position: static;
+    margin-bottom: 0.25rem;
+  }
+}
+
+
+@media (max-width: 62em) {
+  .brand-lockup--fixed {
+    position: static;
+    margin-bottom: 0;
+  }
+}
+/* 
+@media (max-width: 768px) {
+  .logo-chatorbit {
+    width: 40px;
+  }
+} */
+
+.logo-chatorbit {
+  width: 70px;   
+  height: auto;   
+}

@@ -1,4 +1,5 @@
 import { Group, Image, Title } from '@mantine/core';
+import '../styles.css';
 
 export default function BrandLockup({ size = 'md' }) {
   const sizes = {
@@ -11,12 +12,12 @@ export default function BrandLockup({ size = 'md' }) {
 
   return (
     <Group gap="sm" align="center" wrap="nowrap" className="brand-lockup">
-      <Image
-        src="/logo-chatorbit.png"
-        alt="ChatOrbit logo"
-        h={logo}
-        fit="contain"
+      <Image 
+        src="/logo-blank.png" 
+        alt="ChatOrbit" 
+        className="logo-chatorbit" 
       />
+
       <Title order={3} c="orbit.8" style={{ fontSize: text, margin: 0 }}>
         ChatOrbit
       </Title>

@@ -34,7 +34,11 @@ function MobileTopBar() {
       className="brand-lockup"
       py="sm"
     >
-      <Image src="/logo-chatorbit.png" alt="ChatOrbit" h={28} />
+      {/* <Image 
+        src="/logo-blank.png" 
+        alt="ChatOrbit" 
+        className="brand-lockup-logo"
+      /> */}
       <Title order={4} c="orbit.8" style={{ margin: 0 }}>
         ChatOrbit
       </Title>
