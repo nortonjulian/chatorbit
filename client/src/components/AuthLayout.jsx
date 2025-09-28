@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import {
   Container,
@@ -13,7 +14,6 @@ import {
   Button,
   Paper,
   Divider,
-  Box,
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
 import BrandLockup from '@/components/BrandLockup';
@@ -22,6 +22,8 @@ import BrandLockup from '@/components/BrandLockup';
 const APP_GENERIC = 'https://go.chatorbit.com/app';      // QR (auto-routes)
 const APP_IOS     = 'https://go.chatorbit.com/ios';      // App Store
 const APP_ANDROID = 'https://go.chatorbit.com/android';  // Google Play
+
+const CYCLE_MS = 12000; // flip Light <-> Midnight every 12s
 
 // Mobile-only brand bar (shown when the left hero is hidden)
 function MobileTopBar() {
@@ -34,12 +36,7 @@ function MobileTopBar() {
       className="brand-lockup"
       py="sm"
     >
-      {/* <Image 
-        src="/logo-blank.png" 
-        alt="ChatOrbit" 
-        className="brand-lockup-logo"
-      /> */}
-      <Title order={4} c="orbit.8" style={{ margin: 0 }}>
+      <Title order={4} className="text-blue-purple" style={{ margin: 0 }}>
         ChatOrbit
       </Title>
     </Group>
@@ -117,14 +114,42 @@ function GetAppCard() {
 }
 
 export default function AuthLayout() {
+  // Auto-cycle the global theme on this page, and restore when unmounting
+  useEffect(() => {
+    const html = document.documentElement;
+
+    const originalTheme = html.getAttribute('data-theme') || 'light';
+    const originalCTA = html.getAttribute('data-cta'); // maybe "cool" or null
+
+    function apply(theme) {
+      html.setAttribute('data-theme', theme);
+      // Convention: Light uses cool (blue→purple), Midnight uses warm (gold→purple)
+      if (theme === 'midnight') {
+        html.removeAttribute('data-cta'); // warm is default via tokens
+      } else {
+        html.setAttribute('data-cta', 'cool');
+      }
+    }
+
+    let next = originalTheme === 'midnight' ? 'light' : 'midnight';
+    const id = setInterval(() => {
+      apply(next);
+      next = next === 'midnight' ? 'light' : 'midnight';
+    }, CYCLE_MS);
+
+    // ensure first render matches the user's starting theme cleanly
+    apply(originalTheme);
+
+    return () => {
+      clearInterval(id);
+      html.setAttribute('data-theme', originalTheme);
+      if (originalCTA) html.setAttribute('data-cta', originalCTA);
+      else html.removeAttribute('data-cta');
+    };
+  }, []);
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background:
-          'radial-gradient(1200px 600px at 10% -10%, rgba(65,138,255,0.18), transparent), radial-gradient(900px 500px at 110% 110%, rgba(255,216,110,0.15), transparent)',
-      }}
-    >
+    <div className="auth-page">
       <Container size="lg" py="xl">
         {/* Mobile brand bar */}
         <MobileTopBar />
@@ -132,14 +157,13 @@ export default function AuthLayout() {
         <Grid gutter="xl" align="start">
           {/* Left: Brand + Marketing (desktop/tablet only) */}
           <Grid.Col span={{ base: 12, md: 6, lg: 7 }} visibleFrom="md">
-            {/* Pin the brand above the hero on desktop; normal flow on mobile */}
-            <Box pos="relative" style={{ minHeight: 64 }}>
-              <BrandLockup className="brand-lockup--fixed" />
-            </Box>
-
             <Stack gap="md" maw={620}>
+              {/* Gradient wordmark + tiny left nudge if PNG has safe area */}
+              <BrandLockup className="bp-wordmark auth-hero-lockup" />
+
               <Title
                 order={1}
+                className="auth-hero-title"
                 style={{
                   lineHeight: 1.05,
                   fontWeight: 800,
@@ -148,9 +172,7 @@ export default function AuthLayout() {
                 }}
               >
                 Secure, global messaging with{' '}
-                <span style={{ color: 'var(--mantine-color-orbit-6)' }}>
-                  instant translation
-                </span>
+                <span className="text-blue-purple">instant translation</span>
               </Title>
 
               <Text c="dimmed" size="lg" style={{ maxWidth: 560 }}>
@@ -161,7 +183,14 @@ export default function AuthLayout() {
               <List spacing="sm" size="sm" center>
                 <List.Item
                   icon={
-                    <ThemeIcon variant="light" color="orbit">
+                    <ThemeIcon
+                      variant="filled"
+                      radius="xl"
+                      style={{
+                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
+                        color: '#fff',
+                      }}
+                    >
                       <Lock size={16} />
                     </ThemeIcon>
                   }
@@ -170,7 +199,14 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon variant="light" color="orbit">
+                    <ThemeIcon
+                      variant="filled"
+                      radius="xl"
+                      style={{
+                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
+                        color: '#fff',
+                      }}
+                    >
                       <Globe size={16} />
                     </ThemeIcon>
                   }
@@ -179,7 +215,14 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon variant="light" color="orbit">
+                    <ThemeIcon
+                      variant="filled"
+                      radius="xl"
+                      style={{
+                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
+                        color: '#fff',
+                      }}
+                    >
                       <MessageCircle size={16} />
                     </ThemeIcon>
                   }
@@ -188,7 +231,14 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon variant="light" color="orbit">
+                    <ThemeIcon
+                      variant="filled"
+                      radius="xl"
+                      style={{
+                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
+                        color: '#fff',
+                      }}
+                    >
                       <ShieldCheck size={16} />
                     </ThemeIcon>
                   }
@@ -220,7 +270,7 @@ export default function AuthLayout() {
 
           {/* Right: Auth form + Get app */}
           <Grid.Col span={{ base: 12, md: 6, lg: 5 }} style={{ alignSelf: 'start' }}>
-            <Stack gap="lg" style={{ maxWidth: 440, marginLeft: 'auto' }}>
+            <Stack gap="lg" style={{ maxWidth: 440, marginLeft: 'auto' }} className="auth-login">
               <Outlet /> {/* Login / Register / Forgot / Reset (card-only) */}
               <GetAppCard />
             </Stack>

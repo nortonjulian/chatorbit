@@ -1,95 +1,183 @@
+/* -------------------------------------------------------
+   Brand seeds (from the logo)
+   ----------------------------------------------------- */
 :root {
-  /* Core brand */
-  --brand-blue:   #2b6df6; /* primary (matches logo phone/blue) */
-  --brand-purple: #6b3df6; /* orbit trail end */
-  --brand-gold:   #ffd166; /* star pop */
-  --brand-indigo: #1b2a5b; /* deep indigo for gradients */
+  /* Brand primaries */
+  --brand-purple: #A855F7;   /* primary violet */
+  --brand-gold:   #FFD700;   /* warm yellow */
+  --brand-blue:   #3b82f6;   /* blue used in gradient */
+  --brand-indigo: #5b6cf9;   /* midpoint between blue & purple */
 
-  /* Light theme defaults */
-  --bg:   #f7f9ff;
-  --fg:   #0a0a0a;
-  --card: #ffffff;
+  /* Role tokens (light = default) */
+  --bg:    #f7f9ff;
+  --fg:    #0a0a0a;
+  --card:  #ffffff;
+  --muted: #6b7280;
+  --border:#e5e7eb;
+  --border-soft:#eef2ff;     /* very subtle borders on light */
 
-  /* Accents */
-  --accent: var(--brand-blue);
-  --accent-2: var(--brand-purple);
+  /* Semantics */
+  --primary:     var(--brand-purple);
+  --accent:      var(--brand-indigo);  /* links/icons */
   --accent-warm: var(--brand-gold);
 
-  /* Support tokens */
-  --muted: #e6ecff;
-  --muted-2: #ece7ff;
-  --border: #dbe3ff;
-  --ring: rgba(43, 109, 246, 0.45);
-  --shadow: 0 10px 30px rgba(27, 42, 91, 0.12);
+  /* Gradients */
+  --logo-gradient:      linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --logo-gradient-rev:  linear-gradient(90deg, var(--brand-purple), var(--brand-gold));
+  /* Back-compat for older styles */
+  --orbit-gradient: var(--logo-gradient);
 
-  /* Nice reusable gradient that mirrors the logo */
-  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
-  --orbit-warm-grad: linear-gradient(90deg, #fbd34d, #a855f7);
+  /* CTA tokens (default = blue → purple) */
+  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-label: #fff;
+  --cta-overlay: transparent; /* page/theme can override for contrast */
+
+  /* Focus + shadows */
+  --ring:            rgba(0, 223, 252, 0.45);
+  --shadow-accent:   rgba(0, 223, 252, 0.22);
+  --shadow-ambient:  rgba(10,10,10,0.10);
+
+  /* Switch/checkbox follow CTA by default */
+  --cta-gradient-cool: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --switch-gradient: var(--cta-gradient);
+
+  /* Back-compat alias if anything still reads the old name */
+  --checkbox-gradient: var(--switch-gradient);
 }
 
-/* html[data-theme="light"] { */
-  /* --bg:   #f7f9ff;   very light “sky” */
-  /* --fg:   #0a0a0a; */
-  /* --card: #ffffff; */
+/* -------------------------------------------------------
+   Dark (free)
+   ----------------------------------------------------- */
+:root[data-theme="dark"] {
+  --bg:     #0b0f1a;
+  --fg:     #f3f4f6;
+  --card:   #0f1524;
+  --muted:  #9aa4b2;
+  --border: #1f2a3a;
+  --border-soft:#1a2334;
 
-  /* --border: #dbe3ff; */
-  /* --ring: rgba(43, 109, 246, 0.45); */
-/* } */
+  --primary:     var(--brand-purple);
+  --accent:      #7f8cff;  /* lighter indigo for dark */
+  --accent-warm: var(--brand-gold);
 
-/* html[data-theme="dark"] { */
-  /* --bg:   #0b0f1a;       /* deep space */
-  /* --fg:   #e8eefc; */
-  /* --card: #121829;       /* slightly lifted surface */
-  /* --border: #203052; */ */
-  /* --muted: #11203d; */
-  /* --muted-2: #1a2347; */ */
-  /* --ring: rgba(99, 102, 241, 0.55); /* bluish/purple ring */
-/* } */ */
+  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-label: #fff;
+  --cta-overlay: transparent;
 
-html[data-theme="light"] {
-  --bg:#f7f9ff; --fg:#0a0a0a; --card:#ffffff; --border:#dbe3ff;
-  --accent: var(--brand-blue);
-  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
+  --ring:           rgba(168,85,247,0.45);
+  --shadow-accent:  rgba(168,85,247,0.22);
 }
 
-html[data-theme="dark"] {
-  --bg:#0b0f1a; --fg:#e8eefc; --card:#121829; --border:#203052;
-  --accent: var(--brand-purple);            /* <- flips in dark */
-  --orbit-gradient: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
+/* -------------------------------------------------------
+   Premium themes
+   ----------------------------------------------------- */
+
+/* AMOLED: pure black surfaces + neon accents */
+:root[data-theme="amoled"] {
+  --bg:#000; --fg:#f5f7ff; --card:#050505; --muted:#a1a8b3; --border:#0c0c0c; --border-soft:#0a0a0a;
+  --primary:var(--brand-purple); --accent:var(--brand-blue); --accent-warm:var(--brand-gold);
+  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-label:#fff; --cta-overlay:transparent;
+  --ring:rgba(0,223,252,0.5); --shadow-accent:rgba(0,223,252,0.28);
 }
 
-
-/* Optional premium presets tuned to the logo vibe */
-html[data-theme="midnight"] {
-  --bg:#0a1020; --fg:#e6eeff; --card:#0f172a;
-  --accent: var(--brand-blue); --accent-2: var(--brand-purple); --accent-warm: var(--brand-gold);
+/* Neon: deep navy with high-saturation accents */
+:root[data-theme="neon"] {
+  --bg:#070a16; --fg:#eaf1ff; --card:#0d1326; --muted:#8ea3c0; --border:#162040; --border-soft:#0f1a33;
+  --primary:var(--brand-purple); --accent:var(--brand-blue); --accent-warm:var(--brand-gold);
+  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-label:#fff; --cta-overlay:transparent;
+  --ring:rgba(0,223,252,0.48); --shadow-accent:rgba(0,223,252,0.26);
 }
 
-/* Global usage */
-html, body, #root { background: var(--bg); color: var(--fg); }
-.card        { background: var(--card); box-shadow: var(--shadow); border: 1px solid var(--border); }
-a, .link     { color: var(--accent); }
-.button-primary {
-  background: var(--orbit-gradient);
-  color: white;
-  border: none;
-  box-shadow: 0 6px 20px rgba(43,109,246,0.22);
-}
-.button-primary:hover { filter: brightness(1.05); }
-
-/* Focus ring consistent with brand */
-:focus-visible {
-  outline: 3px solid transparent;
-  box-shadow: 0 0 0 3px var(--ring);
-  border-radius: 8px;
+/* Sunset: warm, “sun” vibe on light */
+:root[data-theme="sunset"] {
+  --bg:#fffaf0; --fg:#1a1a1a; --card:#ffffff; --muted:#6f6b63; --border:#f1e6c9; --border-soft:#f6edd6;
+  --primary:var(--brand-purple); --accent:var(--brand-gold); --accent-warm:var(--brand-gold);
+  --orbit-gradient: var(--logo-gradient);
+  --cta-gradient: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --cta-label:#111;
+  --cta-overlay: transparent;
+  --ring:rgba(255,215,0,0.45); --shadow-accent:rgba(255,215,0,0.26);
 }
 
-/* Utilities that “feel like the logo” */
-.text-orbit-gradient {
-  background: var(--orbit-gradient);
+/* Midnight: your requested Moon theme */
+:root[data-theme="midnight"] {
+  --bg:#060913; --fg:#e7eaf3; --card:#0a1020; --muted:#8f9ab0; --border:#182032; --border-soft:#0e1526;
+  --primary:var(--brand-purple); --accent:#9aa7ff; --accent-warm:var(--brand-gold);
+
+  /* default warm CTA + slight dark overlay for contrast */
+  --cta-gradient: var(--cta-gradient-warm);
+  --cta-label:#fff;
+  --cta-overlay: rgba(0,0,0,0.22);
+
+  --ring:rgba(0,223,252,0.40); --shadow-accent:rgba(168,85,247,0.24);
+}
+
+/* Opt-in: Midnight with blue→purple CTAs */
+:root[data-theme="midnight"][data-cta="cool"] {
+  --cta-gradient: var(--cta-gradient-cool);
+  --cta-overlay: transparent;
+  --switch-gradient: var(--cta-gradient);
+}
+
+/* Solarized (light-leaning), still brand-aware */
+:root[data-theme="solarized"] {
+  --bg:#fdf6e3; --fg:#073642; --card:#fffdf2; --muted:#657b83; --border:#eee3c9; --border-soft:#f3ecd7;
+  --primary:#6c71c4;
+  --accent:#268bd2;
+  --accent-warm:#b58900;
+  --cta-gradient: linear-gradient(90deg, #268bd2, #6c71c4);
+  --cta-label:#fff; --cta-overlay: transparent;
+  --ring:rgba(38,139,210,0.45);
+  --shadow-accent:rgba(38,139,210,0.22);
+}
+
+/* -------------------------------------------------------
+   Shared utilities (used by styles.css + components)
+   ----------------------------------------------------- */
+.text-logo-gradient {
+  background: var(--logo-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
-.badge-gold { background: rgba(255,209,102,0.18); color: #8a6400; border: 1px solid rgba(255,209,102,0.45); }
-.orbit-glow { box-shadow: 0 8px 30px rgba(107,61,246,0.25), 0 2px 10px rgba(43,109,246,0.25); }
+
+.logo-glow {
+  box-shadow:
+    0 10px 36px rgba(255,215,0,0.22),
+    0 4px 16px rgba(0,223,252,0.18);
+}
+
+/* Sun/Moon chips for UserProfile */
+.theme-chip {
+  display:inline-flex; align-items:center; gap:.5rem;
+  padding:.4rem .6rem; border-radius:999px; font-weight:600; line-height:1;
+  border:1px solid var(--border); transition:filter .15s ease, box-shadow .15s ease, transform .05s ease;
+}
+
+/* Make SVG icons follow text color */
+.theme-chip svg { width:18px; height:18px; stroke:currentColor; color:currentColor; }
+
+/* Sun = warm chip */
+.theme-chip--sun {
+  background: color-mix(in oklab, var(--brand-gold) 18%, transparent);
+  color: var(--accent-warm);
+  box-shadow:0 4px 18px rgba(255,215,0,0.15);
+}
+
+/* Moon = Midnight chip */
+.theme-chip--moon {
+  background:#0a1020;
+  color: var(--accent);
+  border-color:#182032;
+  box-shadow:0 4px 18px rgba(0,0,0,0.28);
+}
+
+/* Highlight active chip */
+:root[data-theme="sunset"]   .theme-chip--sun,
+:root[data-theme="midnight"] .theme-chip--moon {
+  outline:2px solid color-mix(in oklab, var(--accent) 40%, transparent);
+  box-shadow:0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
+}

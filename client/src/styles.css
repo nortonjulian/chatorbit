@@ -1,135 +1,255 @@
-/* ---------- Focus visibility (keyboard only) ---------- */
+/* ================== Gradient tokens used by Buttons / Switch / Checkbox ================== */
 :root {
-  --focus-ring: #3b82f6; /* tweak to match your theme primary */
-  --focus-outline: 3px solid var(--focus-ring);
+  --cta-gradient-cool: linear-gradient(90deg, #3b82f6, #7c3aed);
+  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --cta-gradient: var(--cta-gradient-cool);   /* Light/default = blue→purple */
+  --switch-gradient: var(--cta-gradient);     /* Switch/Checkbox follow CTA */
+}
+:root[data-theme="midnight"] {
+  --cta-gradient: var(--cta-gradient-warm);   /* Midnight default = gold→purple */
+  --cta-overlay: rgba(0,0,0,0.22);
+}
+:root[data-theme="midnight"][data-cta="cool"] {
+  --cta-gradient: var(--cta-gradient-cool);   /* optional Midnight blue→purple */
+  --cta-overlay: transparent;
+  --switch-gradient: var(--cta-gradient);
 }
 
-:focus {
-  outline: none;
-}
+/* ================== CTAs / Links / Badges (site-wide) ================== */
 
-/* only show outlines for keyboard users */
-:focus-visible {
-  outline: var(--focus-outline);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* Primary CTA (theme-aware) */
+.button-primary {
+  position: relative;
+  background: var(--cta-gradient);
+  color: var(--cta-label);
+  box-shadow: 0 6px 20px var(--shadow-accent);
 }
-
-/* make sure Mantine components without outlines still show a ring on keyboard focus */
-button:focus-visible,
-[role="button"]:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus-ring) 35%, transparent);
-}
-
-/* ---------- Skip-to-content link ---------- */
-.skip-to-content {
+.button-primary::before {
+  content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  transform: translateY(-150%);
-  background: #111;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--cta-overlay, transparent);
+  pointer-events: none;
+}
+.button-primary > * { position: relative; z-index: 1; }
+
+/* Keep OAuth + secondary CTAs neutral so the gradient isn’t everywhere */
+.oauth-button,
+.secondary-cta {
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+/* Softer link styling */
+a, .link { color: var(--accent); }
+a:hover, .link:hover { text-decoration: underline; filter: none; }
+
+/* Subtle gold badges */
+.badge-gold {
+  background: color-mix(in oklab, var(--brand-gold) 14%, transparent);
+  color: color-mix(in oklab, var(--brand-gold) 78%, #111);
+  border: 1px solid color-mix(in oklab, var(--brand-gold) 35%, transparent);
+}
+
+/* ================== Brand lockup (logo + wordmark) ================== */
+.brand-lockup { display: inline-flex; align-items: center; gap: 0.5rem; }
+.brand-lockup__logo { width: var(--logo-size, 44px); height: auto; object-fit: contain; }
+.brand-lockup__name { font-size: var(--text-size, 24px); margin: 0; line-height: 1; }
+
+.brand-lockup--fixed { position: absolute; inset-block-start: -6px; inset-inline-start: 0; z-index: 2; }
+@media (max-width: 62em) { .brand-lockup--fixed { position: static; } }
+
+/* Safety override if an old rule set width directly */
+.brand-lockup .logo-chatorbit,
+.brand-lockup .brand-lockup__logo {
+  width: var(--logo-size, 44px) !important;
+  height: auto !important;
+}
+
+/* ================== Auth background (theme-aware) ================== */
+.auth-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 10% -10%,
+      color-mix(in oklab, var(--brand-blue) 18%, transparent), transparent),
+    radial-gradient(900px 500px at 110% 110%,
+      color-mix(in oklab, var(--brand-gold) 15%, transparent), transparent);
+}
+/* Deeper hues on Midnight */
+:root[data-theme="midnight"] .auth-page {
+  background:
+    radial-gradient(1200px 600px at 10% -10%,
+      color-mix(in oklab, var(--brand-purple) 24%, transparent), transparent),
+    radial-gradient(900px 500px at 110% 110%,
+      color-mix(in oklab, var(--brand-gold) 16%, transparent), transparent);
+}
+
+/* Gradient text helper (blue→purple) */
+.text-blue-purple {
+  background: linear-gradient(90deg, #3b82f6, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Paint BrandLockup wordmark with the same gradient on the auth hero */
+.bp-wordmark .brand-lockup__name {
+  background: linear-gradient(90deg, #3b82f6, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Trim transparent padding in /logo-blank.png so its VISIBLE edge aligns to heading */
+.auth-hero-lockup .brand-lockup__logo { margin-left: -8px; }
+
+/* Temporary midnight test */
+.auth-page--midnight-test {
+  background: #060913;
+  --cta-gradient: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --cta-label: #fff;
+  --cta-overlay: rgba(0,0,0,0.22);
+}
+
+/* Gradient links only on the Auth page */
+.auth-page .mantine-Anchor-root,
+.auth-page a.auth-link-gradient {
+  background: linear-gradient(90deg, #3b82f6, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-decoration: none;
+}
+.auth-page .mantine-Anchor-root:hover,
+.auth-page a.auth-link-gradient:hover {
+  text-decoration: underline;
+  filter: brightness(1.05);
+}
+
+/* ================== App-wide Surfaces & Mantine mapping ================== */
+html, body, #root { background: var(--bg); color: var(--fg); }
+
+.mantine-AppShell-root,
+.mantine-AppShell-main { background: var(--bg); color: var(--fg); }
+
+/* Side rail / content panels */
+.sidebar, .left-rail, .content-panel, .chat-main {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+/* Map Mantine base tokens to our theme variables */
+:root,
+[data-mantine-color-scheme] {
+  --mantine-color-body: var(--bg);
+  --mantine-color-text: var(--fg);
+}
+
+/* AppShell surfaces */
+.mantine-AppShell-root,
+.mantine-AppShell-main,
+.mantine-AppShell-header,
+.mantine-AppShell-navbar,
+.mantine-AppShell-aside,
+.mantine-AppShell-footer,
+.mantine-Header-root,
+.mantine-Navbar-root,
+.mantine-Aside-root,
+.mantine-Footer-root {
+  background: var(--bg) !important;
+  color: var(--fg) !important;
+  border-color: var(--border) !important;
+}
+
+/* Cards/panels should look like cards, not the page bg */
+.mantine-Card-root,
+.mantine-Paper-root {
+  background: var(--card);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+/* ================== Switch & Checkbox gradients (global) ================== */
+.mantine-Switch-track[data-checked],
+.mantine-Switch-track[data-checked="true"] {
+  background: var(--switch-gradient) !important;
+  border-color: transparent !important;
+}
+.mantine-Checkbox-input:checked + .mantine-Checkbox-inner {
+  background: var(--switch-gradient) !important;
+  border-color: transparent !important;
+}
+.mantine-Checkbox-input:checked + .mantine-Checkbox-inner .mantine-Checkbox-icon { color: #fff; }
+
+/* --- Robust ON-state selectors for Mantine Switch/Checkbox (v7) --- */
+/* Switch: cover all structures (root carries data-checked in some builds) */
+.mantine-Switch-root[data-checked] .mantine-Switch-track,
+.mantine-Switch-root[data-checked="true"] .mantine-Switch-track,
+.mantine-Switch-input:checked ~ .mantine-Switch-track {
+  background: var(--switch-gradient) !important;
+  border-color: transparent !important;
+}
+
+/* Checkbox: keep using the input→inner relationship */
+.mantine-Checkbox-input:checked + .mantine-Checkbox-inner {
+  background: var(--switch-gradient) !important;
+  border-color: transparent !important;
+}
+.mantine-Checkbox-input:checked + .mantine-Checkbox-inner .mantine-Checkbox-icon {
+  color: #fff !important;
+}
+
+/* Smoothen theme flips */
+:root, .auth-page,
+.mantine-Paper-root, .mantine-TextInput-input, .mantine-PasswordInput-input {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+
+/* Hero title always uses readable foreground; accent stays gradient */
+.auth-hero-title { color: var(--fg); }
+:root[data-theme="midnight"] .auth-hero-title {
+  color: #eef2ff;
+  text-shadow: 0 1px 0 rgba(0,0,0,.18);
+}
+
+/* Icon chips readable on both themes */
+.auth-hero .auth-chip {
+  background: linear-gradient(90deg, #3b82f6, #7c3aed);
   color: #fff;
-  padding: 0.5rem 0.75rem;
-  z-index: 10000;
-  border-radius: 0 0 8px 0;
-  transition: transform 120ms ease-in-out;
-}
-.skip-to-content:focus,
-.skip-to-content:focus-visible {
-  transform: translateY(0);
 }
 
-/* ---------- Screen-reader-only helper ---------- */
-.sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 1px, 1px) !important;
-  white-space: nowrap !important; /* added line */
-  border: 0 !important;
+/* Auth card: Light stays white; Midnight uses soft dark glass */
+.auth-login .mantine-Paper-root,
+.auth-card.mantine-Paper-root,
+.auth-card {
+  background: var(--card);
+  border-color: var(--border);
 }
 
-.brand-lockup-logo {
-  height: 44px !important; /* try 44px or 48px */
-  width: auto !important;
-  object-fit: contain !important;
+:root[data-theme="midnight"] .auth-login .mantine-Paper-root,
+:root[data-theme="midnight"] .auth-card {
+  background: #0e1424;              /* deep navy, not pure black */
+  border: 1px solid #1b2640;        /* clear separation */
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.45),
+    0 8px 30px rgba(124,58,237,0.12); /* gentle violet glow */
 }
 
-
-/* ---------- Reduced motion ---------- */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* keep your existing brand lockup rules */
-
-/* ---------- Brand lockup positioning ---------- */
-/* Keep hero and lockup sharing the same left edge */
-.hero-block {
-  position: relative;           /* anchor for the fixed lockup */
-}
-
-/* The lockup itself */
-.brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Pin it above the hero, aligned to the title's left edge */
-.brand-lockup--fixed {
-  position: absolute;
-  inset-block-start: -6px;      /* nudge up/down to taste */
-  inset-inline-start: 0;        /* aligns with hero title left edge */
-}
-
-/* Logo + text sizes driven by CSS variables from the component */
-.brand-lockup__logo {
-  width: var(--logo-size, 44px);
-  height: auto;
-  object-fit: contain;
-}
-.brand-lockup__name {
-  font-size: var(--text-size, 24px);
-  margin: 0;
-  line-height: 1;
-}
-
-/* On small screens, let it flow naturally */
-@media (max-width: 62em) {
-  .brand-lockup--fixed {
-    position: static;
-    margin-bottom: 0.25rem;
-  }
-}
-
-
-@media (max-width: 62em) {
-  .brand-lockup--fixed {
-    position: static;
-    margin-bottom: 0;
-  }
+/* Inputs inside Midnight card */
+:root[data-theme="midnight"] .auth-login .mantine-TextInput-input,
+:root[data-theme="midnight"] .auth-login .mantine-PasswordInput-input {
+  background: #0f1b34;
+  border-color: #223154;
+  color: #e8ecf8;
 }
 /* 
-@media (max-width: 768px) {
-  .logo-chatorbit {
-    width: 40px;
-  }
-} */
-
-.logo-chatorbit {
-  width: 70px;   
-  height: auto;   
-}
+CTA / switches already follow your tokens:
+   - Light -> --cta-gradient (cool)
+   - Midnight -> warm by default, or set data-cta="cool" to flip */

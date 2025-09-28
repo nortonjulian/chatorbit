@@ -29,7 +29,6 @@
 // }
 
 
-// src/utils/themeManager.js
 import { ALL_THEMES } from '../config/themes';
 
 const LS_KEY = 'co-theme';
@@ -101,3 +100,9 @@ export function onThemeChange(cb) {
     });
   }
 })();
+
+// utils/themeManager.js (add)
+export function setCTAStyle(mode /* 'warm' | 'cool' */) {
+  document.documentElement.setAttribute('data-cta', mode);
+  try { localStorage.setItem('co-cta', mode); } catch {}
+}
