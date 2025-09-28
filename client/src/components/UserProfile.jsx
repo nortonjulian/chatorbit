@@ -1023,6 +1023,14 @@ export default function UserProfile({ onLanguageChange }) {
                 label={t('profile.showOriginalAndTranslation', 'Show original alongside translation')}
                 aria-label={t('profile.showOriginalAndTranslation', 'Show original alongside translation')}
               />
+
+              {/* ⬇️ Restored: Read receipts toggle */}
+              <Switch
+                checked={enableReadReceipts}
+                onChange={(e) => setEnableReadReceipts(e.currentTarget.checked)}
+                label={t('profile.enableReadReceipts', 'Enable read receipts')}
+                aria-label={t('profile.enableReadReceipts', 'Enable read receipts')}
+              />
             </Stack>
           </Accordion.Panel>
         </Accordion.Item>
@@ -1134,6 +1142,15 @@ export default function UserProfile({ onLanguageChange }) {
           <Accordion.Panel>
             <Stack gap="sm">
               <PrivacySection />
+
+              {/* ⬇️ Restored: Allow explicit content toggle */}
+              <Switch
+                checked={allowExplicitContent}
+                onChange={(e) => setAllowExplicitContent(e.currentTarget.checked)}
+                label={t('profile.allowExplicitContent', 'Allow explicit content')}
+                aria-label={t('profile.allowExplicitContent', 'Allow explicit content')}
+              />
+
               <Switch
                 checked={privacyBlurEnabled}
                 onChange={(e) => setPrivacyBlurEnabled(e.currentTarget.checked)}

@@ -12,6 +12,7 @@ import {
 } from '@mantine/core';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings, PhoneForwarded } from 'lucide-react';
+import { Dice5 } from 'lucide-react';
 
 import StartChatModal from './StartChatModal';
 import ChatroomsSidebar from './ChatroomsSidebar';
@@ -72,9 +73,24 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
 
       <Divider mb="sm" />
 
-      {/* Optional quick links */}
+      {/* Quick links */}
       <Stack gap="xs" mb="sm">
+        {/* 🎲 Random Chat entry point */}
+        {currentUser && (
+          <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<Dice5 size={16} />}
+            component={Link}
+            to="/random"
+            aria-label="Open Random Chat"
+          >
+            Random Chat
+          </Button>
+        )}
+
         {features?.status && <NavLink to="/status">Status</NavLink>}
+
         {/* NEW: Forwarding link (jumps into settings drawer) */}
         {currentUser && (
           <Button
@@ -117,7 +133,6 @@ function Sidebar({ currentUser, setSelectedRoom, features }) {
       <Drawer
         opened={profileOpen}
         onClose={() => setProfileOpen(false)}
-        // title="Settings"
         position="right"
         size="md"
         radius="lg"

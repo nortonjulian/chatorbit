@@ -18,6 +18,7 @@ import { RequirePremium } from '@/routes/guards';
 import SettingsBackups from '@/pages/SettingsBackups.jsx';
 import UpgradePage from '@/pages/UpgradePlan';
 import Sidebar from '@/components/Sidebar';
+import RandomChatPage from '@/pages/RandomChatPage.jsx';
 import LoginForm from '@/components/LoginForm';
 import Registration from '@/components/Registration';
 import ForgotPassword from '@/components/ForgotPassword';
@@ -186,6 +187,7 @@ export default function AppRoutes() {
       <Route path="/forbidden" element={<Forbidden />} />
       <Route path="/" element={<AuthedLayout />}>
         {/* ⬇️ Index route uses the same conditional you had before */}
+        <Route path="random" element={<RandomChatPage />} />
         <Route index element={<HomeIndex />} />
 
         <Route path="people" element={<PeoplePage />} />

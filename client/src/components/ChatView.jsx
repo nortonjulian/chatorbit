@@ -22,6 +22,7 @@ import {
   IconSearch,
   IconPhoto,
   IconRotateClockwise,
+  IconDice5, // 🎲 Random badge icon
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -105,6 +106,14 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
 
   const isOwnerOrAdmin =
     currentUser?.role === 'ADMIN' || currentUser?.id === chatroom?.ownerId;
+
+  // 🎲 Mark random-origin rooms for UI badge
+  const isRandomRoom = Boolean(
+    chatroom?.isRandom ||
+      chatroom?.origin === 'random' ||
+      chatroom?.randomChatRoomId ||
+      (Array.isArray(chatroom?.tags) && chatroom.tags.includes('random'))
+  );
 
   // ✅ Smart Replies toggle: init from user pref, fallback to IDB cache
   const [smartEnabled, setSmartEnabled] = useState(
@@ -508,6 +517,12 @@ export default function ChatView({ chatroom, currentUserId, currentUser }) {
       <Group mb="sm" justify="space-between">
         <Title order={4}>{chatroom?.name || 'Chat'}</Title>
         <Group gap="xs">
+          {isRandomRoom && (
+            <Badge variant="light" radius="sm" leftSection={<IconDice5 size={14} />}>
+              Random
+            </Badge>
+          )}
+
           {chatroom?.participants?.length > 2 && (
             <Badge variant="light" radius="sm">
               Group
