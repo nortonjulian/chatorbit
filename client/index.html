@@ -2,13 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- <link rel="icon" type="image/svg+xml" href="/logo-blank.png" /> -->
-    <link rel="icon" type="image/svg+xml" sizes="192x192" href="/logo-blank-tight.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chatforia</title>
+
+    <!-- Favicons -->
+    <!-- Default favicon (light theme) -->
+    <link id="cf-favicon" rel="icon" type="image/svg+xml" href="/brand/favicon-light.svg">
+
+    <!-- Dark mode favicon -->
+    <link id="cf-favicon-dark" rel="icon" type="image/svg+xml" href="/brand/favicon-dark.svg" media="(prefers-color-scheme: dark)">
+
+    <!-- Optional: sunset/midnight variants -->
+    <link id="cf-favicon-sunset" rel="icon" type="image/svg+xml" href="/brand/favicon-sunset.svg" media="(prefers-color-scheme: no-preference)">
+
+    <!-- Safari pinned tabs -->
+    <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#A855F7">
+
+    <!-- Legacy fallback (optional, can remove if unused) -->
+    <!-- <link rel="icon" type="image/svg+xml" sizes="192x192" href="/logo-blank-tight.png"> -->
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Theme-aware favicon swapper -->
+    <script>
+      const favicon = document.getElementById('cf-favicon');
+      const observer = new MutationObserver(() => {
+        const theme = document.documentElement.getAttribute('data-theme');
+        if (theme === 'midnight') {
+          favicon.href = '/brand/favicon-dark.svg';
+        } else if (theme === 'sunset') {
+          favicon.href = '/brand/favicon-sunset.svg';
+        } else {
+          favicon.href = '/brand/favicon-light.svg';
+        }
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    </script>
   </body>
 </html>

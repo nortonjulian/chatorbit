@@ -1,28 +1,29 @@
-/* ================== Gradient tokens used by Buttons / Switch / Checkbox ================== */
+/* ================== Chatforia App Styles ================== */
+/* Consumes tokens from themes.css. No raw hexes for brand areas. */
+
+/* --- CTA & control gradients --- */
 :root {
-  --cta-gradient-cool: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --cta-gradient: var(--cta-gradient-cool);   /* Light/default = blue→purple */
-  --switch-gradient: var(--cta-gradient);     /* Switch/Checkbox follow CTA */
+  --cta-gradient: var(--cta-gradient-cool);   /* default = blue→indigo */
+  --switch-gradient: var(--cta-gradient);
 }
 :root[data-theme="midnight"] {
-  --cta-gradient: var(--cta-gradient-warm);   /* Midnight default = gold→purple */
+  --cta-gradient: var(--cta-gradient-warm);   /* midnight default = gold→purple */
   --cta-overlay: rgba(0,0,0,0.22);
 }
 :root[data-theme="midnight"][data-cta="cool"] {
-  --cta-gradient: var(--cta-gradient-cool);   /* optional Midnight blue→purple */
+  --cta-gradient: var(--cta-gradient-cool);
   --cta-overlay: transparent;
   --switch-gradient: var(--cta-gradient);
 }
 
 /* ================== CTAs / Links / Badges (site-wide) ================== */
-
-/* Primary CTA (theme-aware) */
 .button-primary {
   position: relative;
   background: var(--cta-gradient);
   color: var(--cta-label);
+  border: none;
   box-shadow: 0 6px 20px var(--shadow-accent);
+  transition: filter .15s ease, box-shadow .15s ease, transform .05s ease;
 }
 .button-primary::before {
   content: "";
@@ -33,8 +34,9 @@
   pointer-events: none;
 }
 .button-primary > * { position: relative; z-index: 1; }
+.button-primary:hover { filter: brightness(1.03); }
+.button-primary:active { transform: translateY(1px); }
 
-/* Keep OAuth + secondary CTAs neutral so the gradient isn’t everywhere */
 .oauth-button,
 .secondary-cta {
   background: var(--card);
@@ -43,11 +45,9 @@
   box-shadow: none;
 }
 
-/* Softer link styling */
 a, .link { color: var(--accent); }
 a:hover, .link:hover { text-decoration: underline; filter: none; }
 
-/* Subtle gold badges */
 .badge-gold {
   background: color-mix(in oklab, var(--brand-gold) 14%, transparent);
   color: color-mix(in oklab, var(--brand-gold) 78%, #111);
@@ -87,49 +87,36 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
       color-mix(in oklab, var(--brand-gold) 16%, transparent), transparent);
 }
 
-/* Gradient text helper (blue→purple) */
-.text-blue-purple {
-  background: linear-gradient(90deg, #3b82f6, #7c3aed);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Paint BrandLockup wordmark with the same gradient on the auth hero */
-.bp-wordmark .brand-lockup__name {
-  background: linear-gradient(90deg, #3b82f6, #7c3aed);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Trim transparent padding in /logo-blank.png so its VISIBLE edge aligns to heading */
-.auth-hero-lockup .brand-lockup__logo { margin-left: -8px; }
-
-/* Temporary midnight test */
-.auth-page--midnight-test {
-  background: #060913;
-  --cta-gradient: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --cta-label: #fff;
-  --cta-overlay: rgba(0,0,0,0.22);
-}
-
-/* Gradient links only on the Auth page */
+/* Gradient text helpers (use CTA so it can animate when cycling is on) */
+.text-blue-purple,
+.bp-wordmark .brand-lockup__name,
 .auth-page .mantine-Anchor-root,
 .auth-page a.auth-link-gradient {
-  background: linear-gradient(90deg, #3b82f6, #7c3aed);
+  background: var(--cta-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent !important;
   -webkit-text-fill-color: transparent;
+}
+.auth-page .mantine-Anchor-root,
+.auth-page a.auth-link-gradient {
   text-decoration: none;
 }
 .auth-page .mantine-Anchor-root:hover,
 .auth-page a.auth-link-gradient:hover {
   text-decoration: underline;
   filter: brightness(1.05);
+}
+
+/* Trim transparent padding on logo-blank for alignment */
+.auth-hero-lockup .brand-lockup__logo { margin-left: -8px; }
+
+/* Optional midnight test block (kept but token-ized) */
+.auth-page--midnight-test {
+  background: var(--bg);
+  --cta-gradient: var(--cta-gradient-warm);
+  --cta-label: #fff;
+  --cta-overlay: rgba(0,0,0,0.22);
 }
 
 /* ================== App-wide Surfaces & Mantine mapping ================== */
@@ -188,16 +175,13 @@ html, body, #root { background: var(--bg); color: var(--fg); }
 }
 .mantine-Checkbox-input:checked + .mantine-Checkbox-inner .mantine-Checkbox-icon { color: #fff; }
 
-/* --- Robust ON-state selectors for Mantine Switch/Checkbox (v7) --- */
-/* Switch: cover all structures (root carries data-checked in some builds) */
+/* Robust ON-state selectors (v7) */
 .mantine-Switch-root[data-checked] .mantine-Switch-track,
 .mantine-Switch-root[data-checked="true"] .mantine-Switch-track,
 .mantine-Switch-input:checked ~ .mantine-Switch-track {
   background: var(--switch-gradient) !important;
   border-color: transparent !important;
 }
-
-/* Checkbox: keep using the input→inner relationship */
 .mantine-Checkbox-input:checked + .mantine-Checkbox-inner {
   background: var(--switch-gradient) !important;
   border-color: transparent !important;
@@ -206,13 +190,19 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   color: #fff !important;
 }
 
-/* Smoothen theme flips */
+/* Smooth theme flips; respect reduced motion */
 :root, .auth-page,
 .mantine-Paper-root, .mantine-TextInput-input, .mantine-PasswordInput-input {
   transition: background-color .25s ease, color .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  :root, .auth-page,
+  .mantine-Paper-root, .mantine-TextInput-input, .mantine-PasswordInput-input {
+    transition: none;
+  }
+}
 
-/* Hero title always uses readable foreground; accent stays gradient */
+/* Hero title always uses readable foreground; gradient stays for accents */
 .auth-hero-title { color: var(--fg); }
 :root[data-theme="midnight"] .auth-hero-title {
   color: #eef2ff;
@@ -221,35 +211,20 @@ html, body, #root { background: var(--bg); color: var(--fg); }
 
 /* Icon chips readable on both themes */
 .auth-hero .auth-chip {
-  background: linear-gradient(90deg, #3b82f6, #7c3aed);
+  background: var(--cta-gradient);
   color: #fff;
 }
 
-/* Auth card: Light stays white; Midnight uses soft dark glass */
-.auth-login .mantine-Paper-root,
-.auth-card.mantine-Paper-root,
-.auth-card {
-  background: var(--card);
-  border-color: var(--border);
+/* Optional subtle animated header underline */
+.brand-animated {
+  background-image: var(--cta-gradient);
+  background-size: 200% 100%;
 }
-
-:root[data-theme="midnight"] .auth-login .mantine-Paper-root,
-:root[data-theme="midnight"] .auth-card {
-  background: #0e1424;              /* deep navy, not pure black */
-  border: 1px solid #1b2640;        /* clear separation */
-  box-shadow:
-    0 20px 40px rgba(0,0,0,0.45),
-    0 8px 30px rgba(124,58,237,0.12); /* gentle violet glow */
+:root[data-cycling="on"] .brand-animated {
+  animation: chatforia-cycle 14s linear infinite;
 }
-
-/* Inputs inside Midnight card */
-:root[data-theme="midnight"] .auth-login .mantine-TextInput-input,
-:root[data-theme="midnight"] .auth-login .mantine-PasswordInput-input {
-  background: #0f1b34;
-  border-color: #223154;
-  color: #e8ecf8;
+@media (prefers-reduced-motion: reduce) {
+  :root[data-cycling="on"] .brand-animated {
+    animation: none;
+  }
 }
-/* 
-CTA / switches already follow your tokens:
-   - Light -> --cta-gradient (cool)
-   - Midnight -> warm by default, or set data-cta="cool" to flip */

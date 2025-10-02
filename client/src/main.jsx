@@ -5,11 +5,14 @@ import * as Sentry from '@sentry/react';
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { BrowserRouter } from 'react-router-dom';
+import { installThemeFaviconObserver } from '@/utils/themeFavicon';
+installThemeFaviconObserver();
 
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
 import './styles/themes.css';
+import './styles/logo.css';
 
 import './i18n';
 

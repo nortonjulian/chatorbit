@@ -123,7 +123,7 @@ export default function AuthLayout() {
 
     function apply(theme) {
       html.setAttribute('data-theme', theme);
-      // Convention: Light uses cool (blue→purple), Midnight uses warm (gold→purple)
+      // Convention: Light uses cool (blue→indigo), Midnight uses warm (gold→purple)
       if (theme === 'midnight') {
         html.removeAttribute('data-cta'); // warm is default via tokens
       } else {
@@ -187,8 +187,8 @@ export default function AuthLayout() {
                       variant="filled"
                       radius="xl"
                       style={{
-                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
-                        color: '#fff',
+                        background: 'var(--cta-gradient)',  // ⬅️ token instead of hardcoded gradient
+                        color: 'var(--cta-label)',
                       }}
                     >
                       <Lock size={16} />
@@ -203,8 +203,8 @@ export default function AuthLayout() {
                       variant="filled"
                       radius="xl"
                       style={{
-                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
-                        color: '#fff',
+                        background: 'var(--cta-gradient)',  // ⬅️ token
+                        color: 'var(--cta-label)',
                       }}
                     >
                       <Globe size={16} />
@@ -219,8 +219,8 @@ export default function AuthLayout() {
                       variant="filled"
                       radius="xl"
                       style={{
-                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
-                        color: '#fff',
+                        background: 'var(--cta-gradient)',  // ⬅️ token
+                        color: 'var(--cta-label)',
                       }}
                     >
                       <MessageCircle size={16} />
@@ -235,8 +235,8 @@ export default function AuthLayout() {
                       variant="filled"
                       radius="xl"
                       style={{
-                        background: 'linear-gradient(90deg, #3b82f6, #7c3aed)',
-                        color: '#fff',
+                        background: 'var(--cta-gradient)',  // ⬅️ token
+                        color: 'var(--cta-label)',
                       }}
                     >
                       <ShieldCheck size={16} />

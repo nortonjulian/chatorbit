@@ -1,8 +1,14 @@
 import { createTheme } from '@mantine/core';
 
+/**
+ * Chatforia Mantine theme
+ * - Uses CSS variables defined in styles/themes.css
+ * - Primary color maps to --accent by design (interactive accents)
+ * - Components lean on var(--cta-gradient), var(--card), var(--fg), etc.
+ */
 export const chatforiaTheme = createTheme({
   colors: {
-    // Mantine palette proxies to your CSS var
+    // Mantine expects a 10-step scale; we proxy to CSS var to keep tokens single-source.
     foria: Array(10).fill('var(--accent)'),
   },
   primaryColor: 'foria',
@@ -17,8 +23,8 @@ export const chatforiaTheme = createTheme({
       styles: () => ({
         root: {
           position: 'relative',
-          background: 'var(--cta-gradient)',  // theme-aware CTA gradient
-          color: 'var(--cta-label)',          // theme-aware label color
+          background: 'var(--cta-gradient)',    // theme-aware CTA gradient
+          color: 'var(--cta-label)',            // readable on both themes
           border: 'none',
           boxShadow: '0 6px 20px var(--shadow-accent)',
           transition: 'filter .15s ease, box-shadow .15s ease, transform .05s ease',
@@ -27,7 +33,7 @@ export const chatforiaTheme = createTheme({
             position: 'absolute',
             inset: 0,
             borderRadius: 'inherit',
-            background: 'var(--cta-overlay, transparent)',
+            background: 'var(--cta-overlay, transparent)', // dark overlay in midnight
             pointerEvents: 'none',
           },
           '&:hover': { filter: 'brightness(1.03)' },
@@ -101,12 +107,10 @@ export const chatforiaTheme = createTheme({
       },
     },
 
-    // 🔄 Switch & Checkbox follow --switch-gradient everywhere
-    // chatforiaTheme (only the parts that changed)
+    /* Switch & Checkbox follow --switch-gradient everywhere */
     Switch: {
       styles: () => ({
         root: {
-          // when Mantine sets [data-checked] on the root
           '&[data-checked] .mantine-Switch-track, &[data-checked="true"] .mantine-Switch-track': {
             background: 'var(--switch-gradient)',
             borderColor: 'transparent',
@@ -116,9 +120,10 @@ export const chatforiaTheme = createTheme({
           backgroundColor: 'var(--border)',
           border: '1px solid var(--border)',
         },
-        thumb: { background: '#fff' },
+        thumb: { background: '#fff' }, // chosen for contrast atop the gradient
       }),
     },
+
     Checkbox: {
       styles: () => ({
         input: {
@@ -127,7 +132,7 @@ export const chatforiaTheme = createTheme({
             borderColor: 'transparent',
           },
         },
-        icon: { color: '#fff' },
+        icon: { color: '#fff' }, // keeps icon visible atop gradient fill
       }),
     },
   },

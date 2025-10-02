@@ -1,48 +1,50 @@
 /* -------------------------------------------------------
-   Brand seeds (from the logo)
+   Chatforia — Theme Tokens (universal & accessible)
    ----------------------------------------------------- */
 :root {
-  /* Brand primaries */
-  --brand-purple: #A855F7;   /* primary violet */
-  --brand-gold:   #FFD700;   /* warm yellow */
-  --brand-blue:   #3b82f6;   /* blue used in gradient */
-  --brand-indigo: #5b6cf9;   /* midpoint between blue & purple */
+  /* ── Brand primaries (Chatforia) ────────────────────────────────────── */
+  --brand-blue:   #2979FF;  /* Electric Blue */
+  --brand-purple: #8E24AA;  /* Vibrant Purple */
+  --brand-indigo: #6A3CC1;  /* Bridge blue↔purple (derived, accessible) */
+  --brand-pink:   #E91E63;  /* Magenta Pink (reserved for highlights) */
+  --brand-orange: #FF9800;  /* Joyful Orange (optional accent) */
+  --brand-gold:   #FFEB3B;  /* Sunny Yellow (token: warm accent) */
 
-  /* Role tokens (light = default) */
-  --bg:    #f7f9ff;
-  --fg:    #0a0a0a;
-  --card:  #ffffff;
-  --muted: #6b7280;
-  --border:#e5e7eb;
-  --border-soft:#eef2ff;     /* very subtle borders on light */
+  /* ── Base surfaces (light default) ──────────────────────────────────── */
+  --bg:           #F7F9FF;  /* airy light */
+  --fg:           #0A0A0A;  /* near-black for strong readability */
+  --card:         #FFFFFF;
+  --muted:        #6B7280;  /* neutral body/secondary text */
+  --border:       #E5E7EB;
+  --border-soft:  #EEF2FF;
 
-  /* Semantics */
-  --primary:     var(--brand-purple);
-  --accent:      var(--brand-indigo);  /* links/icons */
-  --accent-warm: var(--brand-gold);
+  /* ── Semantics ──────────────────────────────────────────────────────── */
+  --primary:      var(--brand-purple);
+  --accent:       var(--brand-indigo); /* links/icons/interactive accents */
+  --accent-warm:  var(--brand-gold);
 
-  /* Gradients */
-  --logo-gradient:      linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --logo-gradient-rev:  linear-gradient(90deg, var(--brand-purple), var(--brand-gold));
-  /* Back-compat for older styles */
+  /* ── Logos & wordmark ───────────────────────────────────────────────── */
+  --logo-gradient:     linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --logo-gradient-rev: linear-gradient(90deg, var(--brand-purple), var(--brand-gold));
+  /* Back-compat for older reads */
   --foria-gradient: var(--logo-gradient);
 
-  /* CTA tokens (default = blue → purple) */
-  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-label: #fff;
-  --cta-overlay: transparent; /* page/theme can override for contrast */
+  /* ── Core CTA tokens (light defaults to blue→indigo) ────────────────── */
+  --cta-gradient-cool: linear-gradient(90deg, var(--brand-blue), var(--brand-indigo));
+  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  --cta-gradient:       var(--cta-gradient-cool);
+  --cta-label:          #FFFFFF;
+  --cta-overlay:        transparent; /* themes can override for contrast */
 
-  /* Focus + shadows */
+  /* ── Focus rings & shadows (subtle by default) ──────────────────────── */
   --ring:            rgba(0, 223, 252, 0.45);
   --shadow-accent:   rgba(0, 223, 252, 0.22);
   --shadow-ambient:  rgba(10,10,10,0.10);
 
-  /* Switch/checkbox follow CTA by default */
-  --cta-gradient-cool: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
+  /* ── Controls (switch/checkbox follow CTA by default) ───────────────── */
   --switch-gradient: var(--cta-gradient);
 
-  /* Back-compat alias if anything still reads the old name */
+  /* Back-compat alias */
   --checkbox-gradient: var(--switch-gradient);
 }
 
@@ -50,88 +52,140 @@
    Dark (free)
    ----------------------------------------------------- */
 :root[data-theme="dark"] {
-  --bg:     #0b0f1a;
-  --fg:     #f3f4f6;
-  --card:   #0f1524;
-  --muted:  #9aa4b2;
-  --border: #1f2a3a;
-  --border-soft:#1a2334;
+  --bg:           #0D1B2A;  /* Deep Navy (your brand base) */
+  --fg:           #F3F4F6;
+  --card:         #12243A;  /* slightly lifted from bg */
+  --muted:        #9AA4B2;  /* Cool Gray interpretation */
+  --border:       #1F2A3A;
+  --border-soft:  #172338;
 
-  --primary:     var(--brand-purple);
-  --accent:      #7f8cff;  /* lighter indigo for dark */
-  --accent-warm: var(--brand-gold);
+  --primary:      var(--brand-purple);
+  --accent:       #9BA8FF;  /* lighter indigo/blue for dark legibility */
+  --accent-warm:  var(--brand-gold);
 
-  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-label: #fff;
-  --cta-overlay: transparent;
+  --cta-gradient: var(--cta-gradient-cool); /* default cool CTA in dark */
+  --cta-label:    #FFFFFF;
+  --cta-overlay:  transparent;
 
-  --ring:           rgba(168,85,247,0.45);
-  --shadow-accent:  rgba(168,85,247,0.22);
+  --ring:           rgba(168, 85, 247, 0.45);
+  --shadow-accent:  rgba(168, 85, 247, 0.22);
 }
 
 /* -------------------------------------------------------
    Premium themes
    ----------------------------------------------------- */
 
-/* AMOLED: pure black surfaces + neon accents */
+/* AMOLED: pure black surfaces + neon accents (highest contrast) */
 :root[data-theme="amoled"] {
-  --bg:#000; --fg:#f5f7ff; --card:#050505; --muted:#a1a8b3; --border:#0c0c0c; --border-soft:#0a0a0a;
-  --primary:var(--brand-purple); --accent:var(--brand-blue); --accent-warm:var(--brand-gold);
-  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-label:#fff; --cta-overlay:transparent;
-  --ring:rgba(0,223,252,0.5); --shadow-accent:rgba(0,223,252,0.28);
+  --bg: #000000;
+  --fg: #F5F7FF;
+  --card: #050505;
+  --muted: #A1A8B3;
+  --border: #0C0C0C;
+  --border-soft: #0A0A0A;
+
+  --primary: var(--brand-purple);
+  --accent:  var(--brand-blue);
+  --accent-warm: var(--brand-gold);
+
+  --cta-gradient: var(--cta-gradient-cool);
+  --cta-label:    #FFFFFF;
+  --cta-overlay:  transparent;
+
+  --ring:           rgba(0,223,252,0.5);
+  --shadow-accent:  rgba(0,223,252,0.28);
 }
 
 /* Neon: deep navy with high-saturation accents */
 :root[data-theme="neon"] {
-  --bg:#070a16; --fg:#eaf1ff; --card:#0d1326; --muted:#8ea3c0; --border:#162040; --border-soft:#0f1a33;
-  --primary:var(--brand-purple); --accent:var(--brand-blue); --accent-warm:var(--brand-gold);
-  --cta-gradient: linear-gradient(90deg, #3b82f6, #7c3aed);
-  --cta-label:#fff; --cta-overlay:transparent;
-  --ring:rgba(0,223,252,0.48); --shadow-accent:rgba(0,223,252,0.26);
+  --bg: #070A16;
+  --fg: #EAF1FF;
+  --card: #0D1326;
+  --muted: #8EA3C0;
+  --border: #162040;
+  --border-soft: #0F1A33;
+
+  --primary: var(--brand-purple);
+  --accent:  var(--brand-blue);
+  --accent-warm: var(--brand-gold);
+
+  --cta-gradient: var(--cta-gradient-cool);
+  --cta-label:    #FFFFFF;
+  --cta-overlay:  transparent;
+
+  --ring:           rgba(0,223,252,0.48);
+  --shadow-accent:  rgba(0,223,252,0.26);
 }
 
-/* Sunset: warm, “sun” vibe on light */
+/* Sunset: warm, sunlit vibe on light */
 :root[data-theme="sunset"] {
-  --bg:#fffaf0; --fg:#1a1a1a; --card:#ffffff; --muted:#6f6b63; --border:#f1e6c9; --border-soft:#f6edd6;
-  --primary:var(--brand-purple); --accent:var(--brand-gold); --accent-warm:var(--brand-gold);
+  --bg: #FFFBF0;
+  --fg: #1A1A1A;
+  --card: #FFFFFF;
+  --muted: #6F6B63;
+  --border: #F1E6C9;
+  --border-soft: #F6EDD6;
+
+  --primary: var(--brand-purple);
+  --accent:  var(--brand-gold);
+  --accent-warm: var(--brand-gold);
+
   --foria-gradient: var(--logo-gradient);
-  --cta-gradient: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --cta-label:#111;
-  --cta-overlay: transparent;
-  --ring:rgba(255,215,0,0.45); --shadow-accent:rgba(255,215,0,0.26);
+  --cta-gradient:   var(--cta-gradient-warm);
+  --cta-label:      #111111;
+  --cta-overlay:    transparent;
+
+  --ring:           rgba(255,215,0,0.45);
+  --shadow-accent:  rgba(255,215,0,0.26);
 }
 
-/* Midnight: your requested Moon theme */
+/* Midnight: moon theme (default warm CTA + slight dark overlay) */
 :root[data-theme="midnight"] {
-  --bg:#060913; --fg:#e7eaf3; --card:#0a1020; --muted:#8f9ab0; --border:#182032; --border-soft:#0e1526;
-  --primary:var(--brand-purple); --accent:#9aa7ff; --accent-warm:var(--brand-gold);
+  --bg: #060913;
+  --fg: #E7EAF3;
+  --card: #0A1020;
+  --muted: #8F9AB0;
+  --border: #182032;
+  --border-soft: #0E1526;
 
-  /* default warm CTA + slight dark overlay for contrast */
+  --primary: var(--brand-purple);
+  --accent:  #9AA7FF; /* cool readable accent on dark */
+  --accent-warm: var(--brand-gold);
+
   --cta-gradient: var(--cta-gradient-warm);
-  --cta-label:#fff;
-  --cta-overlay: rgba(0,0,0,0.22);
+  --cta-label:    #FFFFFF;
+  --cta-overlay:  rgba(0,0,0,0.22);
 
-  --ring:rgba(0,223,252,0.40); --shadow-accent:rgba(168,85,247,0.24);
+  --ring:           rgba(0,223,252,0.40);
+  --shadow-accent:  rgba(168,85,247,0.24);
 }
 
-/* Opt-in: Midnight with blue→purple CTAs */
+/* Midnight + cool CTAs (blue→indigo instead of gold→purple) */
 :root[data-theme="midnight"][data-cta="cool"] {
   --cta-gradient: var(--cta-gradient-cool);
-  --cta-overlay: transparent;
+  --cta-overlay:  transparent;
   --switch-gradient: var(--cta-gradient);
 }
 
-/* Solarized (light-leaning), still brand-aware */
+/* Solarized: light-leaning, brand-aware */
 :root[data-theme="solarized"] {
-  --bg:#fdf6e3; --fg:#073642; --card:#fffdf2; --muted:#657b83; --border:#eee3c9; --border-soft:#f3ecd7;
-  --primary:#6c71c4;
-  --accent:#268bd2;
-  --accent-warm:#b58900;
-  --cta-gradient: linear-gradient(90deg, #268bd2, #6c71c4);
-  --cta-label:#fff; --cta-overlay: transparent;
-  --ring:rgba(38,139,210,0.45);
-  --shadow-accent:rgba(38,139,210,0.22);
+  --bg: #FDF6E3;
+  --fg: #073642;
+  --card: #FFFDF2;
+  --muted: #657B83;
+  --border: #EEE3C9;
+  --border-soft: #F3ECD7;
+
+  --primary: #6C71C4;
+  --accent:  #268BD2;
+  --accent-warm: #B58900;
+
+  --cta-gradient: linear-gradient(90deg, #268BD2, #6C71C4);
+  --cta-label:    #FFFFFF;
+  --cta-overlay:  transparent;
+
+  --ring:           rgba(38,139,210,0.45);
+  --shadow-accent:  rgba(38,139,210,0.22);
 }
 
 /* -------------------------------------------------------
@@ -150,24 +204,25 @@
     0 4px 16px rgba(0,223,252,0.18);
 }
 
-/* Sun/Moon chips for UserProfile */
+/* Theme selection chips */
 .theme-chip {
-  display:inline-flex; align-items:center; gap:.5rem;
-  padding:.4rem .6rem; border-radius:999px; font-weight:600; line-height:1;
-  border:1px solid var(--border); transition:filter .15s ease, box-shadow .15s ease, transform .05s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid var(--border);
+  transition: filter .15s ease, box-shadow .15s ease, transform .05s ease;
 }
-
-/* Make SVG icons follow text color */
 .theme-chip svg { width:18px; height:18px; stroke:currentColor; color:currentColor; }
 
-/* Sun = warm chip */
 .theme-chip--sun {
   background: color-mix(in oklab, var(--brand-gold) 18%, transparent);
   color: var(--accent-warm);
-  box-shadow:0 4px 18px rgba(255,215,0,0.15);
+  box-shadow: 0 4px 18px rgba(255,215,0,0.15);
 }
-
-/* Moon = Midnight chip */
 .theme-chip--moon {
   background:#0a1020;
   color: var(--accent);
@@ -180,4 +235,29 @@
 :root[data-theme="midnight"] .theme-chip--moon {
   outline:2px solid color-mix(in oklab, var(--accent) 40%, transparent);
   box-shadow:0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+/* -------------------------------------------------------
+   Optional: Subtle brand color cycling (opt-in)
+   ----------------------------------------------------- */
+@keyframes chatforia-cycle {
+  0%   { --cycle-a: var(--brand-blue);   --cycle-b: var(--brand-indigo); }
+  25%  { --cycle-a: var(--brand-indigo); --cycle-b: var(--brand-purple); }
+  50%  { --cycle-a: var(--brand-purple); --cycle-b: var(--brand-gold); }
+  75%  { --cycle-a: var(--brand-gold);   --cycle-b: var(--brand-indigo); }
+  100% { --cycle-a: var(--brand-blue);   --cycle-b: var(--brand-indigo); }
+}
+
+:root[data-cycling="on"] {
+  --cta-gradient: linear-gradient(90deg, var(--cycle-a), var(--cycle-b));
+  --switch-gradient: var(--cta-gradient);
+  --accent: var(--cycle-b);
+  animation: chatforia-cycle 14s linear infinite;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-cycling="on"] {
+    animation: none;
+  }
 }
