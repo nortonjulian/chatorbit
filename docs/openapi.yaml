@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ChatOrbit API
+  title: Chatforia API
   version: 0.1.0
 servers:
   - url: http://localhost:5002

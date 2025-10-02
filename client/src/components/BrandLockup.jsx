@@ -20,13 +20,13 @@ export default function BrandLockup({ size = 'md', className = '' }) {
     >
       <Image
         src="/logo-blank.png"
-        alt="ChatOrbit"
+        alt="Chatforia"
         className="brand-lockup__logo"
         fit="contain"
       />
-      {/* IMPORTANT: remove `c="orbit.8"` so CSS gradient can apply */}
+      {/* IMPORTANT: remove `c="foria.8"` so CSS gradient can apply */}
       <Title order={3} className="brand-lockup__name">
-        ChatOrbit
+        Chatforia
       </Title>
     </Group>
   );

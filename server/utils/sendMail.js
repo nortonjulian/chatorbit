@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 export async function sendMail(to, subject, html) {
   try {
     const info = await transporter.sendMail({
-      from: `"ChatOrbit Support" <${process.env.SUPPORT_EMAIL || 'support@chatorbit.com'}>`,
+      from: `"Chatforia Support" <${process.env.SUPPORT_EMAIL || 'support@chatforia.com'}>`,
       to,
       subject,
       html,

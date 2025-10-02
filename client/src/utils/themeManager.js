@@ -52,7 +52,7 @@ export function isDarkTheme(theme = getTheme()) {
 function notify(theme) {
   for (const fn of subs) fn(theme);
   // also emit a DOM event if you prefer listening without importing this module
-  window.dispatchEvent(new CustomEvent('chatorbit:theme', { detail: { theme } }));
+  window.dispatchEvent(new CustomEvent('chatforia:theme', { detail: { theme } }));
 }
 
 export function applyTheme(theme = getTheme()) {

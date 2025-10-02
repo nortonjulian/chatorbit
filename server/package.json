@@ -1,5 +1,5 @@
 {
-  "name": "chatorbit-server",
+  "name": "chatforia-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     "test:contract": "NODE_OPTIONS=--experimental-vm-modules jest --config ./jest.config.cjs tests/contract",
     "test:security": "NODE_OPTIONS=--experimental-vm-modules jest --config ./jest.config.cjs tests/security",
     "test:perf": "artillery run tests/perf/messages.yml",
-    "perf:smoke": "npm run -w chatorbit-server start:mini & sleep 2 && npm run -w chatorbit-server test:perf -- --target http://localhost:3000",
+    "perf:smoke": "npm run -w chatforia-server start:mini & sleep 2 && npm run -w chatforia-server test:perf -- --target http://localhost:3000",
     "deps:check": "npm outdated || true",
     "audit": "npm audit || true",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma"

@@ -25,7 +25,7 @@ const ROLE_OPTS = [
 
 const AI_MODE_OPTS = [
   { value: 'off', label: 'Off' },
-  { value: 'mention', label: 'Only on @OrbitBot or /ask' },
+  { value: 'mention', label: 'Only on @ForiaBot or /ask' },
   { value: 'always', label: 'Reply proactively' },
 ];
 
@@ -287,7 +287,7 @@ export default function RoomSettingsModal({
 
         {/* Per-user preference in this room */}
         <Switch
-          label="Allow OrbitBot to engage in this room"
+          label="Allow ForiaBot to engage in this room"
           checked={allowAIBot}
           onChange={(e) => toggleAllowBot(e.currentTarget.checked)}
           disabled={savingAllow}

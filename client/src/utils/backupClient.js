@@ -116,7 +116,7 @@ export async function createEncryptedKeyBackup(
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
 
   const payload = {
-    type: 'chatorbit-key-backup',
+    type: 'chatforia-key-backup',
     version: backupVersion,
     createdAt: new Date().toISOString(),
     kdf: { alg: 'PBKDF2-SHA256', saltB64, iterations },
@@ -126,7 +126,7 @@ export async function createEncryptedKeyBackup(
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `chatorbit-key-backup-${ts}.json`;
+  const filename = `chatforia-key-backup-${ts}.json`;
   return { blob, filename };
 }
 
@@ -146,7 +146,7 @@ export async function restoreEncryptedKeyBackup(
 
   const text = await readFileText(file);
   const json = JSON.parse(text);
-  if (json?.type !== 'chatorbit-key-backup' || json?.version !== backupVersion) {
+  if (json?.type !== 'chatforia-key-backup' || json?.version !== backupVersion) {
     throw new Error('Unsupported backup format');
   }
 
@@ -312,7 +312,7 @@ export async function createEncryptedRoomChatBackup(
   const iv = randBytes(12);
 
   const payload = {
-    type: 'chatorbit-chat-backup',
+    type: 'chatforia-chat-backup',
     version: chatBackupVersion,
     createdAt: new Date().toISOString(),
     room: { id: roomId },
@@ -325,7 +325,7 @@ export async function createEncryptedRoomChatBackup(
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
 
   const out = {
-    type: 'chatorbit-chat-backup',
+    type: 'chatforia-chat-backup',
     version: chatBackupVersion,
     createdAt: new Date().toISOString(),
     kdf: { alg: 'PBKDF2-SHA256', saltB64, iterations },
@@ -335,7 +335,7 @@ export async function createEncryptedRoomChatBackup(
 
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `chatorbit-chat-room-${roomId}-${ts}.json`;
+  const filename = `chatforia-chat-room-${roomId}-${ts}.json`;
   return { blob, filename };
 }
 
@@ -351,7 +351,7 @@ export async function restoreEncryptedRoomChatBackup({ file, password }) {
 
   const text = await readFileText(file);
   const json = JSON.parse(text);
-  if (json?.type !== 'chatorbit-chat-backup' || json?.version !== chatBackupVersion) {
+  if (json?.type !== 'chatforia-chat-backup' || json?.version !== chatBackupVersion) {
     throw new Error('Unsupported backup format');
   }
 

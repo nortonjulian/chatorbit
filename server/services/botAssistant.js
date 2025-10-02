@@ -3,21 +3,21 @@ import { allow } from '../utils/tokenBucket.js';
 import { generateAIResponse } from '../utils/generateAIResponse.js';
 import { createMessageService } from './messageService.js';
 
-const BOT_ID = Number(process.env.ORBIT_BOT_USER_ID || 0);
+const BOT_ID = Number(process.env.FORIA_BOT_USER_ID || 0);
 const MAX_CHARS = Number(process.env.AI_MAX_INPUT_CHARS || 1500);
 
 /**
- * maybeInvokeOrbitBot({ text, savedMessage, io, prisma })
+ * maybeInvokeForiaBot({ text, savedMessage, io, prisma })
  * Privacy & Safety gates:
  * - Requires OPENAI_API_KEY to be set
- * - Room must have allowOrbitBot = true
+ * - Room must have allowForiaBot = true
  * - aiAssistantMode respected: 'off' | 'mention' | 'always'
  * - At least one *other* participant must have allowAIBot = true
  * - Per-room and per-sender throttles
  * - Context includes only lines from opted-in users (plus the sender)
  * - Queued execution to bound concurrency/latency
  */
-export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
+export async function maybeInvokeForiaBot({ text, savedMessage, io, prisma }) {
   // Require a dedicated bot user id
   if (!BOT_ID) return;
 
@@ -39,7 +39,7 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
   const room = await prisma.chatRoom.findUnique({
     where: { id: roomId },
     select: {
-      allowOrbitBot: true,
+      allowForiaBot: true,
       aiAssistantMode: true, // 'off' | 'mention' | 'always'
       participants: {
         select: {
@@ -51,7 +51,7 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
     },
   });
   if (!room) return;
-  if (!room.allowOrbitBot) return; // hard gate
+  if (!room.allowForiaBot) return; // hard gate
   if (room.aiAssistantMode === 'off') return; // disabled
 
   const participants = room.participants || [];
@@ -69,9 +69,9 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
   // Mode enforcement: mention-only requires explicit mention/command
   const body = String(text || '');
   const mentioned =
-    /(^|\s)@orbitbot\b/i.test(body) ||
+    /(^|\s)@foriabot\b/i.test(body) ||
     /^\/ask(\s|$)/i.test(body) ||
-    /^\/orbit(\s|$)/i.test(body);
+    /^\/foria(\s|$)/i.test(body);
   if (room.aiAssistantMode === 'mention' && !mentioned) return;
 
   // Build compact context using only lines from opted-in users (+ the sender)
@@ -99,14 +99,14 @@ export async function maybeInvokeOrbitBot({ text, savedMessage, io, prisma }) {
 
   // Strip command/mention noise from the user prompt and clip size
   const userPrompt = body
-    .replace(/(^|\s)@orbitbot\b/i, ' ')
+    .replace(/(^|\s)@foriabot\b/i, ' ')
     .replace(/^\/ask\s*/i, '')
-    .replace(/^\/orbit\s*/i, '')
+    .replace(/^\/foria\s*/i, '')
     .trim()
     .slice(0, MAX_CHARS);
 
   const system =
-    'You are OrbitBot, a concise, friendly assistant in a group chat. Be helpful, avoid personal data, and do not provide medical, legal, or financial advice.';
+    'You are ForiaBot, a concise, friendly assistant in a group chat. Be helpful, avoid personal data, and do not provide medical, legal, or financial advice.';
 
   // Queue the AI call under a per-room key to avoid bursts
   const roomKey = `room:${roomId}`;

@@ -21,7 +21,7 @@ function getTokenFromHandshake(handshake) {
 
   if (handshake.headers?.cookie) {
     const cookies = cookie.parse(handshake.headers.cookie || '');
-    const name = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+    const name = process.env.JWT_COOKIE_NAME || 'foria_jwt';
     if (cookies[name]) return cookies[name];
   }
   return null;

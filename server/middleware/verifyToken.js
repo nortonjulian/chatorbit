@@ -5,7 +5,7 @@ const SECRET =
   (process.env.NODE_ENV === 'test' ? 'test_secret' : 'dev_secret');
 
 function getCookieName() {
-  return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+  return process.env.JWT_COOKIE_NAME || 'foria_jwt';
 }
 
 export default function verifyToken(req, res, next) {

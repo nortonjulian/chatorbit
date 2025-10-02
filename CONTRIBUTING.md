@@ -1,4 +1,4 @@
-# Contributing to ChatOrbit
+# Contributing to Chatforia
 
 ## Dev setup
 1) `npm ci` at repo root  

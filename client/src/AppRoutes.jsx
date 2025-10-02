@@ -117,7 +117,7 @@ function AuthedLayout() {
               hiddenFrom="sm"
               aria-label={opened ? 'Close navigation menu' : 'Open navigation menu'}
             />
-            <Title order={3}>ChatOrbit</Title>
+            <Title order={3}>Chatforia</Title>
           </Group>
           <Button
             color="red"

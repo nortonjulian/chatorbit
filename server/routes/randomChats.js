@@ -103,7 +103,7 @@ export function attachRandomChatSockets(io) {
       socket.join(aiRoom);
       socket.emit('pair_found', {
         roomId: aiRoom,
-        partner: 'OrbitBot',
+        partner: 'ForiaBot',
         partnerId: 0,
       });
     });

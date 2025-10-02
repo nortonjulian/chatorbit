@@ -30,7 +30,7 @@ export default function AISettings() {
     (u.autoTranslateMode || 'off').toLowerCase()
   );
 
-  // Auto-responder (OrbitBot)
+  // Auto-responder (ForiaBot)
   const [enableAIResponder, setEnableAIResponder] = useState(!!u.enableAIResponder);
   const [autoResponderMode, setAutoResponderMode] = useState(u.autoResponderMode || 'off');
   const [autoResponderCooldownSec, setAutoResponderCooldownSec] = useState(
@@ -77,7 +77,7 @@ export default function AISettings() {
     <Paper withBorder shadow="sm" radius="xl" p="lg">
       <Title order={3} mb="sm">AI Settings</Title>
       <Text size="sm" c="dimmed" mb="md">
-        Control translation, smart replies, and OrbitBot auto-responses.
+        Control translation, smart replies, and ForiaBot auto-responses.
       </Text>
 
       <Stack gap="md">
@@ -113,8 +113,8 @@ export default function AISettings() {
           description="If on, suggestions returned by AI will have flagged words masked."
         />
 
-        {/* Auto-Responder (OrbitBot) */}
-        <Divider label="OrbitBot Auto-Responder" labelPosition="center" />
+        {/* Auto-Responder (ForiaBot) */}
+        <Divider label="ForiaBot Auto-Responder" labelPosition="center" />
         <Switch
           checked={enableAIResponder}
           onChange={(e) => setEnableAIResponder(e.currentTarget.checked)}

@@ -1,6 +1,6 @@
-# ChatOrbit
+# Chatforia
 
-🚀 **ChatOrbit** is a modern full-stack messaging app designed for **real-time conversations**, **secure communication**, and **global reach**.  
+🚀 **Chatforia** is a modern full-stack messaging app designed for **real-time conversations**, **secure communication**, and **global reach**.  
 Built as a monorepo (client + server), it supports text, voice, video, media sharing, call/text forwarding, premium subscriptions, and more.
 
 ---
@@ -24,9 +24,9 @@ Built as a monorepo (client + server), it supports text, voice, video, media sha
 
 ### Calling & Forwarding
 - In-app video/voice calls with modern UI.
-- **Call forwarding**: route ChatOrbit calls → external numbers (with quiet hours).
+- **Call forwarding**: route Chatforia calls → external numbers (with quiet hours).
 - **Text forwarding**: forward SMS → phone number or email.
-- Alias dialer: make outbound calls using your ChatOrbit number.
+- Alias dialer: make outbound calls using your Chatforia number.
 
 ### Premium Features
 - Premium-only routes/pages (`RequirePremium` guard).
@@ -101,8 +101,8 @@ Clone and install:
 
 ```bash
 # Clone
-git clone https://github.com/nortonjulian/chatorbit.git
-cd chatorbit
+git clone https://github.com/nortonjulian/chatforia.git
+cd chatforia
 
 # Install deps
 npm ci
@@ -115,4 +115,4 @@ npx prisma migrate dev
 ## 📜 License
 
 Proprietary – all rights reserved.  
-Contact ChatOrbit for licensing or usage.
+Contact Chatforia for licensing or usage.

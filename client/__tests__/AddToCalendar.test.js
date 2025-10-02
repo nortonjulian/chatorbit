@@ -11,12 +11,12 @@ const byText = (t) => screen.getByRole('link', { name: t });
 
 describe('<AddToCalendar />', () => {
   const event = {
-    title: 'ChatOrbit Live',
+    title: 'Chatforia Live',
     description: 'Meet other users\nBring ideas',
     location: 'Denver, CO',
     startISO: '2025-09-30T18:00:00Z',
     endISO: '2025-09-30T19:15:00Z',
-    url: 'https://app.chatorbit.com/event/xyz',
+    url: 'https://app.chatforia.com/event/xyz',
   };
 
   test('renders three links', () => {
@@ -30,7 +30,7 @@ describe('<AddToCalendar />', () => {
     render(<AddToCalendar event={event} />);
     const href = byText('Google Calendar').getAttribute('href');
     expect(href).toMatch(/&dates=20250930T180000Z\/20250930T191500Z/);
-    expect(href).toContain('text=ChatOrbit%20Live');
+    expect(href).toContain('text=Chatforia%20Live');
     expect(href).toContain('location=Denver%2C%20CO');
   });
 
@@ -46,7 +46,7 @@ describe('<AddToCalendar />', () => {
     render(<AddToCalendar event={event} />);
     const href = byText('Download .ics').getAttribute('href');
     expect(href).toMatch(/^\/calendar\/ics\?/);
-    expect(href).toContain('title=ChatOrbit%20Live');
+    expect(href).toContain('title=Chatforia%20Live');
     expect(href).toContain('location=Denver%2C%20CO');
   });
 });

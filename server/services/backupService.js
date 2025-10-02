@@ -101,7 +101,7 @@ export async function exportUserDataStream(res, userId) {
 }
 
 /** set headers + call stream */
-export async function respondWithUserBackup(res, userId, filenameBase = 'chatorbit-backup') {
+export async function respondWithUserBackup(res, userId, filenameBase = 'chatforia-backup') {
   const dt = new Date();
   const fname = `${filenameBase}-${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}.json`;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');

@@ -78,7 +78,7 @@ export async function maybeAutoRespondUsers({ savedMessage, prisma, io }) {
     if (lastReplyAt.has(k) && now - lastReplyAt.get(k) < cooldownMs) continue;
 
     // craft prompt (style + safety)
-    const system = `You are OrbitBot auto-replying on behalf of ${u.username}.
+    const system = `You are ForiaBot auto-replying on behalf of ${u.username}.
 Be brief, helpful, and polite. Avoid commitments and sensitive/regulated advice.
 Make it clear this is an auto-reply.`;
 

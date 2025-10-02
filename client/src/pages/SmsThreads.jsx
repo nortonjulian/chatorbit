@@ -21,7 +21,7 @@ export default function SmsThreads() {
 
   return (
     <Stack>
-      <Title order={3}>Text Messages (ChatOrbit number)</Title>
+      <Title order={3}>Text Messages (Chatforia number)</Title>
       <Group align="end">
         <TextInput label="To (E.164)" placeholder="+15551234567" value={to} onChange={(e)=>setTo(e.target.value)} />
         <TextInput label="Message" placeholder="Type a message…" value={body} onChange={(e)=>setBody(e.target.value)} />

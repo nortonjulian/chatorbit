@@ -60,7 +60,7 @@ if (ENV.IS_TEST) {
 
   // Start HTTP
   server.listen(ENV.PORT, () => {
-    logger.info({ port: ENV.PORT, env: ENV.NODE_ENV }, '🚀 ChatOrbit server listening');
+    logger.info({ port: ENV.PORT, env: ENV.NODE_ENV }, '🚀 Chatforia server listening');
   });
 
   // Graceful shutdown

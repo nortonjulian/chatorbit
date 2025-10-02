@@ -51,7 +51,7 @@ function capMsg(s, max = 480) {
 }
 function decodeCookieJwt(req) {
   const raw = req.headers?.cookie || '';
-  const m = raw.match(/(?:^|;\s*)(?:orbit_jwt|JWT|token)=([^;]+)/);
+  const m = raw.match(/(?:^|;\s*)(?:foria_jwt|JWT|token)=([^;]+)/);
   if (!m) return null;
   try {
     return jwt.verify(decodeURIComponent(m[1]), JWT_SECRET);
@@ -166,7 +166,7 @@ router.post(
     const inviter = auth.username || 'A friend';
     const text = capMsg(
       (message && message.toString()) ||
-        `${inviter} invited you to try ChatOrbit. Download here: ${APP_DOWNLOAD_URL || ''}`
+        `${inviter} invited you to try Chatforia. Download here: ${APP_DOWNLOAD_URL || ''}`
     );
 
     const pref = String(preferredProvider || INVITES_PROVIDER || '').toLowerCase();
@@ -207,13 +207,13 @@ router.post(
     const inviter = auth.username || 'A friend';
     const now = new Date();
     const outSubject = capMsg(
-      subject || (joinUrl ? 'Join me on ChatOrbit' : 'You’ve been invited to ChatOrbit'),
+      subject || (joinUrl ? 'Join me on Chatforia' : 'You’ve been invited to Chatforia'),
       120
     );
     const outHtml =
       html ||
       createInviteTemplate({
-        eventName: 'ChatOrbit chat',
+        eventName: 'Chatforia chat',
         eventDate: formatDate(now),
         eventTime: formatTime(now),
         location: 'Online',
@@ -223,7 +223,7 @@ router.post(
     const outText = capMsg(
       text ||
         [
-          `${inviter} invited you to ChatOrbit.`,
+          `${inviter} invited you to Chatforia.`,
           joinUrl ? `Join: ${joinUrl}` : null,
           APP_DOWNLOAD_URL ? `Download: ${APP_DOWNLOAD_URL}` : null,
         ]
@@ -243,7 +243,7 @@ router.post(
       }
 
       const info = await transporter.sendMail({
-        from: MAIL_FROM || 'noreply@chatorbit.app',
+        from: MAIL_FROM || 'noreply@chatforia.app',
         to: recipients,
         subject: outSubject,
         html: outHtml,

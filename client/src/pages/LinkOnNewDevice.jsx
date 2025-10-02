@@ -121,7 +121,7 @@ export default function LinkOnNewDevice() {
           minRows={4}
           value={qrJson}
           onChange={(e) => setQrJson(e.currentTarget.value)}
-          placeholder='{"type":"chatorbit-provision","host":"…","linkId":"…","secret":"…","sas":"123-456"}'
+          placeholder='{"type":"chatforia-provision","host":"…","linkId":"…","secret":"…","sas":"123-456"}'
         />
         <PasswordInput
           label="Set a passcode for this device"

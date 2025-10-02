@@ -1,16 +1,16 @@
 envVarGroups:
   # Shared, non-secret values used by all services/environments
-  - name: chatorbit-shared
+  - name: chatforia-shared
     envVars:
       - key: NODE_VERSION
         value: 20
       - key: NODE_ENV
         value: production
       - key: COOKIE_DOMAIN
-        value: .chatorbit.com
+        value: .chatforia.com
 
   # Secret keys defined once and reused (left unsynced so you set them in Render)
-  - name: chatorbit-secrets
+  - name: chatforia-secrets
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -26,7 +26,7 @@ envVarGroups:
 services:
   # ---------- STAGING API ----------
   - type: web
-    name: chatorbit-api-staging
+    name: chatforia-api-staging
     env: node
     region: oregon          # pick your closest region
     plan: starter
@@ -36,14 +36,14 @@ services:
     healthCheckPath: /status
     autoDeploy: false       # GitHub Actions triggers deploys
     envVars:
-      - fromGroup: chatorbit-shared
-      - fromGroup: chatorbit-secrets
+      - fromGroup: chatforia-shared
+      - fromGroup: chatforia-secrets
       - key: FRONTEND_ORIGIN
-        value: https://staging-www.chatorbit.com
+        value: https://staging-www.chatforia.com
 
   # ---------- PRODUCTION API ----------
   - type: web
-    name: chatorbit-api
+    name: chatforia-api
     env: node
     region: oregon
     plan: starter
@@ -53,7 +53,7 @@ services:
     healthCheckPath: /status
     autoDeploy: false
     envVars:
-      - fromGroup: chatorbit-shared
-      - fromGroup: chatorbit-secrets
+      - fromGroup: chatforia-shared
+      - fromGroup: chatforia-secrets
       - key: FRONTEND_ORIGIN
-        value: https://www.chatorbit.com
+        value: https://www.chatforia.com

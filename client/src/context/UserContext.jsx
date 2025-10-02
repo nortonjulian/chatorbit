@@ -71,9 +71,9 @@ export function UserProvider({ children }) {
     }
     // Clear any dev tokens that might keep sockets reconnecting
     localStorage.removeItem('token');
-    localStorage.removeItem('orbit_jwt');
+    localStorage.removeItem('foria_jwt');
     // If you ever stored a non-HttpOnly cookie in dev, clear it too:
-    document.cookie = 'orbit_jwt=; Max-Age=0; path=/';
+    document.cookie = 'foria_jwt=; Max-Age=0; path=/';
     setCurrentUser(null);
     disconnect?.();
   }, [disconnect]);

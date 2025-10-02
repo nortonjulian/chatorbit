@@ -32,7 +32,7 @@ async function upsertThread(userId, contactPhone) {
 }
 
 /**
- * Send outbound SMS from the user's ChatOrbit number to a destination.
+ * Send outbound SMS from the user's Chatforia number to a destination.
  */
 export async function sendUserSms({ userId, to, body }) {
   const toPhone = normalizeE164(to);
@@ -63,7 +63,7 @@ export async function sendUserSms({ userId, to, body }) {
  * Persist inbound SMS (called from webhook).
  */
 export async function recordInboundSms({ toNumber, fromNumber, body, provider }) {
-  // toNumber is the ChatOrbit DID; find the owning user by assignedNumbers
+  // toNumber is the Chatforia DID; find the owning user by assignedNumbers
   const owner = await prisma.user.findFirst({
     where: { assignedNumbers: { some: { e164: normalizeE164(toNumber) } } },
     select: { id: true },

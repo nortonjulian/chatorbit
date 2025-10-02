@@ -32,7 +32,7 @@ scenarios:
             - statusCode: 201
             - statusCode: 409
 
-      # login (captures orbit_jwt cookie into {{ jwt }})
+      # login (captures foria_jwt cookie into {{ jwt }})
       - post:
           url: "/auth/login"
           afterResponse: "afterLoginHook"
@@ -74,7 +74,7 @@ scenarios:
           extraHeaders:
             Origin: "http://localhost:5173"
             X-Requested-With: "XMLHttpRequest"
-            Cookie: "orbit_jwt={{ jwt }}"
+            Cookie: "foria_jwt={{ jwt }}"
           timeout: 8000
           reconnection: false
           forceNew: true

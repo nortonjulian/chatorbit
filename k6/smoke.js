@@ -10,7 +10,7 @@ export const options = {
   },
 };
 
-const BASE = __ENV.BASE_URL || 'https://api.staging.chatorbit.com';
+const BASE = __ENV.BASE_URL || 'https://api.staging.chatforia.com';
 
 export default function () {
   // 1) Health/status

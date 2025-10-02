@@ -92,7 +92,7 @@ router.post('/telnyx', express.json(), async (req, res) => {
         if (user.forwardSmsToEmail && user.forwardEmail && transporter) {
           await transporter.sendMail({
             to: user.forwardEmail,
-            from: process.env.MAIL_FROM || 'noreply@chatorbit.app',
+            from: process.env.MAIL_FROM || 'noreply@chatforia.app',
             subject: `SMS from ${fromNumber}`,
             text,
           });
@@ -169,7 +169,7 @@ router.post('/bandwidth', express.json(), async (req, res) => {
           if (user.forwardSmsToEmail && user.forwardEmail && transporter) {
             await transporter.sendMail({
               to: user.forwardEmail,
-              from: process.env.MAIL_FROM || 'noreply@chatorbit.app',
+              from: process.env.MAIL_FROM || 'noreply@chatforia.app',
               subject: `SMS from ${fromNumber}`,
               text,
             });

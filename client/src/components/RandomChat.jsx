@@ -136,7 +136,7 @@ export default function RandomChat({ currentUser }) {
 
   const handleStartAI = () => {
     socket.emit('start_ai_chat');
-    setStatus('Connected to OrbitBot');
+    setStatus('Connected to ForiaBot');
     setOfferAI(false);
     setMessages([]);
   };
@@ -159,7 +159,7 @@ export default function RandomChat({ currentUser }) {
         <Title order={4}>Random Chat</Title>
         {roomId ? (
           <Badge variant="light" radius="sm">
-            {partnerName || 'OrbitBot'}
+            {partnerName || 'ForiaBot'}
           </Badge>
         ) : null}
       </Group>
@@ -176,7 +176,7 @@ export default function RandomChat({ currentUser }) {
           mt="xs"
           maw={220}
         >
-          Chat with OrbitBot
+          Chat with ForiaBot
         </Button>
       )}
 
@@ -186,7 +186,7 @@ export default function RandomChat({ currentUser }) {
           {messages.map((m, i) => {
             const mine = (m.senderId ?? m.sender?.id) === currentUser.id;
             const bubbleStyles = mine
-              ? { background: 'var(--mantine-color-orbit-6, #4c6ef5)', color: 'white' }
+              ? { background: 'var(--mantine-color-foria-6, #4c6ef5)', color: 'white' }
               : { background: 'var(--mantine-color-gray-2)', color: 'black' };
 
             return (
@@ -207,7 +207,7 @@ export default function RandomChat({ currentUser }) {
                     withArrow
                   >
                     <Text size="xs" fw={600} c={mine ? 'white' : 'dark.6'} mb={4}>
-                      {mine ? 'You' : m.sender?.username || partnerName || 'OrbitBot'}
+                      {mine ? 'You' : m.sender?.username || partnerName || 'ForiaBot'}
                     </Text>
                   </Tooltip>
                   <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>

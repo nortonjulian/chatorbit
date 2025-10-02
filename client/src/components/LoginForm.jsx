@@ -149,7 +149,7 @@ export default function LoginForm({ onLoginSuccess }) {
     <Paper withBorder shadow="sm" radius="xl" p="lg">
       <Stack gap="2" mb="sm" align="center">
         <Title order={3}>Welcome back</Title>
-        <Text size="sm" c="dimmed">Log in to your ChatOrbit account</Text>
+        <Text size="sm" c="dimmed">Log in to your Chatforia account</Text>
       </Stack>
 
       <Group grow mb="xs">

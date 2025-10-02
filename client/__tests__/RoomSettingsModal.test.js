@@ -138,7 +138,7 @@ describe('RoomSettingsModal', () => {
 
     // Toggle the switch twice
     const allowSwitch = screen.getByRole('switch', {
-      name: /allow orbitbot to engage in this room/i,
+      name: /allow foriabot to engage in this room/i,
     });
     await user.click(allowSwitch);
     await user.click(allowSwitch);

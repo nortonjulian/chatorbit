@@ -127,7 +127,7 @@ export default function RandomChatPage() {
               Cancel
             </Button>
             <Button variant="subtle" leftSection={<IconRobot size={16} />} onClick={startAIChat}>
-              Try OrbitBot instead
+              Try ForiaBot instead
             </Button>
           </Group>
 

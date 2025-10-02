@@ -51,9 +51,9 @@ export function csp() {
         'connect-src': [
           "'self'",
           // If you use a separate API origin or sentry/analytics, list them here:
-          // 'https://api.chatorbit.com',
+          // 'https://api.chatforia.com',
           // 'https://o****.ingest.sentry.io',
-          // 'wss://api.chatorbit.com',
+          // 'wss://api.chatforia.com',
         ],
 
         // media (voice/video); open carefully. Keep 'self' unless you stream from a CDN.

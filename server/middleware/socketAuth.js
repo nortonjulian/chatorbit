@@ -1,7 +1,7 @@
 import cookie from 'cookie';
 import jwt from 'jsonwebtoken';
 
-const COOKIE_NAME = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+const COOKIE_NAME = process.env.JWT_COOKIE_NAME || 'foria_jwt';
 const JWT_SECRET = process.env.JWT_SECRET;
 
 function extractToken(handshake) {

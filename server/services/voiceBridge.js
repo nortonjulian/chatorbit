@@ -10,7 +10,7 @@ async function getUserAliasNumber(userId) {
     select: { assignedNumbers: { select: { e164: true }, take: 1, orderBy: { id: 'asc' } }, forwardPhoneNumber: true }
   });
   const from = user?.assignedNumbers?.[0]?.e164 ? normalizeE164(user.assignedNumbers[0].e164) : null;
-  if (!from) throw Boom.preconditionFailed('No ChatOrbit number assigned');
+  if (!from) throw Boom.preconditionFailed('No Chatforia number assigned');
   const userPhone = normalizeE164(user?.forwardPhoneNumber || '');
   return { from, userPhone };
 }
@@ -22,8 +22,8 @@ export async function startAliasCall({ userId, to }) {
   if (!isE164(userPhone)) throw Boom.preconditionFailed('User forwarding phone not verified');
 
   // PSEUDO: for Telnyx Call Control (or Bandwidth BXML)
-  // 1) Create Call A: from ChatOrbit number -> userPhone, answer with TTS "press 1"
-  // 2) Gather DTMF, on '1' create Call B: from ChatOrbit number -> dest, then bridge A<->B
+  // 1) Create Call A: from Chatforia number -> userPhone, answer with TTS "press 1"
+  // 2) Gather DTMF, on '1' create Call B: from Chatforia number -> dest, then bridge A<->B
   // You’ll wire these in your existing voice webhook controller.
 
   // We return early; actual call flow continues via webhooks.

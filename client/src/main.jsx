@@ -20,7 +20,7 @@ import { CallProvider } from './context/CallContext';
 
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
-import { chatOrbitTheme } from './theme.js';
+import { chatforiaTheme } from './theme.js';
 import { primeCsrf } from './api/axiosClient';
 
 // a11y + perf helpers
@@ -72,34 +72,34 @@ if (isProd && import.meta.env.VITE_SENTRY_DSN) {
 
 /* ---------------- Mantine theme ---------------- */
 const theme = createTheme({
-  ...chatOrbitTheme,
+  ...chatforiaTheme,
   primaryShade: 5,
   components: {
-    // keep all styles/variants from chatOrbitTheme
-    ...chatOrbitTheme.components,
+    // keep all styles/variants from chatforiaTheme
+    ...chatforiaTheme.components,
 
     TextInput: {
-      ...chatOrbitTheme.components?.TextInput,
+      ...chatforiaTheme.components?.TextInput,
       defaultProps: {
-        ...(chatOrbitTheme.components?.TextInput?.defaultProps || {}),
+        ...(chatforiaTheme.components?.TextInput?.defaultProps || {}),
         size: 'md',
         variant: 'filled',
       },
     },
 
     PasswordInput: {
-      ...chatOrbitTheme.components?.PasswordInput,
+      ...chatforiaTheme.components?.PasswordInput,
       defaultProps: {
-        ...(chatOrbitTheme.components?.PasswordInput?.defaultProps || {}),
+        ...(chatforiaTheme.components?.PasswordInput?.defaultProps || {}),
         size: 'md',
         variant: 'filled',
       },
     },
 
     Button: {
-      ...chatOrbitTheme.components?.Button,
+      ...chatforiaTheme.components?.Button,
       defaultProps: {
-        ...(chatOrbitTheme.components?.Button?.defaultProps || {}),
+        ...(chatforiaTheme.components?.Button?.defaultProps || {}),
         radius: 'xl',
         size: 'md',
       },

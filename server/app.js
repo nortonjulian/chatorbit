@@ -211,7 +211,7 @@ export function createApp() {
   });
 
   /* Base routes */
-  app.get('/', (_req, res) => res.send('Welcome to ChatOrbit API!'));
+  app.get('/', (_req, res) => res.send('Welcome to Chatforia API!'));
 
   // Webhook + Billing
   app.use('/billing', billingWebhook);
@@ -256,7 +256,7 @@ export function createApp() {
   const STATUS_ENABLED_FLAG = String(process.env.STATUS_ENABLED || '').toLowerCase() === 'true';
   const STATUS_ENABLED = isTest ? true : STATUS_ENABLED_FLAG;
   logger.info(
-    { service: 'chatorbit-server', env: process.env.NODE_ENV, STATUS_ENABLED },
+    { service: 'chatforia-server', env: process.env.NODE_ENV, STATUS_ENABLED },
     'Status routes feature flag'
   );
   if (STATUS_ENABLED) {

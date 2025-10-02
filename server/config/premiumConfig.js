@@ -21,9 +21,6 @@ export const premiumConfig = {
       'Street.mp3',
       'Universfield.mp3', // ensure this file exists or rename
       'Urgency.mp3',
-      // You can include pure ids too that aren’t files:
-      'cosmic-orbit-premium',
-      'nebula-bell-premium',
     ],
     allMessageTones: [
       'Default.mp3',
@@ -35,9 +32,6 @@ export const premiumConfig = {
       'Text Message.mp3',
       'Vibrate.mp3',
       'Xylophone.mp3',
-      // premium-only ids (not files) are allowed:
-      'starlight-tap',
-      'quasar-tick',
     ],
 
     // Free subsets (exactly 2 + 2 per your UI)
@@ -46,8 +40,6 @@ export const premiumConfig = {
 
     // ✅ Premium subsets (everything not free, plus explicit premium-only ids)
     premiumRingtones: [
-      'cosmic-orbit-premium',
-      'nebula-bell-premium',
       'Bells.mp3',
       'Chimes.mp3',
       'Digital Phone.mp3',

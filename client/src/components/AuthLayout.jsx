@@ -19,9 +19,9 @@ import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
 import BrandLockup from '@/components/BrandLockup';
 
 // Smart links (update to your live URLs when ready)
-const APP_GENERIC = 'https://go.chatorbit.com/app';      // QR (auto-routes)
-const APP_IOS     = 'https://go.chatorbit.com/ios';      // App Store
-const APP_ANDROID = 'https://go.chatorbit.com/android';  // Google Play
+const APP_GENERIC = 'https://go.chatforia.com/app';      // QR (auto-routes)
+const APP_IOS     = 'https://go.chatforia.com/ios';      // App Store
+const APP_ANDROID = 'https://go.chatforia.com/android';  // Google Play
 
 const CYCLE_MS = 12000; // flip Light <-> Midnight every 12s
 
@@ -37,7 +37,7 @@ function MobileTopBar() {
       py="sm"
     >
       <Title order={4} className="text-blue-purple" style={{ margin: 0 }}>
-        ChatOrbit
+        Chatforia
       </Title>
     </Group>
   );
@@ -61,8 +61,8 @@ function GetAppCard() {
             style={{ display: 'inline-flex', padding: 6, borderRadius: 12 }}
           >
             <Image
-              src="/qr-chatorbit.png"
-              alt="Scan to get ChatOrbit"
+              src="/qr-chatforia.png"
+              alt="Scan to get Chatforia"
               h={QR_SIZE}
               w={QR_SIZE}
               radius="md"

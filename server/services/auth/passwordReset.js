@@ -5,7 +5,7 @@ import { createResetToken, consumeResetToken } from '../../utils/tokenStore.js';
 import { transporter } from '../../services/mailer.js';
 
 const APP_ORIGIN = (process.env.APP_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '');
-const MAIL_FROM = process.env.MAIL_FROM || 'noreply@chatorbit.app';
+const MAIL_FROM = process.env.MAIL_FROM || 'noreply@chatforia.app';
 const SALT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
 
 /**
@@ -24,11 +24,11 @@ export async function requestPasswordReset(emailRaw) {
   const { token, expiresAt } = await createResetToken(user.id);
 
   const resetUrl = `${APP_ORIGIN}/reset-password?token=${encodeURIComponent(token)}`;
-  const subject = 'Reset your ChatOrbit password';
+  const subject = 'Reset your Chatforia password';
   const text = [
     `Hi ${user.username || ''},`,
     ``,
-    `We received a request to reset your ChatOrbit password.`,
+    `We received a request to reset your Chatforia password.`,
     `Click the link below to set a new password (expires at ${expiresAt.toISOString()}).`,
     resetUrl,
     ``,
@@ -37,7 +37,7 @@ export async function requestPasswordReset(emailRaw) {
 
   const html = `
     <p>Hi ${user.username || ''},</p>
-    <p>We received a request to reset your ChatOrbit password.</p>
+    <p>We received a request to reset your Chatforia password.</p>
     <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset your password</a></p>
     <p>This link expires at <code>${expiresAt.toISOString()}</code>.</p>
     <p>If you didn’t request this, you can ignore this email.</p>

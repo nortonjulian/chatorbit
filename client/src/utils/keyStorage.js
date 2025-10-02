@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'ChatOrbitKeys';
+const DB_NAME = 'ChatforiaKeys';
 const STORE_NAME = 'keys';
 
 /**
@@ -18,7 +18,7 @@ export async function savePrivateKey(userId, privateKey) {
     await db.put(STORE_NAME, privateKey, `user-${userId}`);
   } catch {
     console.log('IndexedDB not available, falling back to localStorage.');
-    localStorage.setItem(`chatorbit-privatekey-${userId}`, privateKey);
+    localStorage.setItem(`chatforia-privatekey-${userId}`, privateKey);
   }
 }
 
@@ -31,7 +31,7 @@ export async function loadPrivateKey(userId) {
     return (await db.get(STORE_NAME, `user-${userId}`)) || null;
   } catch {
     console.log('Failed to load from IndexedDB, falling back to localStorage.');
-    return localStorage.getItem(`chatorbit-privatekey-${userId}`) || null;
+    return localStorage.getItem(`chatforia-privatekey-${userId}`) || null;
   }
 }
 
@@ -44,6 +44,6 @@ export async function clearPrivateKey(userId) {
     await db.delete(STORE_NAME, `user-${userId}`);
   } catch {
     console.log('IndexedDB not available, falling back to localStorage.');
-    localStorage.removeItem(`chatorbit-privatekey-${userId}`);
+    localStorage.removeItem(`chatforia-privatekey-${userId}`);
   }
 }

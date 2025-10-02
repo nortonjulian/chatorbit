@@ -1,4 +1,4 @@
-const DB_NAME = 'chat-orbit';
+const DB_NAME = 'chatforia';
 const STORE = 'keys';
 const VERSION = 1;
 

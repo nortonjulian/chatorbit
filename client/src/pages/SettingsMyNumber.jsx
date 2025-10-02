@@ -21,7 +21,7 @@ export default function SettingsMyNumber() {
       <h2 className="text-xl font-semibold mb-2">My Number</h2>
       {!number ? (
         <div className="rounded-lg border p-4">
-          <p className="mb-2">You don’t have a ChatOrbit number yet.</p>
+          <p className="mb-2">You don’t have a Chatforia number yet.</p>
           <NumberPickerButton />
         </div>
       ) : (

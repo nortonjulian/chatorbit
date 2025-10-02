@@ -11,8 +11,8 @@ function buildICS({
   startISO,
   endISO,
   url,
-  organizerName = 'ChatOrbit',
-  organizerEmail = 'no-reply@chatorbit.app',
+  organizerName = 'Chatforia',
+  organizerEmail = 'no-reply@chatforia.app',
   alarmMinutes = 30,
 }) {
   const dtstamp = DateTime.utc().toFormat("yyyyMMdd'T'HHmmss'Z'");
@@ -23,7 +23,7 @@ function buildICS({
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//ChatOrbit//Calendar//EN',
+    'PRODID:-//Chatforia//Calendar//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -48,7 +48,7 @@ function buildICS({
 
 router.get('/ics', async (req, res) => {
   const {
-    title = 'ChatOrbit event',
+    title = 'Chatforia event',
     description = '',
     location = '',
     start,
@@ -63,13 +63,13 @@ router.get('/ics', async (req, res) => {
   const endISO = DateTime.fromISO(String(end), { zone: 'utc' }).toUTC().toISO();
   if (!startISO || !endISO) return res.status(400).json({ error: 'Invalid dates' });
 
-  const uid = `evt-${Date.now()}-${Math.random().toString(36).slice(2)}@chatorbit.app`;
+  const uid = `evt-${Date.now()}-${Math.random().toString(36).slice(2)}@chatforia.app`;
   const ics = buildICS({
     uid, title, description, location, startISO, endISO, url, alarmMinutes: Number(alarmMinutes)
   });
 
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="chatorbit-event.ics"`);
+  res.setHeader('Content-Disposition', `attachment; filename="chatforia-event.ics"`);
   res.send(ics);
 });
 

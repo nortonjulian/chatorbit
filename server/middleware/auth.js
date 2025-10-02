@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 
 /** Centralized cookie config/name */
 function getCookieName() {
-  return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+  return process.env.JWT_COOKIE_NAME || 'foria_jwt';
 }
 
 /**

@@ -63,7 +63,7 @@ export default function EventSuggestionBar({
   if (!candidate || !chatroom?.id) return null;
 
   const openComposer = () => {
-    setTitle(`ChatOrbit: ${chatroom?.name || 'Event'}`);
+    setTitle(`Chatforia: ${chatroom?.name || 'Event'}`);
     setLocation('');
     setDescription(`From chat: "${candidate.snippet}"`);
     setOpen(true);

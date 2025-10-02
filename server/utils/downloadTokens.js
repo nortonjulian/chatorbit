@@ -17,7 +17,7 @@ export function signDownloadToken({
   purpose = 'file',
   ttlSec = 300,
   audience = 'download',
-  issuer = 'chat-orbit',
+  issuer = 'chatforia',
 }) {
   const SECRET = getSecret();
   const exp = Math.min(Math.max(ttlSec, MIN_TTL), MAX_TTL);
@@ -30,7 +30,7 @@ export function signDownloadToken({
 
 export function verifyDownloadToken(
   token,
-  { audience = 'download', issuer = 'chat-orbit' } = {}
+  { audience = 'download', issuer = 'chatforia' } = {}
 ) {
   const SECRET = getSecret();
   const payload = jwt.verify(token, SECRET, { audience, issuer });

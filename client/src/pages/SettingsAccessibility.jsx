@@ -88,7 +88,7 @@ export default function SettingsAccessibility() {
   return (
     <div className={`p-4 max-w-3xl ${uiFontClass}`}>
       <h1 className="font-semibold mb-1">Accessibility &amp; Alerts</h1>
-      <p className="text-gray-500 mb-4">Options to make ChatOrbit easier to use without relying on sound.</p>
+      <p className="text-gray-500 mb-4">Options to make Chatforia easier to use without relying on sound.</p>
       {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
 
       <section className="space-y-4">

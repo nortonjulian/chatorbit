@@ -109,7 +109,7 @@ export default function LinkFlowPrimaryModal({ opened, onClose }) {
       ) : (
         <Stack gap="md">
           <Text>
-            On your new device, open ChatOrbit → "Link to existing account" and
+            On your new device, open Chatforia → "Link to existing account" and
             scan this code.
           </Text>
           <Group justify="center">

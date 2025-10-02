@@ -65,10 +65,10 @@ export function startBotDispatcher(io) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-ChatOrbit-Event': ev.type,
-              'X-ChatOrbit-Install': String(ev.installId),
-              'X-ChatOrbit-Timestamp': ts,
-              'X-ChatOrbit-Signature': sig,
+              'X-Chatforia-Event': ev.type,
+              'X-Chatforia-Install': String(ev.installId),
+              'X-Chatforia-Timestamp': ts,
+              'X-Chatforia-Signature': sig,
             },
             body,
           });

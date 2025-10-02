@@ -15,7 +15,7 @@ datasource db {
 }
 
 // =======================================================
-// ChatOrbit Prisma Schema (ordered + normalized)
+// Chatforia Prisma Schema (ordered + normalized)
 // =======================================================
 
 // ===================== 0) Global Enums =====================
@@ -298,7 +298,7 @@ model ChatRoom {
   messages     Message[]     @relation("ChatRoomMessages")
 
   autoTranslateMode AutoTranslateMode @default(OFF)
-  allowOrbitBot     Boolean           @default(false)
+  allowForiaBot     Boolean           @default(false)
 
   invites           ChatRoomInvite[]   @relation("RoomInvites")
   botInstalls       BotInstall[]       @relation("BotInstallRoom")

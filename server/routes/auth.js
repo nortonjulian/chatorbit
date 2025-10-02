@@ -31,7 +31,7 @@ const JWT_SECRET =
 
 /* ---------------- cookie helpers ---------------- */
 function getCookieName() {
-  return process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+  return process.env.JWT_COOKIE_NAME || 'foria_jwt';
 }
 function getCookieBase() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -424,9 +424,9 @@ router.post(
 
       try {
         const info = await transporter.sendMail({
-          from: '"ChatOrbit Support" <no-reply@chatorbit.com>',
+          from: '"Chatforia Support" <no-reply@chatforia.com>',
           to: user.email,
-          subject: 'Reset Your ChatOrbit Password',
+          subject: 'Reset Your Chatforia Password',
           html: `<p>Hello ${user.username || 'there'},</p><p><a href="${resetLink}">Reset Password</a></p>`,
         });
         return res.json({

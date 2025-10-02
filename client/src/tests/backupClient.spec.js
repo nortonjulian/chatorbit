@@ -87,14 +87,14 @@ describe('backupClient key backup', () => {
       backupPassword: 'backup-password-abcdef',
     });
 
-    expect(filename).toMatch(/chatorbit-key-backup-/);
+    expect(filename).toMatch(/chatforia-key-backup-/);
 
     // Convert the Blob -> JSON string
     const jsonString = await bodyToString(blob);
 
     // Sanity check we actually have JSON
     const parsed = JSON.parse(jsonString);
-    expect(parsed).toHaveProperty('type', 'chatorbit-key-backup');
+    expect(parsed).toHaveProperty('type', 'chatforia-key-backup');
 
     // Build a "fake file" that matches what restoreEncryptedKeyBackup expects
     const fakeFile = {

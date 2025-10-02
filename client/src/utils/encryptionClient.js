@@ -56,8 +56,8 @@ async function importAesKey(key) {
  * At-rest key storage (encrypted with passcode)
  * ========================================================== */
 
-const DB_KEY = 'chatorbit:keys:v2'; // encrypted-at-rest record
-const LEGACY_KEY = 'chatorbit:keys:v1'; // old (plaintext) record if it exists
+const DB_KEY = 'chatforia:keys:v2'; // encrypted-at-rest record
+const LEGACY_KEY = 'chatforia:keys:v1'; // old (plaintext) record if it exists
 
 // In-memory cache of the derived key (cleared on lock)
 let _derivedKey = null;

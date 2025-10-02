@@ -353,7 +353,7 @@ export default function UserProfile({ onLanguageChange }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'chat-orbit-key.backup.json';
+      a.download = 'chatforia-key.backup.json';
       document.body.appendChild(a);
       a.click();
       a.remove();

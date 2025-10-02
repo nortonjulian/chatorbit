@@ -1,11 +1,11 @@
 import { createTheme } from '@mantine/core';
 
-export const chatOrbitTheme = createTheme({
+export const chatforiaTheme = createTheme({
   colors: {
     // Mantine palette proxies to your CSS var
-    orbit: Array(10).fill('var(--accent)'),
+    foria: Array(10).fill('var(--accent)'),
   },
-  primaryColor: 'orbit',
+  primaryColor: 'foria',
   primaryShade: 5,
   defaultRadius: 'lg',
   fontFamily:
@@ -102,7 +102,7 @@ export const chatOrbitTheme = createTheme({
     },
 
     // 🔄 Switch & Checkbox follow --switch-gradient everywhere
-    // chatOrbitTheme (only the parts that changed)
+    // chatforiaTheme (only the parts that changed)
     Switch: {
       styles: () => ({
         root: {

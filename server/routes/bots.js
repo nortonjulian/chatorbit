@@ -97,14 +97,14 @@ router.patch(
 /**
  * POST /bots/:installId/reply
  * Headers:
- *  - X-ChatOrbit-Timestamp
- *  - X-ChatOrbit-Signature: sha256=...
+ *  - X-Chatforia-Timestamp
+ *  - X-Chatforia-Signature: sha256=...
  * Body: { content, attachments? }
  */
 router.post('/:installId/reply', async (req, res) => {
   const installId = Number(req.params.installId);
-  const ts = req.headers['x-chatorbit-timestamp'];
-  const sig = req.headers['x-chatorbit-signature'];
+  const ts = req.headers['x-chatforia-timestamp'];
+  const sig = req.headers['x-chatforia-signature'];
 
   try {
     const inst = await prisma.botInstall.findUnique({
@@ -126,7 +126,7 @@ router.post('/:installId/reply', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'invalid signature' });
 
     const senderId =
-      inst.bot.serviceUserId || Number(process.env.ORBIT_BOT_USER_ID || 0);
+      inst.bot.serviceUserId || Number(process.env.FORIA_BOT_USER_ID || 0);
     if (!senderId)
       return res.status(400).json({ error: 'bot service user not configured' });
 

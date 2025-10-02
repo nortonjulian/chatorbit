@@ -328,7 +328,7 @@
   },
   "setup_data": {
     "baseUrl": "http://localhost:5002",
-    "cookieName": "orbit_jwt",
+    "cookieName": "foria_jwt",
     "cookieVal": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJqdG4iLCJyb2xlIjoiVVNFUiIsInBsYW4iOiJGUkVFIiwiaWF0IjoxNzU3Mzk1MTYwLCJleHAiOjE3NTc5OTk5NjB9.wFJZ2xgNcv1nPr3qKROHspmUbp6zU805mP1h-y8dgSM",
     "mode": "COOKIE",
     "statusIds": [

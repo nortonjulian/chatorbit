@@ -53,7 +53,7 @@ function makeObjectKey(userId, originalName) {
 // - Public bucket/custom domain: return public URL
 // - Private bucket: return presigned URL (short-lived)
 const REQUIRE_SIGNED = String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() === 'true';
-const PUBLIC_BASE = (process.env.R2_PUBLIC_BASE || '').replace(/\/+$/, ''); // e.g. https://media.chatorbit.com
+const PUBLIC_BASE = (process.env.R2_PUBLIC_BASE || '').replace(/\/+$/, ''); // e.g. https://media.chatforia.com
 
 // Warn if running in PUBLIC mode without a CDN/base URL
 if (!process.env.R2_PUBLIC_BASE && String(process.env.R2_REQUIRE_SIGNED || '').toLowerCase() !== 'true') {

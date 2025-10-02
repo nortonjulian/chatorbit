@@ -5,7 +5,7 @@ import { encryptMessageForParticipants } from '../utils/encryption.js';
 import { translateText } from '../utils/translateText.js';
 import { allow } from '../utils/tokenBucket.js';
 
-const ORBIT_BOT_USER_ID = Number(process.env.ORBIT_BOT_USER_ID ?? 0);
+const FORIA_BOT_USER_ID = Number(process.env.FORIA_BOT_USER_ID ?? 0);
 const MAX_TRANSLATE_CHARS = Number(process.env.TRANSLATE_MAX_INPUT_CHARS || 1200);
 
 /* =========================
@@ -259,7 +259,7 @@ export async function maybeAutoTranslate({ savedMessage, io, prisma: prismaArg }
     if (!roomId || !raw) return;
 
     // Avoid loops for bot/system messages
-    if (senderId && senderId === ORBIT_BOT_USER_ID) return;
+    if (senderId && senderId === FORIA_BOT_USER_ID) return;
 
     // Throttle per room to control cost
     if (!allow(`translate:${roomId}`, 12, 10_000)) return;

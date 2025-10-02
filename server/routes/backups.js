@@ -9,7 +9,7 @@ const router = express.Router();
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   (process.env.NODE_ENV === 'test' ? 'test_secret' : 'dev_secret');
-const COOKIE_NAME = process.env.JWT_COOKIE_NAME || 'orbit_jwt';
+const COOKIE_NAME = process.env.JWT_COOKIE_NAME || 'foria_jwt';
 
 // Router-level guard
 router.use(requireAuth);

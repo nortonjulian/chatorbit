@@ -80,7 +80,7 @@ export default function ContactList({ currentUserId, onChanged }) {
   const startChat = async (userId) => {
     try {
       if (!userId) {
-        toast.info?.('That contact hasn’t joined ChatOrbit yet.');
+        toast.info?.('That contact hasn’t joined Chatforia yet.');
         return;
       }
       const { data } = await axiosClient.post(`/chatrooms/direct/${userId}`);

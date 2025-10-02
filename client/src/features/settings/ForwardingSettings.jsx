@@ -121,7 +121,7 @@ export default function ForwardingSettings() {
         <div>
           <Title order={4}>Call and/or Text Forwarding</Title>
           <Text size="sm" c="dimmed">
-            Forward incoming calls and texts to your verified phone or email. Outgoing calls/texts can show your ChatOrbit number.
+            Forward incoming calls and texts to your verified phone or email. Outgoing calls/texts can show your Chatforia number.
           </Text>
         </div>
 

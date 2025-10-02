@@ -67,7 +67,7 @@ export default function Advertise() {
         `Company: ${contact.company}\n` +
         `Budget: ${contact.budget}\n\n` +
         `${contact.message}`;
-      const mail = `mailto:ads@chatorbit.example?subject=Advertising%20Inquiry&body=${encodeURIComponent(body)}`;
+      const mail = `mailto:ads@chatforia.example?subject=Advertising%20Inquiry&body=${encodeURIComponent(body)}`;
       window.location.href = mail;
       setSubmitted(true);
       toast.info('Opening your email client to send the inquiry…');
@@ -79,7 +79,7 @@ export default function Advertise() {
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg" maw={880} mx="auto">
       <Stack gap="md">
-        <Title order={2}>Advertise with ChatOrbit</Title>
+        <Title order={2}>Advertise with Chatforia</Title>
         <Text c="dimmed">
           Reach engaged messaging users with tasteful, brand-safe placements.
           We offer banner inventory in high-visibility spots, sponsorships,
@@ -132,7 +132,7 @@ export default function Advertise() {
         </Grid>
 
         <Card withBorder radius="lg" p="md">
-          <Title order={4} mb="xs">Why ChatOrbit?</Title>
+          <Title order={4} mb="xs">Why Chatforia?</Title>
           <List
             spacing="xs"
             icon={<IconCheck size={14} />}
@@ -195,9 +195,9 @@ export default function Advertise() {
                 required
               />
               <Group justify="space-between" mt="xs">
-                <Anchor href="mailto:ads@chatorbit.example">
+                <Anchor href="mailto:ads@chatforia.example">
                   <Group gap={6}>
-                    <IconMail size={16} /> ads@chatorbit.example
+                    <IconMail size={16} /> ads@chatforia.example
                   </Group>
                 </Anchor>
                 <Button loading={submitting} onClick={submit}>

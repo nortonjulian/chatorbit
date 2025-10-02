@@ -8,7 +8,7 @@ const redact = {
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   redact,
-  base: { service: 'chatorbit-server', env: process.env.NODE_ENV },
+  base: { service: 'chatforia-server', env: process.env.NODE_ENV },
   transport: process.env.NODE_ENV === 'production'
     ? undefined
     : { target: 'pino-pretty', options: { colorize: true, singleLine: true } },

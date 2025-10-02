@@ -15,7 +15,7 @@ const SocketCtx = createContext(null);
 // ---- Config ----
 const API_ORIGIN  = import.meta.env.VITE_API_ORIGIN || 'http://localhost:5002';
 const SOCKET_PATH = '/socket.io';
-const COOKIE_NAME = import.meta.env.VITE_JWT_COOKIE_NAME || 'orbit_jwt';
+const COOKIE_NAME = import.meta.env.VITE_JWT_COOKIE_NAME || 'foria_jwt';
 
 // ---- Auth helpers ----
 function getJwt() {

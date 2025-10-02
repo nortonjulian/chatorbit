@@ -1,4 +1,4 @@
-chatorbit/ # Prevents future re-adding
+chatforia/ # Prevents future re-adding
 .env
 server/.env
 client/.env

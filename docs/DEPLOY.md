@@ -1,4 +1,4 @@
-# Deploying ChatOrbit
+# Deploying Chatforia
 
 ## Environments
 - **Database**: Managed Postgres (Render, Supabase, RDS, etc.)

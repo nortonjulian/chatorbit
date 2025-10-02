@@ -2,15 +2,15 @@ version: "3.9"
 services:
   db:
     image: postgres:16
-    container_name: chatorbit_db
+    container_name: chatforia_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: chatorbit
+      POSTGRES_DB: chatforia
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d chatorbit"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatforia"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -19,10 +19,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    container_name: chatorbit_api
+    container_name: chatforia_api
     environment:
       # Core envs; add your real secrets locally via an .env file if you prefer
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/chatorbit
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/chatforia
       JWT_SECRET: devsecret
       COOKIE_DOMAIN: localhost
       NODE_ENV: development
@@ -39,7 +39,7 @@ services:
       args:
         # Point the client at the API
         VITE_API_BASE_URL: http://localhost:8080
-    container_name: chatorbit_web
+    container_name: chatforia_web
     ports:
       - "3000:80"
     depends_on:

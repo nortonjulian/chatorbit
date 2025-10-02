@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'chatorbit';
+const DB_NAME = 'chatforia';
 const STORE = 'prefs';
 
 const dbp = openDB(DB_NAME, 1, {

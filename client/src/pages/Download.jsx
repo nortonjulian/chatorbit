@@ -1,13 +1,13 @@
 import { Container, Stack, Title, Text, Group, Image, Anchor, Paper } from '@mantine/core';
 
-const APP_IOS     = 'https://go.chatorbit.com/ios';
-const APP_ANDROID = 'https://go.chatorbit.com/android';
+const APP_IOS     = 'https://go.chatforia.com/ios';
+const APP_ANDROID = 'https://go.chatforia.com/android';
 
 export default function Download() {
   return (
     <Container size="sm" py="xl">
       <Stack gap="md" align="center">
-        <Title order={2}>Get ChatOrbit</Title>
+        <Title order={2}>Get Chatforia</Title>
         <Text c="dimmed" ta="center">
           Install the app on your phone to start chatting securely with instant translation.
         </Text>
@@ -23,7 +23,7 @@ export default function Download() {
 
         <Paper p="md" withBorder>
           <Group align="center">
-            <Image src="/qr-chatorbit.png" h={96} w={96} alt="Scan to download" />
+            <Image src="/qr-chatforia.png" h={96} w={96} alt="Scan to download" />
             <Text size="sm" maw={280}>
               Scan this QR with your phone to automatically open the right store.
             </Text>

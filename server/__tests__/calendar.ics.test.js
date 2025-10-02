@@ -26,12 +26,12 @@ describe('GET /calendar/ics', () => {
     const res = await request(makeApp())
       .get('/calendar/ics')
       .query({
-        title: 'ChatOrbit Event',
+        title: 'Chatforia Event',
         start: startISO,
         end: endISO,
         location: 'Denver, CO',
         description: 'Line1\nLine2, with comma',
-        url: 'https://app.chatorbit.com/event/123',
+        url: 'https://app.chatforia.com/event/123',
         alarmMinutes: 15,
       });
 

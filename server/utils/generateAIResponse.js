@@ -11,7 +11,7 @@ export async function generateAIResponse(userMessage) {
       messages: [
         {
           role: 'system',
-          content: 'I am OrbitBot, a friendly chat companion.',
+          content: 'I am ForiaBot, a friendly chat companion.',
         },
         { role: 'user', content: userMessage },
       ],

@@ -21,7 +21,7 @@ describe('Download token signing and verification', () => {
 
   test('rejects invalid token payload', () => {
     // Create a token with a malicious path
-    const badPayload = { p: '../etc/passwd', o: null, u: 'file', aud: 'download', iss: 'chat-orbit' };
+    const badPayload = { p: '../etc/passwd', o: null, u: 'file', aud: 'download', iss: 'chatforia' };
     const badToken = jwt.sign(badPayload, SECRET);
     expect(() => verifyDownloadToken(badToken)).toThrow(/Invalid token payload/);
   });

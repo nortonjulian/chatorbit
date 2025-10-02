@@ -32,7 +32,7 @@ export function flashScreen() {
 }
 
 // Convenience: call on incoming msg/call if user prefers visual alerts
-export function alertA11y({ title = 'ChatOrbit', body = '', vibrateOn = true, flashOn = false }) {
+export function alertA11y({ title = 'Chatforia', body = '', vibrateOn = true, flashOn = false }) {
   webNotify({ title, body });
   if (vibrateOn) vibrate();
   if (flashOn) flashScreen();

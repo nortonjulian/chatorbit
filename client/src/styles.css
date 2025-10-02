@@ -63,7 +63,7 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
 @media (max-width: 62em) { .brand-lockup--fixed { position: static; } }
 
 /* Safety override if an old rule set width directly */
-.brand-lockup .logo-chatorbit,
+.brand-lockup .logo-chatforia,
 .brand-lockup .brand-lockup__logo {
   width: var(--logo-size, 44px) !important;
   height: auto !important;

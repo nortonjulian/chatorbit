@@ -6,7 +6,7 @@ const VERBOSE = process.env.ARTY_VERBOSE === '1';
  * -------------------------------- */
 function first(v) { return Array.isArray(v) ? v[0] : v; }
 
-function extractJwt(setCookie, cookieName = 'orbit_jwt') {
+function extractJwt(setCookie, cookieName = 'foria_jwt') {
   const one = first(setCookie);
   if (!one) return '';
   const m = String(one).match(new RegExp(`${cookieName}=([^;]+)`));
@@ -53,7 +53,7 @@ function afterLoginHook(req, res, ctx, ee, next) {
   if (res.statusCode === 200) {
     const token = extractJwt(
       res.headers?.['set-cookie'],
-      process.env.JWT_COOKIE_NAME || 'orbit_jwt'
+      process.env.JWT_COOKIE_NAME || 'foria_jwt'
     );
     if (token) ctx.vars.jwt = token;
   }
@@ -135,7 +135,7 @@ function attachAuth(req, ctx, _ee, next) {
   // If you use cookie auth
   if (ctx.vars.jwt) {
     req.headers = req.headers || {};
-    req.headers.Cookie = `orbit_jwt=${ctx.vars.jwt}`;
+    req.headers.Cookie = `foria_jwt=${ctx.vars.jwt}`;
   }
   // If you use bearer, uncomment:
   // if (ctx.vars.jwt) {
@@ -156,7 +156,7 @@ function extractJwtAfterLogin(_req, res, ctx, _ee, next) {
   if (res.statusCode !== 200) return next();
   const token = extractJwt(
     res.headers?.['set-cookie'],
-    process.env.JWT_COOKIE_NAME || 'orbit_jwt'
+    process.env.JWT_COOKIE_NAME || 'foria_jwt'
   );
   if (token) ctx.vars.jwt = token;
   return next();

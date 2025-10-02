@@ -40,7 +40,7 @@ router.get('/e/:token', async (req, res) => {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.end(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${event.title} · ChatOrbit</title>
+<title>${event.title} · Chatforia</title>
 <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto;padding:24px} .btn{display:block;margin:12px 0;padding:12px 16px;border:1px solid #ccc;border-radius:8px;text-decoration:none}</style>
 <h1>${event.title}</h1>
 <p>${event.description ? event.description.replace(/\n/g,'<br/>') : ''}</p>

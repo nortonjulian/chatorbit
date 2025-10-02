@@ -19,7 +19,7 @@ const ADSENSE_CLIENT = import.meta.env.VITE_ADSENSE_CLIENT; // e.g. 'ca-pub-1234
 
 /** Prebid + GAM */
 const GAM_AD_UNIT_PATH =
-  import.meta.env.VITE_GAM_AD_UNIT_PATH || '/1234567/chatorbit';
+  import.meta.env.VITE_GAM_AD_UNIT_PATH || '/1234567/chatforia';
 const PREBID_TIMEOUT = Number(import.meta.env.VITE_PREBID_TIMEOUT ?? 1200);
 
 /**

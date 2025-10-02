@@ -1,4 +1,4 @@
-const DB_NAME = 'chatorbit';
+const DB_NAME = 'chatforia';
 const STORE = 'room_msgs';
 
 let _db;
