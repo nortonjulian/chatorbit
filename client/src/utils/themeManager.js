@@ -31,65 +31,99 @@
 
 import { ALL_THEMES } from '../config/themes';
 
-const LS_KEY = 'co-theme';
-const DEFAULT_THEME = 'light';
+const LS_KEY_THEME = 'co-theme';
+const LS_KEY_CTA   = 'co-cta';
 
-// If you add new themes later, list which are "dark-like" here:
-const DARK_THEMES = new Set(['dark', 'midnight', 'amoled']);
+/** ------- DEFAULT: branded dark (midnight) ------- */
+const DEFAULT_THEME = 'midnight';
+
+/** If you add new dark-like themes later, list them here */
+const DARK_THEMES = new Set(['dark', 'midnight', 'amoled', 'neon']);
 
 let current = null;
 const subs = new Set();
 
-export function getTheme() {
-  const t = localStorage.getItem(LS_KEY);
-  return ALL_THEMES.includes(t) ? t : DEFAULT_THEME;
+/* ---------------- helpers ---------------- */
+export function isLightTheme(themeName) {
+  return themeName === 'light' || themeName === 'sunset' || themeName === 'solarized';
 }
 
 export function isDarkTheme(theme = getTheme()) {
   return DARK_THEMES.has(theme);
 }
 
+function coerce(theme) {
+  return ALL_THEMES.includes(theme) ? theme : DEFAULT_THEME;
+}
+
 function notify(theme) {
   for (const fn of subs) fn(theme);
-  // also emit a DOM event if you prefer listening without importing this module
   window.dispatchEvent(new CustomEvent('chatforia:theme', { detail: { theme } }));
+}
+
+/* ---------------- public API ---------------- */
+export function getTheme() {
+  const t = localStorage.getItem(LS_KEY_THEME);
+  return coerce(t);
 }
 
 export function applyTheme(theme = getTheme()) {
   current = theme;
-  document.documentElement.setAttribute('data-theme', theme);
+  const html = document.documentElement;
+  html.setAttribute('data-theme', theme);
+  // Hint for libs that read a generic scheme flag
+  html.setAttribute('data-color-scheme', isLightTheme(theme) ? 'light' : 'dark');
   notify(theme);
 }
 
 export function setTheme(theme) {
-  const next = ALL_THEMES.includes(theme) ? theme : DEFAULT_THEME;
-  if (next === current) return; // no-op
-  localStorage.setItem(LS_KEY, next);
-  applyTheme(next); // updates DOM + notifies this tab immediately
+  const next = coerce(theme);
+  if (next === current) return;
+  try { localStorage.setItem(LS_KEY_THEME, next); } catch {}
+  applyTheme(next);
 }
 
-/**
- * Subscribe to theme changes in *this* tab.
- * Returns an unsubscribe function.
- */
+/** Subscribe to theme changes in *this* tab. Returns an unsubscribe fn. */
 export function onThemeChange(cb) {
   subs.add(cb);
-  // call once immediately with current theme so callers sync on mount
   Promise.resolve().then(() => cb(getTheme()));
   return () => subs.delete(cb);
 }
 
-/**
- * Optional: keep in sync with other tabs + system preference
- * Call once at app startup (you already call applyTheme(); keep that too).
- */
-(function wireGlobalListeners() {
-  // Cross-tab sync via localStorage
+/* ---------------- CTA style helpers (optional) ---------------- */
+export function setCTAStyle(mode /* 'warm' | 'cool' */) {
+  document.documentElement.setAttribute('data-cta', mode);
+  try { localStorage.setItem(LS_KEY_CTA, mode); } catch {}
+}
+
+export function getCTAStyle() {
+  return localStorage.getItem(LS_KEY_CTA) || '';
+}
+
+/* ---------------- global wiring (call-once IIFE) ----------------
+   - set initial theme (defaults to midnight)
+   - keep tabs in sync
+   - map system light/dark only if user is on those generic modes
+----------------------------------------------------------------- */
+(function wireGlobal() {
+  // 1) apply initial theme before app renders
+  applyTheme(getTheme());
+
+  // 2) restore CTA style if previously set
+  const savedCTA = getCTAStyle();
+  if (savedCTA) document.documentElement.setAttribute('data-cta', savedCTA);
+
+  // 3) cross-tab sync
   window.addEventListener('storage', (e) => {
-    if (e.key === LS_KEY) applyTheme(getTheme());
+    if (e.key === LS_KEY_THEME) applyTheme(getTheme());
+    if (e.key === LS_KEY_CTA) {
+      const v = getCTAStyle();
+      if (v) document.documentElement.setAttribute('data-cta', v);
+      else document.documentElement.removeAttribute('data-cta');
+    }
   });
 
-  // System theme listener (maps only if your current theme is light/dark)
+  // 4) follow system only when using generic light/dark themes
   const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
   if (mq) {
     mq.addEventListener('change', () => {
@@ -100,9 +134,3 @@ export function onThemeChange(cb) {
     });
   }
 })();
-
-// utils/themeManager.js (add)
-export function setCTAStyle(mode /* 'warm' | 'cool' */) {
-  document.documentElement.setAttribute('data-cta', mode);
-  try { localStorage.setItem('co-cta', mode); } catch {}
-}

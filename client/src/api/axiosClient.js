@@ -37,14 +37,24 @@ function readCookie(name) {
 }
 
 async function ensureCsrfPrimed() {
-  // If we already have the readable cookie, we’re good.
-  if (readCookie('XSRF-TOKEN')) return;
+  // If we already have a header set globally, skip
+  const existing = axiosClient.defaults.headers.common['X-XSRF-TOKEN'];
+  if (existing) return;
 
   try {
-    // This endpoint should set _csrf (httpOnly) + XSRF-TOKEN (readable)
-    await axiosClient.get('/auth/csrf', { withCredentials: true });
+    // Ask the server to set cookies and return a token
+    const res = await axiosClient.get('/auth/csrf', { withCredentials: true });
+    const tokenFromBody = res?.data?.csrfToken || res?.data?.token;
+
+    // Try cookie first (your current approach)
+    const tokenFromCookie = readCookie('XSRF-TOKEN');
+
+    const token = tokenFromCookie || tokenFromBody;
+    if (token) {
+      axiosClient.defaults.headers.common['X-XSRF-TOKEN'] = token;
+    }
   } catch {
-    // Even if this fails, we’ll still try to proceed; server will 403 if needed.
+    // If this fails, POSTs will still 403 until we can reach /auth/csrf
   }
 }
 

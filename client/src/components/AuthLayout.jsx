@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import {
   Container,
@@ -6,7 +5,7 @@ import {
   Stack,
   Title,
   Text,
-  Image,
+  Image as MantineImage,
   ThemeIcon,
   List,
   Anchor,
@@ -16,33 +15,45 @@ import {
   Divider,
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
-import BrandLockup from '@/components/BrandLockup';
 
 // Smart links (update to your live URLs when ready)
-const APP_GENERIC = 'https://go.chatforia.com/app';      // QR (auto-routes)
-const APP_IOS     = 'https://go.chatforia.com/ios';      // App Store
-const APP_ANDROID = 'https://go.chatforia.com/android';  // Google Play
+const APP_GENERIC = 'https://go.chatforia.com/app';
+const APP_IOS     = 'https://go.chatforia.com/ios';
+const APP_ANDROID = 'https://go.chatforia.com/android';
 
-const CYCLE_MS = 12000; // flip Light <-> Midnight every 12s
-
-// Mobile-only brand bar (shown when the left hero is hidden)
-function MobileTopBar() {
+/* ---------- BRAND LOCKUP ---------- */
+// IMPORTANT: no hard width/height on <img>; CSS uses --logo-size.
+function LogoLockup({ size = 64, titleOrder = 4, className }) {
   return (
     <Group
-      hiddenFrom="md"
       gap="xs"
       align="center"
       wrap="nowrap"
-      className="brand-lockup"
-      py="sm"
+      className={`brand-lockup ${className || ''}`}
+      style={{ '--logo-size': `${size}px` }}
     >
-      <Title order={4} className="text-blue-purple" style={{ margin: 0 }}>
+      <img
+        src="/brand/violet-blue.png"         // or /brand/chameleon.png
+        alt="Chatforia logo"
+        className="brand-lockup__logo"
+      />
+      <Title order={titleOrder} className="brand-lockup__name" style={{ margin: 0 }}>
         Chatforia
       </Title>
     </Group>
   );
 }
 
+/* ---------- Mobile-only brand bar ---------- */
+function MobileTopBar() {
+  return (
+    <Group hiddenFrom="md" gap="xs" align="center" wrap="nowrap" py="sm">
+      <LogoLockup size={32} titleOrder={4} />
+    </Group>
+  );
+}
+
+/* ---------- “Get the app” card ---------- */
 function GetAppCard() {
   const BADGE_H = 'clamp(52px, 6vw, 72px)';
   const QR_SIZE = 'calc(1.1 * (clamp(52px, 6vw, 72px)))';
@@ -60,7 +71,7 @@ function GetAppCard() {
             title="Open the download link"
             style={{ display: 'inline-flex', padding: 6, borderRadius: 12 }}
           >
-            <Image
+            <MantineImage
               src="/qr-chatforia.png"
               alt="Scan to get Chatforia"
               h={QR_SIZE}
@@ -68,12 +79,12 @@ function GetAppCard() {
               radius="md"
             />
           </Anchor>
-          <Text size="sm" c="dimmed" maw={240}>
+          <Text size="sm" style={{ color: 'var(--fg)', opacity: 0.85 }} maw={240}>
             On desktop? Scan with your phone to get the app.
           </Text>
         </Group>
 
-        {/* Badges: always visible & large hit targets */}
+        {/* Badges */}
         <Stack gap="sm" align="stretch" style={{ minWidth: 260 }}>
           <Anchor
             href={APP_IOS}
@@ -83,7 +94,7 @@ function GetAppCard() {
             title="Download on the App Store"
             style={{ display: 'inline-flex', padding: 6, borderRadius: 12 }}
           >
-            <Image
+            <MantineImage
               src="/badges/app-store-badge.png"
               h={BADGE_H}
               fit="contain"
@@ -99,7 +110,7 @@ function GetAppCard() {
             title="Get it on Google Play"
             style={{ display: 'inline-flex', padding: 6, borderRadius: 12 }}
           >
-            <Image
+            <MantineImage
               src="/badges/google-play-badge.png"
               h={BADGE_H}
               fit="contain"
@@ -113,40 +124,10 @@ function GetAppCard() {
   );
 }
 
+/* ---------- Layout ---------- */
 export default function AuthLayout() {
-  // Auto-cycle the global theme on this page, and restore when unmounting
-  useEffect(() => {
-    const html = document.documentElement;
-
-    const originalTheme = html.getAttribute('data-theme') || 'light';
-    const originalCTA = html.getAttribute('data-cta'); // maybe "cool" or null
-
-    function apply(theme) {
-      html.setAttribute('data-theme', theme);
-      // Convention: Light uses cool (blue→indigo), Midnight uses warm (gold→purple)
-      if (theme === 'midnight') {
-        html.removeAttribute('data-cta'); // warm is default via tokens
-      } else {
-        html.setAttribute('data-cta', 'cool');
-      }
-    }
-
-    let next = originalTheme === 'midnight' ? 'light' : 'midnight';
-    const id = setInterval(() => {
-      apply(next);
-      next = next === 'midnight' ? 'light' : 'midnight';
-    }, CYCLE_MS);
-
-    // ensure first render matches the user's starting theme cleanly
-    apply(originalTheme);
-
-    return () => {
-      clearInterval(id);
-      html.setAttribute('data-theme', originalTheme);
-      if (originalCTA) html.setAttribute('data-cta', originalCTA);
-      else html.removeAttribute('data-cta');
-    };
-  }, []);
+  // Removed the second theme system (THEME_KEY + applyTheme + listeners).
+  // The app-wide themeManager + MantineProvider already set scheme/tokens.
 
   return (
     <div className="auth-page">
@@ -155,11 +136,11 @@ export default function AuthLayout() {
         <MobileTopBar />
 
         <Grid gutter="xl" align="start">
-          {/* Left: Brand + Marketing (desktop/tablet only) */}
+          {/* Left: Brand + Marketing */}
           <Grid.Col span={{ base: 12, md: 6, lg: 7 }} visibleFrom="md">
             <Stack gap="md" maw={620}>
-              {/* Gradient wordmark + tiny left nudge if PNG has safe area */}
-              <BrandLockup className="bp-wordmark auth-hero-lockup" />
+              {/* BIG hero lockup */}
+              <LogoLockup className="bp-wordmark auth-hero-lockup" size={90} titleOrder={2} />
 
               <Title
                 order={1}
@@ -175,21 +156,20 @@ export default function AuthLayout() {
                 <span className="text-blue-purple">instant translation</span>
               </Title>
 
-              <Text c="dimmed" size="lg" style={{ maxWidth: 560 }}>
+              {/* Body paragraph — no "dimmed" */}
+              <Text size="lg" style={{ color: 'var(--fg)', opacity: 0.9, maxWidth: 560 }}>
                 End-to-end encryption, AI-powered translation, disappearing
                 messages, and voice/video calling.
               </Text>
 
-              <List spacing="sm" size="sm" center>
+              {/* Bullets — force readable label color */}
+              <List spacing="sm" size="sm" center className="auth-list">
                 <List.Item
                   icon={
                     <ThemeIcon
                       variant="filled"
                       radius="xl"
-                      style={{
-                        background: 'var(--cta-gradient)',  // ⬅️ token instead of hardcoded gradient
-                        color: 'var(--cta-label)',
-                      }}
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
                     >
                       <Lock size={16} />
                     </ThemeIcon>
@@ -202,10 +182,7 @@ export default function AuthLayout() {
                     <ThemeIcon
                       variant="filled"
                       radius="xl"
-                      style={{
-                        background: 'var(--cta-gradient)',  // ⬅️ token
-                        color: 'var(--cta-label)',
-                      }}
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
                     >
                       <Globe size={16} />
                     </ThemeIcon>
@@ -218,10 +195,7 @@ export default function AuthLayout() {
                     <ThemeIcon
                       variant="filled"
                       radius="xl"
-                      style={{
-                        background: 'var(--cta-gradient)',  // ⬅️ token
-                        color: 'var(--cta-label)',
-                      }}
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
                     >
                       <MessageCircle size={16} />
                     </ThemeIcon>
@@ -234,10 +208,7 @@ export default function AuthLayout() {
                     <ThemeIcon
                       variant="filled"
                       radius="xl"
-                      style={{
-                        background: 'var(--cta-gradient)',  // ⬅️ token
-                        color: 'var(--cta-label)',
-                      }}
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
                     >
                       <ShieldCheck size={16} />
                     </ThemeIcon>
@@ -251,16 +222,16 @@ export default function AuthLayout() {
                 <Button component={Link} to="/register" size="md" radius="xl">
                   Create free account
                 </Button>
-                <Anchor component={Link} to="/status" c="dimmed">
+                <Anchor component={Link} to="/status" style={{ color: 'var(--accent)' }}>
                   Status
                 </Anchor>
-                <Anchor component={Link} to="/settings/upgrade" c="dimmed">
+                <Anchor component={Link} to="/settings/upgrade" style={{ color: 'var(--accent)' }}>
                   Upgrade
                 </Anchor>
               </Group>
 
               <Paper p="sm" withBorder radius="md">
-                <Text size="xs" c="dimmed">
+                <Text size="xs" style={{ color: 'var(--fg)', opacity: 0.85 }}>
                   Tip: Use the same account on web and mobile. Your messages stay
                   synced.
                 </Text>
@@ -271,7 +242,7 @@ export default function AuthLayout() {
           {/* Right: Auth form + Get app */}
           <Grid.Col span={{ base: 12, md: 6, lg: 5 }} style={{ alignSelf: 'start' }}>
             <Stack gap="lg" style={{ maxWidth: 440, marginLeft: 'auto' }} className="auth-login">
-              <Outlet /> {/* Login / Register / Forgot / Reset (card-only) */}
+              <Outlet />
               <GetAppCard />
             </Stack>
           </Grid.Col>

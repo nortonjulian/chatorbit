@@ -9,6 +9,8 @@ import {
 import { IconBrandGoogle, IconBrandApple } from '@tabler/icons-react';
 // import { toast } from '../utils/toast';
 
+/* ---------------- CSRF helpers ---------------- */
+
 // Read the CSRF token from cookie if present (double-submit pattern)
 function readXsrfCookie(name = 'XSRF-TOKEN') {
   if (typeof document === 'undefined') return '';
@@ -41,6 +43,8 @@ async function getCsrfToken() {
   return readXsrfCookie('XSRF-TOKEN');
 }
 
+/* ---------------- Component ---------------- */
+
 export default function LoginForm({ onLoginSuccess }) {
   const { setCurrentUser } = useUser();
   const [identifier, setIdentifier] = useState(''); // username or email
@@ -57,6 +61,9 @@ export default function LoginForm({ onLoginSuccess }) {
   const idPlaceholder = isEmailMode ? 'you@example.com' : 'Your username';
   const idAutoComplete = isEmailMode ? 'email' : 'username';
 
+  // Token-driven placeholder color for dark backgrounds
+  const placeholderColor = 'color-mix(in oklab, var(--fg) 72%, transparent)';
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -68,7 +75,7 @@ export default function LoginForm({ onLoginSuccess }) {
     if (!idValue || !pwd) {
       const msg = 'Please enter your credentials.';
       setError(msg);
-      toast.err(msg);
+      // toast?.err?.(msg);
       setLoading(false);
       return;
     }
@@ -98,7 +105,7 @@ export default function LoginForm({ onLoginSuccess }) {
       setPassword('');
 
       const name = user?.displayName || user?.username;
-      toast.ok(name ? `Welcome back, ${name}!` : 'Welcome back!');
+      // toast?.ok?.(name ? `Welcome back, ${name}!` : 'Welcome back!');
       navigate('/');
     } catch (err) {
       const status = err?.response?.status;
@@ -109,33 +116,34 @@ export default function LoginForm({ onLoginSuccess }) {
       if (status === 400) {
         const msg = apiMsg || 'Missing credentials.';
         setError(msg);
-        toast.err(msg);
+        // toast?.err?.(msg);
       } else if (status === 401) {
         const msg = apiMsg || 'Invalid username or password';
         setError(msg);
-        // toast.err(msg);
+        // toast?.err?.(msg);
       } else if (status === 403) {
         const msg = apiMsg || 'Access denied.';
         setError(msg);
-        toast.err(msg);
+        // toast?.err?.(msg);
       } else if (status === 422) {
         const msg = apiMsg || 'Invalid request. Check your username/email and password.';
         setError(msg);
-        toast.err(msg);
+        // toast?.err?.(msg);
       } else if (status === 402) {
         if (reason === 'DEVICE_LIMIT') {
-          const msg = 'Device limit reached for the Free plan. Log out on another device or upgrade to Premium to link more devices.';
+          const msg =
+            'Device limit reached for the Free plan. Log out on another device or upgrade to Premium to link more devices.';
           setError(msg);
-          toast.info(msg);
+          // toast?.info?.(msg);
         } else {
           const msg = apiMsg || 'This action requires a Premium plan.';
           setError(msg);
-          toast.info(msg);
+          // toast?.info?.(msg);
         }
       } else {
         const msg = apiMsg || 'Login failed. Please try again.';
         setError(msg);
-        toast.err(msg);
+        // toast?.err?.(msg);
       }
     } finally {
       setLoading(false);
@@ -148,20 +156,32 @@ export default function LoginForm({ onLoginSuccess }) {
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg">
       <Stack gap="2" mb="sm" align="center">
-        <Title order={3}>Welcome back</Title>
-        <Text size="sm" c="dimmed">Log in to your Chatforia account</Text>
+        <Title order={3} style={{ color: 'var(--fg)' }}>Welcome back</Title>
+        <Text size="sm" style={{ color: 'var(--fg)', opacity: 0.8 }}>
+          Log in to your Chatforia account
+        </Text>
       </Stack>
 
       <Group grow mb="xs">
-        <Button variant="light" leftSection={<IconBrandGoogle size={18} />} onClick={handleGoogle}>
+        <Button
+          className="oauth-button"
+          variant="light"
+          leftSection={<IconBrandGoogle size={18} />}
+          onClick={handleGoogle}
+        >
           Continue with Google
         </Button>
-        <Button variant="light" leftSection={<IconBrandApple size={18} />} onClick={handleApple}>
+        <Button
+          className="oauth-button"
+          variant="light"
+          leftSection={<IconBrandApple size={18} />}
+          onClick={handleApple}
+        >
           Continue with Apple
         </Button>
       </Group>
 
-      <Divider label="or" my="sm" />
+      <Divider label="or" my="sm" styles={{ label: { color: 'var(--fg)', opacity: 0.75 } }} />
 
       <form onSubmit={handleLogin} noValidate>
         <Stack gap="sm">
@@ -172,7 +192,16 @@ export default function LoginForm({ onLoginSuccess }) {
             onChange={(e) => setIdentifier(e.currentTarget.value)}
             required
             autoComplete={idAutoComplete}
+            // make label/placeholder readable on dark
+            labelProps={{ style: { color: 'var(--fg)' } }}
+            styles={{
+              input: {
+                color: 'var(--fg)',
+                '::placeholder': { color: placeholderColor },
+              },
+            }}
           />
+
           <PasswordInput
             label="Password"
             placeholder="Your password"
@@ -180,26 +209,39 @@ export default function LoginForm({ onLoginSuccess }) {
             onChange={(e) => setPassword(e.currentTarget.value)}
             required
             autoComplete="current-password"
+            labelProps={{ style: { color: 'var(--fg)' } }}
+            styles={{
+              input: {
+                color: 'var(--fg)',
+                '::placeholder': { color: placeholderColor },
+              },
+            }}
           />
+
           <Group justify="space-between" align="center">
             <Checkbox
               label="Keep me signed in"
               checked={remember}
               onChange={(e) => setRemember(e.currentTarget.checked)}
+              styles={{ label: { color: 'var(--fg)' } }}
             />
-            <Anchor component={Link} to="/forgot-password" size="sm">
+            <Anchor component={Link} to="/forgot-password" size="sm" style={{ color: 'var(--accent)' }}>
               Forgot password?
             </Anchor>
           </Group>
 
           {error && (
-            <Alert color="red" variant="light" role="alert">
+            <Alert color="red" variant="light" role="alert" styles={{ message: { color: 'var(--fg)' } }}>
               {error}{' '}
               {error.includes('Premium') && (
                 <>
-                  <Anchor component={Link} to="/settings/upgrade">Upgrade</Anchor>
-                  {' '}or{' '}
-                  <Anchor component={Link} to="/settings/devices">manage devices</Anchor>.
+                  <Anchor component={Link} to="/settings/upgrade" style={{ color: 'var(--accent)' }}>
+                    Upgrade
+                  </Anchor>{' '}
+                  or{' '}
+                  <Anchor component={Link} to="/settings/devices" style={{ color: 'var(--accent)' }}>
+                    manage devices
+                  </Anchor>.
                 </>
               )}
             </Alert>
@@ -209,8 +251,11 @@ export default function LoginForm({ onLoginSuccess }) {
             {loading ? 'Logging in…' : 'Log In'}
           </Button>
 
-          <Text ta="center" size="sm">
-            New here? <Anchor component={Link} to="/register">Create an account</Anchor>
+          <Text ta="center" size="sm" style={{ color: 'var(--fg)', opacity: 0.85 }}>
+            New here?{' '}
+            <Anchor component={Link} to="/register" style={{ color: 'var(--accent)' }}>
+              Create an account
+            </Anchor>
           </Text>
         </Stack>
       </form>

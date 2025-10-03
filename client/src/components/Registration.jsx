@@ -38,10 +38,10 @@ export default function Registration() {
     e?.preventDefault?.();
     setGlobalError('');
     setErrors({});
-    if (!validate()) {
-      toast.err('Please fix the highlighted errors.');
-      return;
-    }
+    // if (!validate()) {
+    //   toast.err('Please fix the highlighted errors.');
+    //   return;
+    // }
 
     try {
       setSubmitting(true);
@@ -50,7 +50,7 @@ export default function Registration() {
         email: form.email.trim(),
         password: form.password,
       });
-      toast.ok('Account created! You can now log in.');
+      // toast.ok('Account created! You can now log in.');
     } catch (err) {
       const status = err?.response?.status;
       const data = err?.response?.data;
@@ -75,7 +75,7 @@ export default function Registration() {
         }
 
         if (Object.keys(nxt).length) setErrors(nxt);
-        toast.err('Please correct the highlighted fields.');
+        // toast.err('Please correct the highlighted fields.');
       } else if (status === 409) {
         const code = data?.code;
         const nxt = {};
@@ -90,13 +90,13 @@ export default function Registration() {
         } else {
           setErrors(nxt);
         }
-        toast.err('Username or email already in use.');
+        // toast.err('Username or email already in use.');
       } else if (status === 429) {
         setGlobalError('Too many attempts. Please try again later.');
-        toast.err('Too many attempts. Please try again later.');
+        // toast.err('Too many attempts. Please try again later.');
       } else {
         setGlobalError(data?.message || 'Registration failed. Please try again.');
-        toast.err('Registration failed. Please try again.');
+        // toast.err('Registration failed. Please try again.');
       }
     } finally {
       setSubmitting(false);

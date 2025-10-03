@@ -125,6 +125,13 @@ export default function UserProfile({ onLanguageChange }) {
   // Keep Mantine color scheme in sync with our theme tokens
   const { setColorScheme } = useMantineColorScheme();
 
+  // 🔒 INITIAL SYNC: ensure Mantine scheme matches persisted theme on mount
+  useEffect(() => {
+    const t = getTheme(); // if themeManager default = 'midnight', this will be dark
+    const isLight = t === 'light' || t === 'sunset' || t === 'solarized';
+    setColorScheme(isLight ? 'light' : 'dark');
+  }, [setColorScheme]);
+
   // Track whether “cool CTAs on Midnight” is on (driven by <html data-cta="cool">)
   const [coolCtasOnMidnight, setCoolCtasOnMidnight] = useState(
     typeof document !== 'undefined' &&

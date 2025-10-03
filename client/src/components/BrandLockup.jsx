@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
-import LogoAdaptive from './LogoAdaptive.jsx';
 
 const DARK_THEMES = new Set(['dark', 'midnight', 'amoled', 'neon']);
 
 export default function BrandLockup({
   className = '',
-  logoSize = 44,
-  mode = 'adaptive',      // 'adaptive' | 'static-light' | 'static-dark'
+  logoSize = 64,          // bump default for the hero
   wordmark = 'Chatforia',
-  gradientWordmark = true // uses your existing .text-blue-purple helper
+  gradientWordmark = true // keeps the gradient wordmark you styled in CSS
 }) {
   const [theme, setTheme] = useState(
     document.documentElement.getAttribute('data-theme') || 'light'
@@ -23,26 +21,20 @@ export default function BrandLockup({
     return () => obs.disconnect();
   }, []);
 
-  // Decide asset for static modes
-  const staticSrc =
-    mode === 'static-dark' || (mode === 'static-auto' && DARK_THEMES.has(theme))
-      ? '/brand/chatforia-mark-white.svg'
-      : '/brand/chatforia-mark-gradient.svg';
+  // If you later want a different asset in dark themes, swap here based on `theme`.
+  const src = '/brand/ppog.png'; // or '/brand/chameleon.png'
 
   return (
-    <div className={`brand-lockup ${className}`}>
-      {mode === 'adaptive' ? (
-        <LogoAdaptive size={logoSize} />
-      ) : (
-        <img
-          src={staticSrc}
-          alt="Chatforia"
-          width={logoSize}
-          height={logoSize}
-          className="brand-lockup__logo"
-          style={{ width: logoSize, height: logoSize }}
-        />
-      )}
+    <div
+      className={`brand-lockup ${className}`}
+      style={{ '--logo-size': `${logoSize}px` }}
+    >
+      <img
+        src={src}
+        alt="Chatforia logo"
+        className="brand-lockup__logo"
+        // IMPORTANT: no width/height props, no inline size here
+      />
       <h1 className={`brand-lockup__name ${gradientWordmark ? 'text-blue-purple bp-wordmark' : ''}`}>
         {wordmark}
       </h1>

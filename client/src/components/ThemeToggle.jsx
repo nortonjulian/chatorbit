@@ -8,8 +8,7 @@ export default function ThemeToggle({ onToggle }) {
 
   function handleToggle() {
     if (onToggle) return onToggle();
-    // Flip between Light and Dark (keeping premium separate)
-    setTheme(darkLike ? 'light' : 'dark');
+    setTheme(darkLike ? 'light' : 'midnight');   // <- branded dark
   }
 
   return (

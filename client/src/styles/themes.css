@@ -1,263 +1,87 @@
-/* -------------------------------------------------------
-   Chatforia — Theme Tokens (universal & accessible)
-   ----------------------------------------------------- */
+/* --- ADD/REFINE BRAND TOKENS --- */
 :root {
-  /* ── Brand primaries (Chatforia) ────────────────────────────────────── */
-  --brand-blue:   #2979FF;  /* Electric Blue */
-  --brand-purple: #8E24AA;  /* Vibrant Purple */
-  --brand-indigo: #6A3CC1;  /* Bridge blue↔purple (derived, accessible) */
-  --brand-pink:   #E91E63;  /* Magenta Pink (reserved for highlights) */
-  --brand-orange: #FF9800;  /* Joyful Orange (optional accent) */
-  --brand-gold:   #FFEB3B;  /* Sunny Yellow (token: warm accent) */
+  /* Core (Chat + Euphoria) */
+  --brand-violet: #6A3CC1;  /* Iris Violet (flagship) */
+  --brand-mint:   #00C2A8;  /* Mint Pulse (flagship) */
+  --brand-cyan:   #3CF9FF;  /* Electric Cyan (accent) */
 
-  /* ── Base surfaces (light default) ──────────────────────────────────── */
-  --bg:           #F7F9FF;  /* airy light */
-  --fg:           #0A0A0A;  /* near-black for strong readability */
-  --card:         #FFFFFF;
-  --muted:        #6B7280;  /* neutral body/secondary text */
-  --border:       #E5E7EB;
-  --border-soft:  #EEF2FF;
+  /* Optional warms (used sparingly / premium / marketing) */
+  --brand-coral:  #FF6F61;  /* Radiant Coral */
+  --brand-peach:  #FF9A76;  /* Peach */
 
-  /* ── Semantics ──────────────────────────────────────────────────────── */
-  --primary:      var(--brand-purple);
-  --accent:       var(--brand-indigo); /* links/icons/interactive accents */
-  --accent-warm:  var(--brand-gold);
-
-  /* ── Logos & wordmark ───────────────────────────────────────────────── */
-  --logo-gradient:     linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --logo-gradient-rev: linear-gradient(90deg, var(--brand-purple), var(--brand-gold));
-  /* Back-compat for older reads */
-  --foria-gradient: var(--logo-gradient);
-
-  /* ── Core CTA tokens (light defaults to blue→indigo) ────────────────── */
-  --cta-gradient-cool: linear-gradient(90deg, var(--brand-blue), var(--brand-indigo));
-  --cta-gradient-warm: linear-gradient(90deg, var(--brand-gold), var(--brand-purple));
-  --cta-gradient:       var(--cta-gradient-cool);
-  --cta-label:          #FFFFFF;
-  --cta-overlay:        transparent; /* themes can override for contrast */
-
-  /* ── Focus rings & shadows (subtle by default) ──────────────────────── */
-  --ring:            rgba(0, 223, 252, 0.45);
-  --shadow-accent:   rgba(0, 223, 252, 0.22);
-  --shadow-ambient:  rgba(10,10,10,0.10);
-
-  /* ── Controls (switch/checkbox follow CTA by default) ───────────────── */
-  --switch-gradient: var(--cta-gradient);
-
-  /* Back-compat alias */
-  --checkbox-gradient: var(--switch-gradient);
+  /* Keep any legacy names for compatibility (maps to new core) */
+  --brand-blue:   #2979FF;
+  --brand-indigo: var(--brand-violet);
+  --brand-purple: #8E24AA;
+  --brand-pink:   #E91E63;
+  --brand-orange: #FF9800;
+  --brand-gold:   #FFEB3B;
+  --brand-amber:  #FFB300;
 }
 
-/* -------------------------------------------------------
-   Dark (free)
-   ----------------------------------------------------- */
+/* --- LIGHT (free): cool, airy, non-TextNow --- */
+:root {
+  /* no change to neutrals here */
+
+  /* Core accents (tight, two-tone sweep + hint of cyan) */
+  --primary:    var(--brand-violet);
+  --accent:     var(--brand-mint);
+  --accent-alt: var(--brand-cyan);
+  --accent-warm:var(--brand-amber);
+
+  /* Flagship gradients (LIGHT) — Violet → Mint (subtle Cyan tail) */
+  --logo-gradient: linear-gradient(90deg,
+    var(--brand-violet) 0%,
+    var(--brand-mint) 60%,
+    color-mix(in oklab, var(--brand-mint) 60%, var(--brand-cyan)) 100%
+  );
+  --logo-gradient-rev: linear-gradient(90deg,
+    color-mix(in oklab, var(--brand-mint) 60%, var(--brand-cyan)) 0%,
+    var(--brand-mint) 40%,
+    var(--brand-violet) 100%
+  );
+
+  --cta-gradient: linear-gradient(90deg,
+    var(--brand-violet) 0%,
+    var(--brand-mint) 100%
+  );
+
+  --bubble-outgoing: linear-gradient(135deg, var(--brand-violet), var(--brand-mint));
+}
+
+/* --- DARK (free): deep indigo/plum + same core sweep --- */
 :root[data-theme="dark"] {
-  --bg:           #0D1B2A;  /* Deep Navy (your brand base) */
-  --fg:           #F3F4F6;
-  --card:         #12243A;  /* slightly lifted from bg */
-  --muted:        #9AA4B2;  /* Cool Gray interpretation */
-  --border:       #1F2A3A;
-  --border-soft:  #172338;
+  --primary:    var(--brand-violet);
+  --accent:     var(--brand-mint);
+  --accent-alt: var(--brand-cyan);
 
-  --primary:      var(--brand-purple);
-  --accent:       #9BA8FF;  /* lighter indigo/blue for dark legibility */
-  --accent-warm:  var(--brand-gold);
-
-  --cta-gradient: var(--cta-gradient-cool); /* default cool CTA in dark */
-  --cta-label:    #FFFFFF;
-  --cta-overlay:  transparent;
-
-  --ring:           rgba(168, 85, 247, 0.45);
-  --shadow-accent:  rgba(168, 85, 247, 0.22);
+  --logo-gradient: linear-gradient(90deg,
+    var(--brand-violet) 0%,
+    var(--brand-mint) 60%,
+    color-mix(in oklab, var(--brand-mint) 60%, var(--brand-cyan)) 100%
+  );
+  --cta-gradient:  linear-gradient(90deg, var(--brand-violet), var(--brand-mint));
+  --bubble-outgoing: linear-gradient(135deg, var(--brand-violet), var(--brand-mint));
 }
 
-/* -------------------------------------------------------
-   Premium themes
-   ----------------------------------------------------- */
+/* --- PREMIUMS (warm/cool “worlds”) — keep unique vibes --- */
 
-/* AMOLED: pure black surfaces + neon accents (highest contrast) */
-:root[data-theme="amoled"] {
-  --bg: #000000;
-  --fg: #F5F7FF;
-  --card: #050505;
-  --muted: #A1A8B3;
-  --border: #0C0C0C;
-  --border-soft: #0A0A0A;
-
-  --primary: var(--brand-purple);
-  --accent:  var(--brand-blue);
-  --accent-warm: var(--brand-gold);
-
-  --cta-gradient: var(--cta-gradient-cool);
-  --cta-label:    #FFFFFF;
-  --cta-overlay:  transparent;
-
-  --ring:           rgba(0,223,252,0.5);
-  --shadow-accent:  rgba(0,223,252,0.28);
-}
-
-/* Neon: deep navy with high-saturation accents */
-:root[data-theme="neon"] {
-  --bg: #070A16;
-  --fg: #EAF1FF;
-  --card: #0D1326;
-  --muted: #8EA3C0;
-  --border: #162040;
-  --border-soft: #0F1A33;
-
-  --primary: var(--brand-purple);
-  --accent:  var(--brand-blue);
-  --accent-warm: var(--brand-gold);
-
-  --cta-gradient: var(--cta-gradient-cool);
-  --cta-label:    #FFFFFF;
-  --cta-overlay:  transparent;
-
-  --ring:           rgba(0,223,252,0.48);
-  --shadow-accent:  rgba(0,223,252,0.26);
-}
-
-/* Sunset: warm, sunlit vibe on light */
-:root[data-theme="sunset"] {
-  --bg: #FFFBF0;
-  --fg: #1A1A1A;
-  --card: #FFFFFF;
-  --muted: #6F6B63;
-  --border: #F1E6C9;
-  --border-soft: #F6EDD6;
-
-  --primary: var(--brand-purple);
-  --accent:  var(--brand-gold);
-  --accent-warm: var(--brand-gold);
-
-  --foria-gradient: var(--logo-gradient);
-  --cta-gradient:   var(--cta-gradient-warm);
-  --cta-label:      #111111;
-  --cta-overlay:    transparent;
-
-  --ring:           rgba(255,215,0,0.45);
-  --shadow-accent:  rgba(255,215,0,0.26);
-}
-
-/* Midnight: moon theme (default warm CTA + slight dark overlay) */
+/* AMOLED stays cool-neon; use core sweep */
+:root[data-theme="amoled"],
+:root[data-theme="neon"],
 :root[data-theme="midnight"] {
-  --bg: #060913;
-  --fg: #E7EAF3;
-  --card: #0A1020;
-  --muted: #8F9AB0;
-  --border: #182032;
-  --border-soft: #0E1526;
+  --primary: var(--brand-violet);
+  --accent:  var(--brand-mint);
+  --logo-gradient: linear-gradient(90deg, var(--brand-violet), var(--brand-mint));
+  --cta-gradient:  linear-gradient(90deg, var(--brand-violet), var(--brand-mint));
+}
 
+/* Sunset = warm world only here (avoid warm in free defaults) */
+:root[data-theme="sunset"] {
   --primary: var(--brand-purple);
-  --accent:  #9AA7FF; /* cool readable accent on dark */
-  --accent-warm: var(--brand-gold);
-
-  --cta-gradient: var(--cta-gradient-warm);
-  --cta-label:    #FFFFFF;
-  --cta-overlay:  rgba(0,0,0,0.22);
-
-  --ring:           rgba(0,223,252,0.40);
-  --shadow-accent:  rgba(168,85,247,0.24);
-}
-
-/* Midnight + cool CTAs (blue→indigo instead of gold→purple) */
-:root[data-theme="midnight"][data-cta="cool"] {
-  --cta-gradient: var(--cta-gradient-cool);
-  --cta-overlay:  transparent;
-  --switch-gradient: var(--cta-gradient);
-}
-
-/* Solarized: light-leaning, brand-aware */
-:root[data-theme="solarized"] {
-  --bg: #FDF6E3;
-  --fg: #073642;
-  --card: #FFFDF2;
-  --muted: #657B83;
-  --border: #EEE3C9;
-  --border-soft: #F3ECD7;
-
-  --primary: #6C71C4;
-  --accent:  #268BD2;
-  --accent-warm: #B58900;
-
-  --cta-gradient: linear-gradient(90deg, #268BD2, #6C71C4);
-  --cta-label:    #FFFFFF;
-  --cta-overlay:  transparent;
-
-  --ring:           rgba(38,139,210,0.45);
-  --shadow-accent:  rgba(38,139,210,0.22);
-}
-
-/* -------------------------------------------------------
-   Shared utilities (used by styles.css + components)
-   ----------------------------------------------------- */
-.text-logo-gradient {
-  background: var(--logo-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.logo-glow {
-  box-shadow:
-    0 10px 36px rgba(255,215,0,0.22),
-    0 4px 16px rgba(0,223,252,0.18);
-}
-
-/* Theme selection chips */
-.theme-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .4rem .6rem;
-  border-radius: 999px;
-  font-weight: 600;
-  line-height: 1;
-  border: 1px solid var(--border);
-  transition: filter .15s ease, box-shadow .15s ease, transform .05s ease;
-}
-.theme-chip svg { width:18px; height:18px; stroke:currentColor; color:currentColor; }
-
-.theme-chip--sun {
-  background: color-mix(in oklab, var(--brand-gold) 18%, transparent);
-  color: var(--accent-warm);
-  box-shadow: 0 4px 18px rgba(255,215,0,0.15);
-}
-.theme-chip--moon {
-  background:#0a1020;
-  color: var(--accent);
-  border-color:#182032;
-  box-shadow:0 4px 18px rgba(0,0,0,0.28);
-}
-
-/* Highlight active chip */
-:root[data-theme="sunset"]   .theme-chip--sun,
-:root[data-theme="midnight"] .theme-chip--moon {
-  outline:2px solid color-mix(in oklab, var(--accent) 40%, transparent);
-  box-shadow:0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
-}
-
-/* -------------------------------------------------------
-   Optional: Subtle brand color cycling (opt-in)
-   ----------------------------------------------------- */
-@keyframes chatforia-cycle {
-  0%   { --cycle-a: var(--brand-blue);   --cycle-b: var(--brand-indigo); }
-  25%  { --cycle-a: var(--brand-indigo); --cycle-b: var(--brand-purple); }
-  50%  { --cycle-a: var(--brand-purple); --cycle-b: var(--brand-gold); }
-  75%  { --cycle-a: var(--brand-gold);   --cycle-b: var(--brand-indigo); }
-  100% { --cycle-a: var(--brand-blue);   --cycle-b: var(--brand-indigo); }
-}
-
-:root[data-cycling="on"] {
-  --cta-gradient: linear-gradient(90deg, var(--cycle-a), var(--cycle-b));
-  --switch-gradient: var(--cta-gradient);
-  --accent: var(--cycle-b);
-  animation: chatforia-cycle 14s linear infinite;
-}
-
-/* Respect users who prefer reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  :root[data-cycling="on"] {
-    animation: none;
-  }
+  --accent:  var(--brand-amber);
+  --logo-gradient: linear-gradient(90deg,
+    var(--brand-coral), var(--brand-peach), var(--brand-gold)
+  );
+  --cta-gradient: linear-gradient(90deg, var(--brand-amber), var(--brand-orange));
 }

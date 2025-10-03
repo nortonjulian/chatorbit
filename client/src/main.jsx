@@ -12,7 +12,6 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
 import './styles/themes.css';
-import './styles/logo.css';
 
 import './i18n';
 
@@ -40,7 +39,7 @@ import {
   isDarkTheme,
 } from './utils/themeManager';
 
-// Apply stored/default theme on boot (sets data-theme and notifies)
+// Apply stored/default theme on boot (defaults to "midnight")
 applyTheme();
 
 const isProd = import.meta.env.PROD;
@@ -151,9 +150,8 @@ function Root() {
                   <App
                     themeScheme={scheme}
                     onToggleTheme={() => {
-                      // Flip between base light/dark buckets through themeManager,
-                      // regardless of which custom theme is active.
-                      const next = scheme === 'light' ? 'dark' : 'light';
+                      // Flip specifically between Light <-> Midnight (flagship dark)
+                      const next = scheme === 'light' ? 'midnight' : 'light';
                       setTheme(next);
                     }}
                   />
