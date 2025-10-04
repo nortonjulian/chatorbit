@@ -32,10 +32,10 @@
 import { ALL_THEMES } from '../config/themes';
 
 const LS_KEY_THEME = 'co-theme';
-const LS_KEY_CTA   = 'co-cta';
+const LS_KEY_CTA = 'co-cta';
 
-/** ------- DEFAULT: branded dark (midnight) ------- */
-const DEFAULT_THEME = 'midnight';
+/** ------- DEFAULT: Dawn (warm light) ------- */
+const DEFAULT_THEME = 'dawn';
 
 /** If you add new dark-like themes later, list them here */
 const DARK_THEMES = new Set(['dark', 'midnight', 'amoled', 'neon']);
@@ -45,7 +45,8 @@ const subs = new Set();
 
 /* ---------------- helpers ---------------- */
 export function isLightTheme(themeName) {
-  return themeName === 'light' || themeName === 'sunset' || themeName === 'solarized';
+  // Treat Dawn and other warm/calm palettes as light-like
+  return themeName === 'dawn' || themeName === 'light' || themeName === 'sunset' || themeName === 'solarized';
 }
 
 export function isDarkTheme(theme = getTheme()) {
@@ -79,7 +80,9 @@ export function applyTheme(theme = getTheme()) {
 export function setTheme(theme) {
   const next = coerce(theme);
   if (next === current) return;
-  try { localStorage.setItem(LS_KEY_THEME, next); } catch {}
+  try {
+    localStorage.setItem(LS_KEY_THEME, next);
+  } catch {}
   applyTheme(next);
 }
 
@@ -93,7 +96,9 @@ export function onThemeChange(cb) {
 /* ---------------- CTA style helpers (optional) ---------------- */
 export function setCTAStyle(mode /* 'warm' | 'cool' */) {
   document.documentElement.setAttribute('data-cta', mode);
-  try { localStorage.setItem(LS_KEY_CTA, mode); } catch {}
+  try {
+    localStorage.setItem(LS_KEY_CTA, mode);
+  } catch {}
 }
 
 export function getCTAStyle() {
@@ -101,7 +106,7 @@ export function getCTAStyle() {
 }
 
 /* ---------------- global wiring (call-once IIFE) ----------------
-   - set initial theme (defaults to midnight)
+   - set initial theme (defaults to Dawn)
    - keep tabs in sync
    - map system light/dark only if user is on those generic modes
 ----------------------------------------------------------------- */

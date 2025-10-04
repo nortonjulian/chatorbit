@@ -8,11 +8,12 @@ export default function ThemeToggle({ onToggle }) {
 
   function handleToggle() {
     if (onToggle) return onToggle();
-    setTheme(darkLike ? 'light' : 'midnight');   // <- branded dark
+    // Flip Dawn <-> Midnight
+    setTheme(darkLike ? 'dawn' : 'midnight');
   }
 
   return (
-    <Tooltip label={`Switch to ${darkLike ? 'light' : 'dark'} mode`}>
+    <Tooltip label={`Switch to ${darkLike ? 'Dawn' : 'Midnight'} mode`}>
       <ActionIcon
         aria-label="Toggle theme"
         aria-pressed={darkLike}

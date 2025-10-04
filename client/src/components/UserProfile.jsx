@@ -37,7 +37,7 @@ import LinkedDevicesPanel from './LinkedDevicesPanel';
 import PrivacySection from '../pages/PrivacySection';
 
 import ThemeSelect from '../components/settings/ThemeSelect.jsx';
-import { getTheme, setTheme } from '../utils/themeManager.js';
+import { getTheme, setTheme, onThemeChange, isLightTheme } from '../utils/themeManager.js';
 
 import { loadKeysLocal, saveKeysLocal, generateKeypair } from '../utils/keys';
 import { exportEncryptedPrivateKey, importEncryptedPrivateKey } from '../utils/keyBackup';
@@ -125,11 +125,13 @@ export default function UserProfile({ onLanguageChange }) {
   // Keep Mantine color scheme in sync with our theme tokens
   const { setColorScheme } = useMantineColorScheme();
 
+  // Track active theme reactively (so UI toggles respond instantly)
+  const [themeNow, setThemeNow] = useState(getTheme());
+  useEffect(() => onThemeChange(setThemeNow), []);
+
   // 🔒 INITIAL SYNC: ensure Mantine scheme matches persisted theme on mount
   useEffect(() => {
-    const t = getTheme(); // if themeManager default = 'midnight', this will be dark
-    const isLight = t === 'light' || t === 'sunset' || t === 'solarized';
-    setColorScheme(isLight ? 'light' : 'dark');
+    setColorScheme(isLightTheme(getTheme()) ? 'light' : 'dark');
   }, [setColorScheme]);
 
   // Track whether “cool CTAs on Midnight” is on (driven by <html data-cta="cool">)
@@ -140,10 +142,8 @@ export default function UserProfile({ onLanguageChange }) {
 
   // Utility to apply a theme consistently
   const applyTheme = (themeName) => {
-    setTheme(themeName); // sets localStorage + <html data-theme=...>
-    // Map “light-like” vs “dark-like” to Mantine color scheme so surfaces match
-    const isLight = themeName === 'light' || themeName === 'sunset' || themeName === 'solarized';
-    setColorScheme(isLight ? 'light' : 'dark');
+    setTheme(themeName); // sets localStorage + <html data-theme=...> and notifies listeners
+    setColorScheme(isLightTheme(themeName) ? 'light' : 'dark');
 
     // If we leave Midnight, drop the optional CTA override
     if (themeName !== 'midnight') {
@@ -404,8 +404,6 @@ export default function UserProfile({ onLanguageChange }) {
     }
   };
 
-  const themeNow = getTheme();
-
   return (
     <Paper withBorder shadow="sm" radius="xl" p="lg" maw={640} mx="auto">
       <Group justify="space-between" align="center" mb="md">
@@ -488,9 +486,9 @@ export default function UserProfile({ onLanguageChange }) {
                 <button
                   type="button"
                   className="theme-chip theme-chip--sun"
-                  onClick={() => applyTheme('light')}
-                  aria-label={t('profile.sunTheme', 'Use Sun (Light) theme')}
-                  title={t('profile.sunTheme', 'Use Sun (Light) theme')}
+                  onClick={() => applyTheme('dawn')}
+                  aria-label={t('profile.sunTheme', 'Use Dawn theme')}
+                  title={t('profile.sunTheme', 'Use Dawn theme')}
                 >
                   <IconSun size={18} />
                   <span>{t('profile.sun', 'Sun')}</span>
@@ -507,24 +505,6 @@ export default function UserProfile({ onLanguageChange }) {
                   <span>{t('profile.moon', 'Moon')}</span>
                 </button>
               </Group>
-
-              {/* Optional: cool CTAs on Midnight */}
-              {themeNow === 'midnight' && (
-                <Switch
-                  checked={coolCtasOnMidnight}
-                  onChange={(e) => {
-                    const on = e.currentTarget.checked;
-                    setCoolCtasOnMidnight(on);
-                    if (on) {
-                      document.documentElement.setAttribute('data-cta', 'cool');
-                    } else {
-                      document.documentElement.removeAttribute('data-cta');
-                    }
-                  }}
-                  label="Use blue→purple buttons on Midnight"
-                  aria-label="Use blue to purple CTA gradient on Midnight"
-                />
-              )}
 
               {/* Premium theme selector (hides free Light/Dark) */}
               <ThemeSelect isPremium={isPremium} hideFreeOptions />

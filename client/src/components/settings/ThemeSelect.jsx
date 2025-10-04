@@ -44,15 +44,6 @@ export default function ThemeSelect({ isPremium, hideFreeOptions = false }) {
 
   return (
     <Stack gap="sm">
-      {/* Optional Midnight CTA style toggle */}
-      {value === 'midnight' && (
-        <Switch
-          checked={coolOnMidnight}
-          onChange={(e) => setCoolOnMidnight(e.currentTarget.checked)}
-          label="Use blue→purple buttons on Midnight"
-        />
-      )}
-
       <Select
         label="Theme"
         value={value}

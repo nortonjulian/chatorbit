@@ -2,7 +2,6 @@
 /* Consumes tokens from themes.css. No raw hexes for brand areas. */
 
 /* --- CTA & control gradients --- */
-/* Do NOT set --cta-gradient here; it comes from themes.css (per-theme). */
 :root { --switch-gradient: var(--cta-gradient); }
 
 /* ================== CTAs / Links / Badges (site-wide) ================== */
@@ -43,27 +42,67 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
   border: 1px solid color-mix(in oklab, var(--brand-gold) 35%, transparent);
 }
 
-/* ================== Brand lockup (logo + wordmark) ================== */
+/* ---------- Brand lockup (logo + word) ---------- */
 .brand-lockup {
   display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: baseline;        /* perfect baseline alignment */
+  gap: 0.18rem;                 /* tight default gap */
 }
+
+/* The SVG box is square; tuck text under the C slightly */
 .brand-lockup__logo {
   width: var(--logo-size, 44px);
   height: auto;
-  object-fit: contain;
+  display: inline-block;
+  vertical-align: baseline;
+  overflow: visible;            /* ensure no cropping */
+  transform: translateY(0.06em);
+  margin-right: -0.26em;        /* pulls “hatforia” closer */
 }
+
 .brand-lockup__name {
-  font-size: var(--text-size, 24px);
-  margin: 0;
   line-height: 1;
-  background: var(--logo-gradient);
+  display: inline-block;
+}
+
+.brand-lockup__name--solid {
+  color: var(--fg);             /* solid dark word */
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+/* Hero-specific tweaks */
+.auth-hero-lockup { --logo-size: 96px; }
+.auth-hero-lockup .brand-lockup__logo {
+  margin-left: -4px;
+  margin-right: -0.28em;
+  transform: translateY(0.06em);
+}
+
+/* === Optional text-based brand wordmark (not used here) === */
+.brand-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: Inter, ui-sans-serif, system-ui;
+  font-weight: 800;
+  font-size: var(--wm-size, 28px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.brand-wordmark__c {
+  font-family: 'Syne', Inter, ui-sans-serif, system-ui;
+  font-weight: 800;
+  font-size: calc(var(--wm-size, 28px) * 1.25);
+  line-height: .8;
+  background: linear-gradient(90deg, var(--logo-stop-1, #FFB300), var(--logo-stop-2, #FF8A00), var(--logo-stop-3, #FF6A00));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  -webkit-text-fill-color: transparent; /* Safari */
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.04));
 }
+.brand-wordmark__rest { color: var(--fg); }
 
 /* ================== Auth background (theme-aware) ================== */
 .auth-page {
@@ -74,7 +113,6 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
     radial-gradient(900px 500px at 110% 110%,
       color-mix(in oklab, var(--brand-gold) 14%, transparent), transparent);
 }
-/* Deeper hues on dark themes (cooler tint to match dark gradient) */
 :root[data-theme="dark"] .auth-page,
 :root[data-theme="midnight"] .auth-page,
 :root[data-theme="amoled"] .auth-page {
@@ -85,37 +123,29 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
       color-mix(in oklab, var(--brand-blue) 16%, transparent), transparent);
 }
 
-/* ================== Gradient text helpers ================== */
-/* Use for any text that should pick up the logo sweep */
+/* ================== Gradient text helpers (for accents only) ================== */
 .text-logo-gradient {
   background: var(--logo-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent !important;
-  -webkit-text-fill-color: transparent; /* Safari */
+  -webkit-text-fill-color: transparent;
 }
-
-/* Link/CTA gradient text uses CTA sweep so it can animate when cycling is on */
 .text-blue-purple,
-.bp-wordmark .brand-lockup__name,
 .auth-page .mantine-Anchor-root,
 .auth-page a.auth-link-gradient {
   background: var(--cta-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent !important;
-  -webkit-text-fill-color: transparent; /* Safari */
+  -webkit-text-fill-color: transparent;
 }
 .auth-page .mantine-Anchor-root,
 .auth-page a.auth-link-gradient { text-decoration: none; }
 .auth-page .mantine-Anchor-root:hover,
-.auth-page a.auth-link-gradient:hover {
-  text-decoration: underline;
-  filter: brightness(1.05);
-}
+.auth-page a.auth-link-gradient:hover { text-decoration: underline; filter: brightness(1.05); }
 
 /* ================== Optional light-mode page tint ================== */
-/* Subtle airy base so Light never feels sterile or TextNow-like */
 .app-surface--tint {
   background:
     radial-gradient(800px 480px at 10% -10%,
@@ -125,82 +155,17 @@ a:hover, .link:hover { text-decoration: underline; filter: none; }
     var(--bg);
 }
 
-/* Trim transparent padding on logo-blank for alignment */
-.auth-hero-lockup .brand-lockup__logo { margin-left: -8px; }
-
-/* Optional subtle animated header underline */
-.brand-animated {
-  background-image: var(--cta-gradient);
-  background-size: 200% 100%;
-}
-:root[data-cycling="on"] .brand-animated {
-  animation: chatforia-cycle 14s linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root[data-cycling="on"] .brand-animated { animation: none; }
-}
-
-/* Make the hero lockup logo bigger on the login/register hero */
-.auth-hero-lockup {
-  /* single place to control the hero logo size */
-  --logo-size: 96px;
-}
-
-/* Force the actual <img> to use the CSS var and ignore any old inline width */
-.auth-hero-lockup .brand-lockup__logo {
-  width: var(--logo-size) !important;
-  height: auto !important;
-  display: block;
-  object-fit: contain;
-  /* compensate for transparent padding inside the PNG so it *looks* bigger */
-  margin-left: -6px;                 /* nudge left edge tighter */
-  transform: scale(1.08);            /* small visual boost */
-  transform-origin: left center;
-}
-
 /* ================== App-wide Surfaces & Mantine mapping ================== */
 html, body, #root { background: var(--bg); color: var(--fg); }
-
-.mantine-AppShell-root,
-.mantine-AppShell-main { background: var(--bg); color: var(--fg); }
-
-/* Side rail / content panels */
-.sidebar, .left-rail, .content-panel, .chat-main {
-  background: var(--bg);
-  color: var(--fg);
-  border-color: var(--border);
-}
-
-/* Map Mantine base tokens to our theme variables */
-:root,
-[data-mantine-color-scheme] {
-  --mantine-color-body: var(--bg);
-  --mantine-color-text: var(--fg);
-}
-
-/* AppShell surfaces */
-.mantine-AppShell-root,
-.mantine-AppShell-main,
-.mantine-AppShell-header,
-.mantine-AppShell-navbar,
-.mantine-AppShell-aside,
-.mantine-AppShell-footer,
-.mantine-Header-root,
-.mantine-Navbar-root,
-.mantine-Aside-root,
-.mantine-Footer-root {
+.mantine-AppShell-root, .mantine-AppShell-main { background: var(--bg); color: var(--fg); }
+.sidebar, .left-rail, .content-panel, .chat-main { background: var(--bg); color: var(--fg); border-color: var(--border); }
+:root, [data-mantine-color-scheme] { --mantine-color-body: var(--bg); --mantine-color-text: var(--fg); }
+.mantine-AppShell-root, .mantine-AppShell-main, .mantine-AppShell-header, .mantine-AppShell-navbar, .mantine-AppShell-aside, .mantine-AppShell-footer, .mantine-Header-root, .mantine-Navbar-root, .mantine-Aside-root, .mantine-Footer-root {
   background: var(--bg) !important;
   color: var(--fg) !important;
   border-color: var(--border) !important;
 }
-
-/* Cards/panels should look like cards, not the page bg */
-.mantine-Card-root,
-.mantine-Paper-root {
-  background: var(--card);
-  color: var(--fg);
-  border-color: var(--border);
-}
+.mantine-Card-root, .mantine-Paper-root { background: var(--card); color: var(--fg); border-color: var(--border); }
 
 /* ================== Switch & Checkbox gradients (global) ================== */
 .mantine-Switch-track[data-checked],
@@ -225,9 +190,7 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   background: var(--switch-gradient) !important;
   border-color: transparent !important;
 }
-.mantine-Checkbox-input:checked + .mantine-Checkbox-inner .mantine-Checkbox-icon {
-  color: #fff !important;
-}
+.mantine-Checkbox-input:checked + .mantine-Checkbox-inner .mantine-Checkbox-icon { color: #fff !important; }
 
 /* Smooth theme flips; respect reduced motion */
 :root, .auth-page,
@@ -241,7 +204,7 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   }
 }
 
-/* Hero title always uses readable foreground; gradient stays for accents */
+/* Headline readability */
 .auth-hero-title { color: var(--fg); }
 :root[data-theme="dark"] .auth-hero-title,
 :root[data-theme="midnight"] .auth-hero-title {
@@ -249,36 +212,10 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   text-shadow: 0 1px 0 rgba(0,0,0,.18);
 }
 
-/* Icon chips readable on both themes */
-.auth-hero .auth-chip {
-  background: var(--cta-gradient);
-  color: #fff;
-}
-
-/* ===== AUTH READABILITY HARDENING ================================== */
-
-/* Left column (marketing) — force readable foreground */
-.auth-hero .auth-hero-copy {
-  color: var(--fg) !important;
-  opacity: 0.92;
-}
-.auth-hero .auth-hero-list .mantine-List-itemLabel,
-.auth-hero .auth-hero-list .mantine-List-item {
-  color: var(--fg) !important;
-  opacity: 0.92;
-}
-
-/* Keep gradient/mint accents intact; don't recolor these */
-.auth-hero .text-blue-purple,
-.auth-hero .auth-link-gradient { color: transparent !important; }
-
-/* Right column (form) — labels, value, and placeholders */
+/* Right column (form) essentials */
 .auth-login .mantine-InputWrapper-label,
 .auth-login .mantine-Checkbox-label,
-.auth-login .mantine-Divider-label {
-  color: var(--fg) !important;
-}
-
+.auth-login .mantine-Divider-label { color: var(--fg) !important; }
 .auth-login .mantine-TextInput-input,
 .auth-login .mantine-PasswordInput-input {
   color: var(--fg) !important;
@@ -288,10 +225,9 @@ html, body, #root { background: var(--bg); color: var(--fg); }
 
 /* Make placeholders visible on dark themes */
 .auth-login .mantine-TextInput-input::placeholder,
-.auth-login .mantine-PasswordInput-input::placeholder { 
+.auth-login .mantine-PasswordInput-input::placeholder {
   color: color-mix(in oklab, var(--fg) 72%, transparent) !important;
 }
-/* vendor aliases for older engines just in case */
 .auth-login .mantine-TextInput-input::-webkit-input-placeholder,
 .auth-login .mantine-PasswordInput-input::-webkit-input-placeholder {
   color: color-mix(in oklab, var(--fg) 72%, transparent) !important;
@@ -301,28 +237,14 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   color: color-mix(in oklab, var(--fg) 72%, transparent) !important;
 }
 
-/* Links inside the form — mint by design */
-.auth-login .mantine-Anchor-root {
-  color: var(--accent) !important;
-  text-decoration: none;
-}
-.auth-login .mantine-Anchor-root:hover { text-decoration: underline; }
-
-/* ===== Auth page readability fixes ===== */
-.auth-page { color: var(--fg); }
-
-/* Labels & body copy */
+/* Auth page readability */
 .auth-page .mantine-InputWrapper-label,
 .auth-page .mantine-Text-root,
 .auth-page .mantine-Title-root,
 .auth-page .mantine-List-itemLabel,
 .auth-page .mantine-Alert-message,
-.auth-page .mantine-Divider-label {
-  color: var(--fg) !important;
-  opacity: 1 !important;
-}
+.auth-page .mantine-Divider-label { color: var(--fg) !important; opacity: 1 !important; }
 
-/* Placeholders on dark */
 .auth-page .mantine-TextInput-input::placeholder,
 .auth-page .mantine-PasswordInput-input::placeholder,
 .auth-page input::placeholder,
@@ -331,18 +253,6 @@ html, body, #root { background: var(--bg); color: var(--fg); }
   opacity: 1 !important;
 }
 
-/* Links */
-.auth-page .mantine-Anchor-root {
-  color: var(--accent) !important;
-}
-
-/* ThemeIcon legibility (we’re already giving it the CTA gradient bg inline) */
-.auth-page .mantine-ThemeIcon-root {
-  color: var(--cta-label) !important;
-}
-
-/* Divider text */
-.auth-page .mantine-Divider-label {
-  color: var(--fg) !important;
-  opacity: .85 !important;
-}
+.auth-page .mantine-Anchor-root { color: var(--accent) !important; }
+.auth-page .mantine-ThemeIcon-root { color: var(--cta-label) !important; }
+.auth-page .mantine-Divider-label { color: var(--fg) !important; opacity: .85 !important; }

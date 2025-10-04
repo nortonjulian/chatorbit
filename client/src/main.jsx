@@ -23,7 +23,7 @@ import { CallProvider } from './context/CallContext';
 import ErrorBoundary from './ErrorBoundary';
 import App from './App.jsx';
 import { chatforiaTheme } from './theme.js';
-import { primeCsrf } from './api/axiosClient';
+import axiosClient, { primeCsrf } from './api/axiosClient';
 
 // a11y + perf helpers
 import SkipToContent from './components/SkipToContent.jsx';
@@ -39,8 +39,21 @@ import {
   isDarkTheme,
 } from './utils/themeManager';
 
-// Apply stored/default theme on boot (defaults to "midnight")
+// Apply stored/default theme on boot (defaults to "dawn" now)
 applyTheme();
+
+// Best-effort: if user is already authenticated, pull their server-stored theme
+(async () => {
+  try {
+    await primeCsrf();
+    const { data: me } = await axiosClient.get('/users/me');
+    if (me?.theme && me.theme !== getTheme()) {
+      setTheme(me.theme); // updates <html data-theme> and Mantine scheme via onThemeChange
+    }
+  } catch {
+    // not logged in or endpoint unavailable — ignore
+  }
+})();
 
 const isProd = import.meta.env.PROD;
 
@@ -115,11 +128,6 @@ function Root() {
   // Mantine wants 'light' | 'dark'; map custom themes with isDarkTheme
   const [scheme, setScheme] = React.useState(isDarkTheme(getTheme()) ? 'dark' : 'light');
 
-  // Prime CSRF cookie/header once at app startup
-  React.useEffect(() => {
-    primeCsrf();
-  }, []);
-
   // Keep Mantine scheme in sync with our theme manager
   React.useEffect(() => {
     const unsub = onThemeChange((t) => setScheme(isDarkTheme(t) ? 'dark' : 'light'));
@@ -150,8 +158,8 @@ function Root() {
                   <App
                     themeScheme={scheme}
                     onToggleTheme={() => {
-                      // Flip specifically between Light <-> Midnight (flagship dark)
-                      const next = scheme === 'light' ? 'midnight' : 'light';
+                      // Flip specifically between Dawn (light) <-> Midnight (flagship dark)
+                      const next = scheme === 'light' ? 'midnight' : 'dawn';
                       setTheme(next);
                     }}
                   />

@@ -1,14 +1,20 @@
 export const THEME_CATALOG = {
-  free:    ['light', 'dark'],
-  premium: ['amoled', 'neon', 'sunset', 'midnight', 'solarized'],
+  // Free choices
+  free: ['dawn', 'midnight'],
+
+  // Premium palette
+  premium: ['amoled', 'aurora', 'neon', 'sunset', 'solarized', 'velvet'],
 };
+
 export const ALL_THEMES = [...THEME_CATALOG.free, ...THEME_CATALOG.premium];
+
 export const THEME_LABELS = {
-  light: 'Light',
-  dark: 'Dark',
+  dawn: 'Dawn (Default)',
+  midnight: 'Midnight',
   amoled: 'AMOLED',
+  aurora: 'Aurora',
   neon: 'Neon',
   sunset: 'Sunset',
-  midnight: 'Midnight',
   solarized: 'Solarized',
+  velvet: 'Velvet',
 };

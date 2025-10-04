@@ -134,7 +134,7 @@ model User {
   role                        String      @default("USER")
   enableAIResponder           Boolean     @default(false)
   enableSmartReplies          Boolean     @default(false)
-  theme                       String      @default("light")
+  theme                       String      @default("dawn")
   cycling  Boolean @default(false)
   strictE2EE                  Boolean     @default(false)
   uploads                     Upload[]    @relation("UserUploads")

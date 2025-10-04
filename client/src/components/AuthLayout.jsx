@@ -15,30 +15,35 @@ import {
   Divider,
 } from '@mantine/core';
 import { Lock, Globe, MessageCircle, ShieldCheck } from 'lucide-react';
+import LogoC from '@/components/Logo';
 
-// Smart links (update to your live URLs when ready)
+// Smart links
 const APP_GENERIC = 'https://go.chatforia.com/app';
 const APP_IOS     = 'https://go.chatforia.com/ios';
 const APP_ANDROID = 'https://go.chatforia.com/android';
 
 /* ---------- BRAND LOCKUP ---------- */
-// IMPORTANT: no hard width/height on <img>; CSS uses --logo-size.
 function LogoLockup({ size = 64, titleOrder = 4, className }) {
   return (
     <Group
       gap="xs"
-      align="center"
+      align="baseline"
       wrap="nowrap"
-      className={`brand-lockup ${className || ''}`}
+      className={`brand-lockup brand-lockup--baseline ${className || ''}`}
       style={{ '--logo-size': `${size}px` }}
     >
-      <img
-        src="/brand/violet-blue.png"         // or /brand/chameleon.png
-        alt="Chatforia logo"
+      <LogoC
         className="brand-lockup__logo"
+        size={size}
+        stroke={Math.max(10, Math.round(size / 6))}// slightly thicker
+        rotateDeg={0}                     // opening to the RIGHT
       />
-      <Title order={titleOrder} className="brand-lockup__name" style={{ margin: 0 }}>
-        Chatforia
+      <Title
+        order={titleOrder}
+        className="brand-lockup__name brand-lockup__name--solid"
+        style={{ margin: 0 }}
+      >
+        hatforia
       </Title>
     </Group>
   );
@@ -77,6 +82,10 @@ function GetAppCard() {
               h={QR_SIZE}
               w={QR_SIZE}
               radius="md"
+              onError={(e) => {
+                e.currentTarget.src =
+                  `https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=${encodeURIComponent(APP_GENERIC)}`;
+              }}
             />
           </Anchor>
           <Text size="sm" style={{ color: 'var(--fg)', opacity: 0.85 }} maw={240}>
@@ -126,21 +135,15 @@ function GetAppCard() {
 
 /* ---------- Layout ---------- */
 export default function AuthLayout() {
-  // Removed the second theme system (THEME_KEY + applyTheme + listeners).
-  // The app-wide themeManager + MantineProvider already set scheme/tokens.
-
   return (
     <div className="auth-page">
       <Container size="lg" py="xl">
-        {/* Mobile brand bar */}
         <MobileTopBar />
-
         <Grid gutter="xl" align="start">
           {/* Left: Brand + Marketing */}
           <Grid.Col span={{ base: 12, md: 6, lg: 7 }} visibleFrom="md">
             <Stack gap="md" maw={620}>
-              {/* BIG hero lockup */}
-              <LogoLockup className="bp-wordmark auth-hero-lockup" size={90} titleOrder={2} />
+              <LogoLockup className="auth-hero-lockup" size={90} titleOrder={2} />
 
               <Title
                 order={1}
@@ -156,21 +159,16 @@ export default function AuthLayout() {
                 <span className="text-blue-purple">instant translation</span>
               </Title>
 
-              {/* Body paragraph — no "dimmed" */}
               <Text size="lg" style={{ color: 'var(--fg)', opacity: 0.9, maxWidth: 560 }}>
                 End-to-end encryption, AI-powered translation, disappearing
                 messages, and voice/video calling.
               </Text>
 
-              {/* Bullets — force readable label color */}
               <List spacing="sm" size="sm" center className="auth-list">
                 <List.Item
                   icon={
-                    <ThemeIcon
-                      variant="filled"
-                      radius="xl"
-                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
-                    >
+                    <ThemeIcon variant="filled" radius="xl"
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}>
                       <Lock size={16} />
                     </ThemeIcon>
                   }
@@ -179,11 +177,8 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon
-                      variant="filled"
-                      radius="xl"
-                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
-                    >
+                    <ThemeIcon variant="filled" radius="xl"
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}>
                       <Globe size={16} />
                     </ThemeIcon>
                   }
@@ -192,11 +187,8 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon
-                      variant="filled"
-                      radius="xl"
-                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
-                    >
+                    <ThemeIcon variant="filled" radius="xl"
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}>
                       <MessageCircle size={16} />
                     </ThemeIcon>
                   }
@@ -205,11 +197,8 @@ export default function AuthLayout() {
                 </List.Item>
                 <List.Item
                   icon={
-                    <ThemeIcon
-                      variant="filled"
-                      radius="xl"
-                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}
-                    >
+                    <ThemeIcon variant="filled" radius="xl"
+                      style={{ background: 'var(--cta-gradient)', color: 'var(--cta-label)' }}>
                       <ShieldCheck size={16} />
                     </ThemeIcon>
                   }
@@ -232,8 +221,7 @@ export default function AuthLayout() {
 
               <Paper p="sm" withBorder radius="md">
                 <Text size="xs" style={{ color: 'var(--fg)', opacity: 0.85 }}>
-                  Tip: Use the same account on web and mobile. Your messages stay
-                  synced.
+                  Tip: Use the same account on web and mobile. Your messages stay synced.
                 </Text>
               </Paper>
             </Stack>

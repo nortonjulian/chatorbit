@@ -14,6 +14,16 @@ import { signDownloadToken } from '../utils/downloadTokens.js';
 
 const router = express.Router();
 
+/* ---------------------- THEME ALLOW-LIST (server) ---------------------- */
+// Keep this server-side so clients can’t spoof new keys.
+const FREE_THEMES = ['dawn', 'midnight'];
+const PREMIUM_THEMES = ['amoled', 'aurora', 'neon', 'sunset', 'solarized', 'velvet'];
+const ALL_THEMES = new Set([...FREE_THEMES, ...PREMIUM_THEMES]);
+
+function isPremiumTheme(t) {
+  return PREMIUM_THEMES.includes(t);
+}
+
 /* ---------------------- PUBLIC: create user ---------------------- */
 router.post('/', async (req, res) => {
   const { username, email, password } = req.body;
@@ -94,25 +104,82 @@ router.get('/search', requireAuth, async (req, res) => {
 /* ---------------------- UPDATE (self or admin) ---------------------- */
 router.patch('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
-  const {
-    preferredLanguage,
-    allowExplicitContent,
-    showOriginalWithTranslation,
-  } = req.body;
-
   const currentUser = req.user;
+
   if (Number(id) !== currentUser.id && currentUser.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
+  const {
+    // language/translation
+    preferredLanguage,
+    showOriginalWithTranslation,   // backend field name
+    showOriginalAndTranslation,    // frontend alias
+
+    // messaging prefs
+    allowExplicitContent,
+    enableReadReceipts,            // maps to showReadReceipts
+    autoDeleteSeconds,
+    privacyBlurEnabled,
+    privacyBlurOnUnfocus,
+    privacyHoldToReveal,
+    notifyOnCopy,
+
+    // theme
+    theme,
+    cycling,
+  } = req.body ?? {};
+
+  const data = {};
+
+  if (typeof preferredLanguage === 'string' && preferredLanguage.trim()) {
+    data.preferredLanguage = preferredLanguage.trim().slice(0, 16);
+  }
+
+  if (typeof allowExplicitContent === 'boolean') data.allowExplicitContent = allowExplicitContent;
+
+  // accept either key from UI, persist as showOriginalWithTranslation
+  if (typeof showOriginalWithTranslation === 'boolean') {
+    data.showOriginalWithTranslation = showOriginalWithTranslation;
+  }
+  if (typeof showOriginalAndTranslation === 'boolean') {
+    data.showOriginalWithTranslation = showOriginalAndTranslation;
+  }
+
+  if (typeof enableReadReceipts === 'boolean') data.showReadReceipts = enableReadReceipts;
+
+  if (Number.isInteger(autoDeleteSeconds)) data.autoDeleteSeconds = autoDeleteSeconds;
+
+  if (typeof privacyBlurEnabled === 'boolean') data.privacyBlurEnabled = privacyBlurEnabled;
+  if (typeof privacyBlurOnUnfocus === 'boolean') data.privacyBlurOnUnfocus = privacyBlurOnUnfocus;
+  if (typeof privacyHoldToReveal === 'boolean') data.privacyHoldToReveal = privacyHoldToReveal;
+  if (typeof notifyOnCopy === 'boolean') data.notifyOnCopy = notifyOnCopy;
+
+  // Theme (validate + plan gate against target user's plan)
+  if (typeof theme === 'string') {
+    const t = theme.trim();
+    if (!ALL_THEMES.has(t)) {
+      return res.status(400).json({ error: 'Invalid theme' });
+    }
+    if (isPremiumTheme(t)) {
+      const target = await prisma.user.findUnique({
+        where: { id: Number(id) },
+        select: { plan: true },
+      });
+      const isPremium = target?.plan && target.plan !== 'FREE';
+      if (!isPremium) {
+        return res.status(402).json({ error: 'Premium theme requires an upgraded plan' });
+      }
+    }
+    data.theme = t;
+  }
+
+  if (typeof cycling === 'boolean') data.cycling = cycling;
+
   try {
     const updatedUser = await prisma.user.update({
       where: { id: Number(id) },
-      data: {
-        preferredLanguage,
-        allowExplicitContent: allowExplicitContent ?? true,
-        showOriginalWithTranslation: showOriginalWithTranslation ?? true,
-      },
+      data,
     });
     res.json(updatedUser);
   } catch (error) {
@@ -122,11 +189,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 /* ---------------------- AVATAR UPLOAD (Option B) ---------------------- */
-/**
- * Uses prebuilt `uploadAvatar` from middleware.
- * Field name: 'file'
- * Works with memory or disk target. If memory, we persist to avatars dir ourselves.
- */
 router.post(
   '/me/avatar',
   requireAuth,
@@ -235,16 +297,21 @@ router.get('/me', requireAuth, async (req, res) => {
         role: true,
         plan: true,
 
+        // theme prefs
+        theme: true,
+        cycling: true,
+
         // prefs & toggles used by UI
         enableSmartReplies: true,
         showReadReceipts: true,
         allowExplicitContent: true,
         privacyBlurEnabled: true,
+        privacyBlurOnUnfocus: true,
         privacyHoldToReveal: true,
         notifyOnCopy: true,
         strictE2EE: true,
 
-        // NEW: age prefs for Random Chat
+        // age prefs for Random Chat
         ageBand: true,
         ageAttestedAt: true,
         wantsAgeFilter: true,
@@ -267,6 +334,7 @@ router.patch('/me', requireAuth, async (req, res) => {
       showReadReceipts,
       allowExplicitContent,
       privacyBlurEnabled,
+      privacyBlurOnUnfocus,
       privacyHoldToReveal,
       notifyOnCopy,
       preferredLanguage,
@@ -278,6 +346,10 @@ router.patch('/me', requireAuth, async (req, res) => {
       ageBand,
       wantsAgeFilter,
       randomChatAllowedBands,
+
+      // theme prefs
+      theme,
+      cycling,
     } = req.body ?? {};
 
     const data = {};
@@ -287,17 +359,38 @@ router.patch('/me', requireAuth, async (req, res) => {
     if (typeof showReadReceipts === 'boolean') data.showReadReceipts = showReadReceipts;
     if (typeof allowExplicitContent === 'boolean') data.allowExplicitContent = allowExplicitContent;
     if (typeof privacyBlurEnabled === 'boolean') data.privacyBlurEnabled = privacyBlurEnabled;
+    if (typeof privacyBlurOnUnfocus === 'boolean') data.privacyBlurOnUnfocus = privacyBlurOnUnfocus;
     if (typeof privacyHoldToReveal === 'boolean') data.privacyHoldToReveal = privacyHoldToReveal;
     if (typeof notifyOnCopy === 'boolean') data.notifyOnCopy = notifyOnCopy;
     if (typeof preferredLanguage === 'string' && preferredLanguage.trim()) {
       data.preferredLanguage = preferredLanguage.trim().slice(0, 16);
     }
-    // NEW: strict E2EE toggle
-    if (typeof strictE2EE === 'boolean') {
-      data.strictE2EE = strictE2EE;
+    if (typeof strictE2EE === 'boolean') data.strictE2EE = strictE2EE;
+
+    // theme prefs (validate + plan gate for current user)
+    if (typeof theme === 'string') {
+      const t = theme.trim();
+      if (!ALL_THEMES.has(t)) {
+        return res.status(400).json({ error: 'Invalid theme' });
+      }
+      if (isPremiumTheme(t)) {
+        const me = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { plan: true },
+        });
+        const isPremium = me?.plan && me.plan !== 'FREE';
+        if (!isPremium) {
+          return res.status(402).json({ error: 'Premium theme requires an upgraded plan' });
+        }
+      }
+      data.theme = t;
     }
 
-    // NEW: ageBand + filter prefs (safety rules)
+    if (typeof cycling === 'boolean') {
+      data.cycling = cycling;
+    }
+
+    // age prefs (safety rules)
     const AGE_VALUES = ['TEEN_13_17','ADULT_18_24','ADULT_25_34','ADULT_35_49','ADULT_50_PLUS'];
 
     if (typeof ageBand === 'string' && AGE_VALUES.includes(ageBand)) {
@@ -309,7 +402,6 @@ router.patch('/me', requireAuth, async (req, res) => {
       data.wantsAgeFilter = wantsAgeFilter;
     }
 
-    // randomChatAllowedBands must be valid strings; adults cannot include teens; teens forced to teen-only
     if (Array.isArray(randomChatAllowedBands)) {
       const cleaned = randomChatAllowedBands
         .map(String)
@@ -343,10 +435,15 @@ router.patch('/me', requireAuth, async (req, res) => {
         showReadReceipts: true,
         allowExplicitContent: true,
         privacyBlurEnabled: true,
+        privacyBlurOnUnfocus: true,
         privacyHoldToReveal: true,
         notifyOnCopy: true,
         preferredLanguage: true,
         strictE2EE: true,
+
+        // theme prefs
+        theme: true,
+        cycling: true,
 
         // return the age prefs too
         ageBand: true,
